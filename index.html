@@ -196,8 +196,8 @@
             const roadMesh = new THREE.Mesh(roadGeometry, roadMaterial);
             roadGroup.add(roadMesh);
             
-            // 白線（実線）を作成
-            createRoadLine(detailedPathPoints, 0.05, 0xFFFFFF);
+            // 白線（実線）を作成 - 削除
+            // createRoadLine(detailedPathPoints, 0.05, 0xFFFFFF);
             
             // 縁石を作成（コーナー部分）
             createCurbstones();

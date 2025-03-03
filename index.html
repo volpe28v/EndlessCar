@@ -52,31 +52,48 @@
         scene.add(directionalLight);
         
         // 草原の床を作成
-        const floorSize = 300;
+        const floorSize = 600; // 床のサイズを大きくする
         const floorGeometry = new THREE.PlaneGeometry(floorSize, floorSize);
         const floorMaterial = new THREE.MeshLambertMaterial({ color: 0x7CFC00, side: THREE.DoubleSide });
         const floor = new THREE.Mesh(floorGeometry, floorMaterial);
         floor.rotation.x = -Math.PI / 2;
         scene.add(floor);
         
-        // 鈴鹿風サーキットのコース定義
+        // 鈴鹿風サーキットのコース定義（約2倍の長さに拡張）（高さ情報を追加）
         const trackPoints = [
-            [0, 0],      // スタート/ゴール地点
-            [20, 0],     // 1コーナー手前
-            [40, 20],    // 1コーナー
-            [50, 40],    // 2コーナー手前
-            [40, 60],    // 2コーナー
-            [20, 65],    // Sカーブ始点
-            [10, 70],    // Sカーブ中間
-            [0, 80],     // Sカーブ終点
-            [-20, 85],   // ダンロップカーブ
-            [-40, 75],   // デグナー入口
-            [-60, 60],   // デグナー中間
-            [-80, 30],   // デグナー出口
-            [-70, 10],   // 最終コーナー手前
-            [-50, 0],    // 最終コーナー
-            [-25, -5],   // 最終直線始点
-            [0, 0]       // スタート/ゴールに戻る
+            [0, 0, 0],       // スタート/ゴール地点
+            [40, 0, 0],      // 1コーナー手前（距離拡張）
+            [80, 5, 40],     // 1コーナー（距離拡張）- 少し上り
+            [100, 10, 80],   // 2コーナー手前（距離拡張）- 上り
+            [80, 15, 120],   // 2コーナー（距離拡張）- 山頂部分
+            
+            // 新しいセクション1 - ストレート区間（下り坂）
+            [60, 12, 150],   // ストレート始点 - 下り始め
+            [30, 8, 170],    // 緩やかなカーブ - 下り
+            
+            // Sカーブセクション（拡張）（谷底部分）
+            [0, 5, 180],     // Sカーブ始点（距離拡張）- 谷底
+            [-30, 5, 190],   // Sカーブ中間（距離拡張）- 平坦部分
+            [-60, 8, 180],   // Sカーブ終点（距離拡張）- 上り始め
+            
+            // 新しいセクション2 - ヘアピンカーブ（山岳路）
+            [-80, 15, 160],  // ヘアピン入口 - 急上り
+            [-90, 25, 130],  // ヘアピン頂点 - 最高地点
+            [-80, 20, 100],  // ヘアピン出口 - 下り始め
+            
+            // デグナーカーブセクション（拡張）（下り区間）
+            [-70, 15, 70],   // デグナー入口（距離拡張）- 下り続き
+            [-90, 10, 40],   // デグナー中間（距離拡張）- さらに下り
+            [-120, 5, 0],    // デグナー出口（距離拡張）- 谷底に
+            
+            // 新しいセクション3 - スプーンカーブ（平坦区間）
+            [-100, 5, -40],  // スプーン入口 - 平坦
+            [-70, 5, -60],   // スプーン中間 - 平坦
+            [-40, 3, -50],   // スプーン出口 - わずかに上り
+            
+            // 最終コーナーとストレート（拡張）（最終上り）
+            [-20, 1, -30],   // 最終コーナー手前（距離拡張）- わずかな上り
+            [0, 0, 0]        // スタート/ゴールに戻る - 平坦に
         ];
         
         // 道路を作成
@@ -88,7 +105,8 @@
         // 3Dパスポイントに変換
         const carPathPoints = [];
         for (let i = 0; i < trackPoints.length; i++) {
-            carPathPoints.push(new THREE.Vector3(trackPoints[i][0], 0.3, trackPoints[i][1]));
+            // 高さ情報（Y軸）を考慮したポイントを作成
+            carPathPoints.push(new THREE.Vector3(trackPoints[i][0], trackPoints[i][1] + 0.3, trackPoints[i][2]));
         }
         
         // カトマル・ロムスプラインで滑らかな曲線を作成
@@ -108,17 +126,27 @@
                 const point = detailedPathPoints[i];
                 const nextPoint = detailedPathPoints[(i + 1) % detailedPathPoints.length];
                 
-                // 進行方向に対して垂直なベクトルを計算（左方向）
+                // 進行方向ベクトルを計算
                 const direction = new THREE.Vector3().subVectors(nextPoint, point).normalize();
-                const normal = new THREE.Vector3(-direction.z, 0, direction.x).normalize();
                 
-                // 道路の左右のエッジを計算
-                const leftEdge = new THREE.Vector3().addVectors(point, normal.clone().multiplyScalar(roadWidth / 2));
-                const rightEdge = new THREE.Vector3().addVectors(point, normal.clone().multiplyScalar(-roadWidth / 2));
+                // 上向きベクトル（法線）を計算
+                // 高さの変化を考慮した法線ベクトルを計算する（地形に沿った道路）
+                const up = new THREE.Vector3(0, 1, 0);
                 
-                // 高さを少し上げる（床の上に浮かせる）
-                leftEdge.y = 0.05;
-                rightEdge.y = 0.05;
+                // 右向きベクトル（進行方向と上向きの外積）
+                const right = new THREE.Vector3().crossVectors(direction, up).normalize();
+                
+                // 修正した上向きベクトル（進行方向と右向きの外積）
+                const correctedUp = new THREE.Vector3().crossVectors(right, direction).normalize();
+                
+                // 道路の左右のエッジを計算（修正した法線ベクトルを使用）
+                const leftEdge = new THREE.Vector3().addVectors(point, right.clone().multiplyScalar(roadWidth / 2));
+                const rightEdge = new THREE.Vector3().addVectors(point, right.clone().multiplyScalar(-roadWidth / 2));
+                
+                // 高さを維持（道路面の高さは既にdetailedPathPointsに含まれる）
+                // 道路を少し浮かせる（0.05）
+                leftEdge.y += 0.05;
+                rightEdge.y += 0.05;
                 
                 leftEdgePoints.push(leftEdge);
                 rightEdgePoints.push(rightEdge);
@@ -430,10 +458,10 @@
         log("車の作成完了");
         
         // カメラモード（0: 俯瞰, 1: 追従, 2: 車載）
-        let cameraMode = 1;
+        let cameraMode = 1; // デフォルトを追従モードに設定
         
-        // カメラ位置の初期設定
-        camera.position.set(0, 50, 0);
+        // カメラ位置の初期設定（追従視点向け）
+        camera.position.set(0, 10, -20); // 車の後ろから少し上にカメラを配置
         camera.lookAt(car.position);
         
         // 車の位置パラメータ
@@ -541,18 +569,40 @@
             // XZ平面上の接線ベクトル（高さを無視）
             const flatTangent = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
             
+            // 次のポイントと前のポイントを取得して傾斜を計算（上り下りの計算用）
+            const nextPos = (carPosition + 0.01) % 1;
+            const prevPos = (carPosition - 0.01 + 1) % 1;
+            const nextPoint = carPath.getPointAt(nextPos);
+            const prevPoint = carPath.getPointAt(prevPos);
+            
+            // 前後方向の傾斜角を計算（Y軸方向の変化から）
+            const forwardSlope = Math.atan2(nextPoint.y - point.y, 
+                Math.sqrt(Math.pow(nextPoint.x - point.x, 2) + Math.pow(nextPoint.z - point.z, 2)));
+            
+            // サンプリング範囲を拡大して、より正確な傾斜を取得
+            // 少し広い範囲で前後の傾斜を計算してより安定させる
+            const farNextPos = (carPosition + 0.02) % 1;
+            const farPrevPos = (carPosition - 0.02 + 1) % 1;
+            const farNextPoint = carPath.getPointAt(farNextPos);
+            const farPrevPoint = carPath.getPointAt(farPrevPos);
+            
+            // 広い範囲での前後方向の傾斜角を計算（急な坂での対応向上）
+            const farForwardSlope = Math.atan2(farNextPoint.y - farPrevPoint.y, 
+                Math.sqrt(Math.pow(farNextPoint.x - farPrevPoint.x, 2) + Math.pow(farNextPoint.z - farPrevPoint.z, 2)));
+            
+            // 近距離と遠距離の傾斜を組み合わせて、より安定した傾斜値を得る
+            const combinedSlope = (forwardSlope * 0.7 + farForwardSlope * 0.3);
+            
             // 曲率を計算
             const curvatureData = calculateCurvature(carPosition);
             const curveAngle = curvatureData.angle;
             const curveTiltDirection = curvatureData.direction;
             
-            // 基本の高さとカーブに応じた高さ調整
-            const defaultHeight = 1.7; // 基本の高さをさらに上げる
-            const heightAdjustment = curveAngle * 3.0; // 曲率に応じた高さ調整（抑え目に）
-            const dynamicHeight = defaultHeight + heightAdjustment;
+            // 車の高さは道路の高さに合わせる
+            const carHeight = point.y + 0.3; // 道路の高さに対して少しオフセット
             
             // 車の位置を道路の中央線上に固定し、適切な高さに調整
-            car.position.set(point.x, dynamicHeight, point.z);
+            car.position.set(point.x, carHeight, point.z);
             
             // ---------- 回転計算の完全な書き直し ----------
             
@@ -581,12 +631,17 @@
             // 7. 回転を直接適用（スムージングなし - 安定性優先）
             car.quaternion.copy(targetRotation);
             
-            // 8. カーブに応じた微小な横傾斜（Z軸回転）
+            // 8. 上り下りの傾斜を反映（進行方向に合わせてピッチ角を適用）
+            // combinedSlopeを使って車を傾ける（値を調整して傾きを強調）
+            // マイナス符号を除去して傾斜の適用を正しく修正
+            car.rotateX(combinedSlope * 1.5);
+            
+            // 9. カーブに応じた微小な横傾斜（Z軸回転）
             // 非常に小さな値に制限し、回転行列に影響を与えないようにする
             const maxTilt = 0.005; // 約0.3度に制限
             const tiltFactor = Math.min(maxTilt, curveAngle * carSpeed * 0.02);
             
-            // 9. 横傾斜を別途適用（既存の回転に小さな修正として追加）
+            // 横傾斜を別途適用（既存の回転に小さな修正として追加）
             car.rotateZ(-tiltFactor * curveTiltDirection);
             
             // タイヤの回転と位置調整
@@ -627,21 +682,24 @@
         function updateCamera() {
             switch (cameraMode) {
                 case 0: // 俯瞰
-                    camera.position.set(0, 120, 0);
+                    camera.position.set(0, 200, 0); // より高い位置からの俯瞰視点（コース拡大と高低差に対応）
                     camera.lookAt(car.position);
                     break;
                     
                 case 1: // 追従
-                    // 車の後ろから少し上の位置
-                    const followOffset = new THREE.Vector3(0, 8, -15);
-                    // 車の向きに合わせてオフセットを回転（スムーズ化）
+                    // 車の後ろから少し上の位置（Z軸を正に変更して車の後ろに）
+                    const followOffset = new THREE.Vector3(0, 12, 25); // 高さを少し上げる（起伏に対応）
+                    // 車の向きに合わせてオフセットを回転
                     const rotatedOffset = followOffset.clone().applyQuaternion(car.quaternion);
                     
                     // カメラ位置をスムーズに更新
                     const targetCameraPos = new THREE.Vector3().addVectors(car.position, rotatedOffset);
                     camera.position.lerp(targetCameraPos, 0.1); // スムージング
                     
-                    camera.lookAt(car.position);
+                    // カメラの注視点を車の位置に設定（少し前に）
+                    const lookAheadOffset = new THREE.Vector3(0, -2, -20).applyQuaternion(car.quaternion);
+                    const lookAtPoint = new THREE.Vector3().addVectors(car.position, lookAheadOffset);
+                    camera.lookAt(lookAtPoint);
                     break;
                     
                 case 2: // 車載

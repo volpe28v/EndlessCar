@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>エンドレスカー - 鈴鹿風サーキット</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Helvetica', sans-serif;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+</head>
+<body>
+    <div id="info">エンドレスカー - 鈴鹿風サーキット</div>
+    <script>
+        // デバッグ用のログ
+        function log(message) {
+            console.log(`[${new Date().toISOString()}] ${message}`);
+        }
+        
+        log("スクリプト開始");
+        
+        // 基本設定
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x87CEEB); // 空の色
+        document.body.appendChild(renderer.domElement);
+        
+        log("Three.jsの基本設定完了");
+
+        // 光源
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        directionalLight.position.set(1, 1, 1).normalize();
+        scene.add(directionalLight);
+        
+        // 草原の床を作成
+        const floorSize = 300;
+        const floorGeometry = new THREE.PlaneGeometry(floorSize, floorSize);
+        const floorMaterial = new THREE.MeshLambertMaterial({ color: 0x7CFC00, side: THREE.DoubleSide });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        scene.add(floor);
+        
+        // 鈴鹿風サーキットのコース定義
+        const trackPoints = [
+            [0, 0],      // スタート/ゴール地点
+            [20, 0],     // 1コーナー手前
+            [40, 20],    // 1コーナー
+            [50, 40],    // 2コーナー手前
+            [40, 60],    // 2コーナー
+            [20, 65],    // Sカーブ始点
+            [10, 70],    // Sカーブ中間
+            [0, 80],     // Sカーブ終点
+            [-20, 85],   // ダンロップカーブ
+            [-40, 75],   // デグナー入口
+            [-60, 60],   // デグナー中間
+            [-80, 30],   // デグナー出口
+            [-70, 10],   // 最終コーナー手前
+            [-50, 0],    // 最終コーナー
+            [-25, -5],   // 最終直線始点
+            [0, 0]       // スタート/ゴールに戻る
+        ];
+        
+        // 道路を作成
+        const roadGroup = new THREE.Group();
+        scene.add(roadGroup);
+        
+        const roadWidth = 12; // 道路の幅
+        
+        // 3Dパスポイントに変換
+        const carPathPoints = [];
+        for (let i = 0; i < trackPoints.length; i++) {
+            carPathPoints.push(new THREE.Vector3(trackPoints[i][0], 0.3, trackPoints[i][1]));
+        }
+        
+        // カトマル・ロムスプラインで滑らかな曲線を作成
+        const carPath = new THREE.CatmullRomCurve3(carPathPoints);
+        carPath.closed = true;
+        
+        // パスの詳細なポイントを取得（道路生成用）
+        const detailedPathPoints = carPath.getPoints(500);
+        
+        // アスファルト部分を作成
+        function createRoadSurface() {
+            // 道路の左右のエッジを計算
+            const leftEdgePoints = [];
+            const rightEdgePoints = [];
+            
+            for (let i = 0; i < detailedPathPoints.length; i++) {
+                const point = detailedPathPoints[i];
+                const nextPoint = detailedPathPoints[(i + 1) % detailedPathPoints.length];
+                
+                // 進行方向に対して垂直なベクトルを計算（左方向）
+                const direction = new THREE.Vector3().subVectors(nextPoint, point).normalize();
+                const normal = new THREE.Vector3(-direction.z, 0, direction.x).normalize();
+                
+                // 道路の左右のエッジを計算
+                const leftEdge = new THREE.Vector3().addVectors(point, normal.clone().multiplyScalar(roadWidth / 2));
+                const rightEdge = new THREE.Vector3().addVectors(point, normal.clone().multiplyScalar(-roadWidth / 2));
+                
+                // 高さを少し上げる（床の上に浮かせる）
+                leftEdge.y = 0.05;
+                rightEdge.y = 0.05;
+                
+                leftEdgePoints.push(leftEdge);
+                rightEdgePoints.push(rightEdge);
+            }
+            
+            // 道路の表面を三角形メッシュで作成
+            const roadGeometry = new THREE.BufferGeometry();
+            const vertices = [];
+            const indices = [];
+            
+            // すべてのポイントを頂点配列に追加
+            for (let i = 0; i < leftEdgePoints.length; i++) {
+                vertices.push(leftEdgePoints[i].x, leftEdgePoints[i].y, leftEdgePoints[i].z);
+                vertices.push(rightEdgePoints[i].x, rightEdgePoints[i].y, rightEdgePoints[i].z);
+            }
+            
+            // 三角形インデックスを作成
+            for (let i = 0; i < leftEdgePoints.length - 1; i++) {
+                const v0 = i * 2;
+                const v1 = v0 + 1;
+                const v2 = v0 + 2;
+                const v3 = v0 + 3;
+                
+                // 2つの三角形で四角形を作成
+                indices.push(v0, v1, v2);
+                indices.push(v2, v1, v3);
+            }
+            
+            // 最後の部分を閉じる
+            const v0 = (leftEdgePoints.length - 1) * 2;
+            const v1 = v0 + 1;
+            const v2 = 0;
+            const v3 = 1;
+            
+            indices.push(v0, v1, v2);
+            indices.push(v2, v1, v3);
+            
+            roadGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            roadGeometry.setIndex(indices);
+            roadGeometry.computeVertexNormals();
+            
+            const roadMaterial = new THREE.MeshLambertMaterial({
+                color: 0x333333,
+                side: THREE.DoubleSide
+            });
+            
+            const roadMesh = new THREE.Mesh(roadGeometry, roadMaterial);
+            roadGroup.add(roadMesh);
+            
+            // 白線（実線）を作成
+            createRoadLine(detailedPathPoints, 0.05, 0xFFFFFF);
+            
+            // 縁石（コーナー部分に設置）
+            createCurbstones();
+            
+            return roadMesh;
+        }
+        
+        // 道路の白線を作成
+        function createRoadLine(pathPoints, lineWidth, color) {
+            const lineGeometry = new THREE.BufferGeometry().setFromPoints(pathPoints);
+            const lineMaterial = new THREE.LineBasicMaterial({ color: color, linewidth: lineWidth });
+            const line = new THREE.Line(lineGeometry, lineMaterial);
+            line.position.y = 0.1; // 道路の上に浮かせる
+            roadGroup.add(line);
+            
+            return line;
+        }
+        
+        // 縁石を作成（コーナー部分）
+        function createCurbstones() {
+            // コーナーの位置（パスの割合）
+            const cornerPositions = [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.85];
+            
+            for (let i = 0; i < cornerPositions.length; i++) {
+                const t = cornerPositions[i];
+                const cornerLength = 0.05; // コーナーの長さ（パスの割合）
+                
+                for (let j = 0; j < 10; j++) {
+                    const segmentT = t + (j * cornerLength / 10);
+                    const point = carPath.getPointAt(segmentT);
+                    const tangent = carPath.getTangentAt(segmentT);
+                    
+                    // 垂直方向ベクトル（外側方向）
+                    const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+                    
+                    // 縁石の位置（道路の外側）
+                    const curbPosition = new THREE.Vector3().addVectors(
+                        point,
+                        normal.clone().multiplyScalar(roadWidth / 2)
+                    );
+                    
+                    // 赤白の縁石（交互）
+                    const color = j % 2 === 0 ? 0xff0000 : 0xffffff;
+                    
+                    const curbGeometry = new THREE.BoxGeometry(1, 0.3, 1);
+                    const curbMaterial = new THREE.MeshLambertMaterial({ color: color });
+                    const curb = new THREE.Mesh(curbGeometry, curbMaterial);
+                    
+                    curb.position.copy(curbPosition);
+                    curb.position.y = 0.15; // 少し浮かせる
+                    
+                    // 道路に沿って回転
+                    const lookAtPos = new THREE.Vector3().addVectors(
+                        curbPosition,
+                        tangent
+                    );
+                    curb.lookAt(lookAtPos);
+                    
+                    roadGroup.add(curb);
+                }
+            }
+        }
+        
+        // 道路の可視化
+        createRoadSurface();
+        
+        log("道路の作成完了");
+        
+        // 木を追加
+        function createTree(x, z) {
+            const tree = new THREE.Group();
+            
+            // 幹
+            const trunkGeometry = new THREE.CylinderGeometry(0.5, 0.8, 5, 8);
+            const trunkMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+            const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+            trunk.position.y = 2.5;
+            tree.add(trunk);
+            
+            // 葉
+            const leavesGeometry = new THREE.ConeGeometry(3, 6, 8);
+            const leavesMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 });
+            const leaves = new THREE.Mesh(leavesGeometry, leavesMaterial);
+            leaves.position.y = 8;
+            tree.add(leaves);
+            
+            tree.position.set(x, 0, z);
+            scene.add(tree);
+            
+            return tree;
+        }
+        
+        // コースの周りにランダムに木を配置
+        for (let i = 0; i < 150; i++) {
+            // ランダムな位置（ただしコースから最低距離を保つ）
+            const x = (Math.random() - 0.5) * 250;
+            const z = (Math.random() - 0.5) * 250;
+            
+            // コースからの最短距離を確認
+            let tooClose = false;
+            for (let j = 0; j < detailedPathPoints.length; j += 10) {
+                const point = detailedPathPoints[j];
+                const distance = Math.sqrt((x - point.x) ** 2 + (z - point.z) ** 2);
+                if (distance < roadWidth + 10) {
+                    tooClose = true;
+                    break;
+                }
+            }
+            
+            if (!tooClose) {
+                createTree(x, z);
+            }
+        }
+        
+        // 観客席（コーナーの外側）
+        function createGrandstand(position, tangent, size) {
+            const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+            
+            // 観客席の位置（コーナーの外側）
+            const standPosition = new THREE.Vector3().addVectors(
+                position,
+                normal.clone().multiplyScalar(roadWidth + 10)
+            );
+            
+            // 観客席の作成
+            const standGeometry = new THREE.BoxGeometry(size, 5, size);
+            const standMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
+            const stand = new THREE.Mesh(standGeometry, standMaterial);
+            
+            stand.position.copy(standPosition);
+            stand.position.y = 2.5; // 高さ
+            
+            // 道路と平行に配置
+            const lookAtPos = new THREE.Vector3().addVectors(
+                standPosition,
+                tangent
+            );
+            stand.lookAt(lookAtPos);
+            
+            scene.add(stand);
+            
+            return stand;
+        }
+        
+        // 主要コーナーに観客席を配置
+        const grandstandPositions = [0.15, 0.35, 0.55, 0.85];
+        for (let i = 0; i < grandstandPositions.length; i++) {
+            const t = grandstandPositions[i];
+            const position = carPath.getPointAt(t);
+            const tangent = carPath.getTangentAt(t);
+            
+            createGrandstand(position, tangent, 20);
+        }
+        
+        // 詳細な車のモデルを作成
+        function createDetailedCar() {
+            const car = new THREE.Group();
+            
+            // 車体（赤いスポーツカー風）
+            const carBodyGeometry = new THREE.BoxGeometry(2, 0.6, 4.5);
+            const carBodyMaterial = new THREE.MeshLambertMaterial({ color: 0xff0000 });
+            const carBody = new THREE.Mesh(carBodyGeometry, carBodyMaterial);
+            carBody.position.y = 0.6;
+            car.add(carBody);
+            
+            // フロントガラス
+            const windshieldGeometry = new THREE.BoxGeometry(1.8, 0.5, 1.2);
+            const windshieldMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            const windshield = new THREE.Mesh(windshieldGeometry, windshieldMaterial);
+            windshield.position.set(0, 1.1, -0.2);
+            car.add(windshield);
+            
+            // スポイラー
+            const spoilerGeometry = new THREE.BoxGeometry(1.5, 0.2, 0.5);
+            const spoilerMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            const spoiler = new THREE.Mesh(spoilerGeometry, spoilerMaterial);
+            spoiler.position.set(0, 0.9, 2.0);
+            car.add(spoiler);
+            
+            // スポイラーの支柱
+            const pillarGeometry = new THREE.BoxGeometry(0.1, 0.3, 0.1);
+            const pillarMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            
+            const pillarLeft = new THREE.Mesh(pillarGeometry, pillarMaterial);
+            pillarLeft.position.set(0.5, 0.75, 2.0);
+            car.add(pillarLeft);
+            
+            const pillarRight = new THREE.Mesh(pillarGeometry, pillarMaterial);
+            pillarRight.position.set(-0.5, 0.75, 2.0);
+            car.add(pillarRight);
+            
+            // タイヤを作成する関数
+            function createWheel(x, z) {
+                const wheelGroup = new THREE.Group();
+                
+                // タイヤ本体
+                const wheelGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.3, 16);
+                const wheelMaterial = new THREE.MeshLambertMaterial({ color: 0x111111 });
+                const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+                wheel.rotation.z = Math.PI / 2;
+                wheelGroup.add(wheel);
+                
+                // ホイール部分
+                const hubGeometry = new THREE.CylinderGeometry(0.25, 0.25, 0.31, 8);
+                const hubMaterial = new THREE.MeshLambertMaterial({ color: 0xCCCCCC });
+                const hub = new THREE.Mesh(hubGeometry, hubMaterial);
+                hub.rotation.z = Math.PI / 2;
+                wheelGroup.add(hub);
+                
+                wheelGroup.position.set(x, 0.5, z);
+                car.add(wheelGroup);
+                
+                return { wheel, wheelGroup };
+            }
+            
+            // 4つのタイヤを作成
+            const frontLeftWheel = createWheel(-1, -1.5);
+            const frontRightWheel = createWheel(1, -1.5);
+            const rearLeftWheel = createWheel(-1, 1.5);
+            const rearRightWheel = createWheel(1, 1.5);
+            
+            const wheels = [
+                frontLeftWheel.wheel,
+                frontRightWheel.wheel,
+                rearLeftWheel.wheel,
+                rearRightWheel.wheel
+            ];
+            
+            const wheelGroups = [
+                frontLeftWheel.wheelGroup,
+                frontRightWheel.wheelGroup,
+                rearLeftWheel.wheelGroup,
+                rearRightWheel.wheelGroup
+            ];
+            
+            // 車の向きベクトル（常に上方向）
+            const upVector = new THREE.Vector3(0, 1, 0);
+            
+            // 車の初期位置（スタート地点）
+            car.position.copy(carPath.getPointAt(0));
+            car.position.y = 1.0; // 地面からの高さをさらに上げる
+            
+            // 車の初期方向
+            const initialTangent = carPath.getTangentAt(0);
+            const initialDirection = new THREE.Vector3(initialTangent.x, 0, initialTangent.z).normalize();
+            
+            // 車の向きを設定（Y軸は常に上）
+            const initialTarget = new THREE.Vector3().addVectors(car.position, initialDirection);
+            car.lookAt(initialTarget);
+            
+            scene.add(car);
+            
+            return { car, wheels, wheelGroups, upVector };
+        }
+        
+        const { car, wheels, wheelGroups, upVector } = createDetailedCar();
+        
+        log("車の作成完了");
+        
+        // カメラモード（0: 俯瞰, 1: 追従, 2: 車載）
+        let cameraMode = 1;
+        
+        // カメラ位置の初期設定
+        camera.position.set(0, 50, 0);
+        camera.lookAt(car.position);
+        
+        // 車の位置パラメータ
+        let carPosition = 0; // パス上の位置（0から1）
+        let carSpeed = 0.3;  // 車の速度
+        
+        // 前回の位置と回転を保存（スムージング用）
+        let lastCarPosition = new THREE.Vector3();
+        let lastCarRotation = new THREE.Quaternion();
+        let lastCarUp = new THREE.Vector3(0, 1, 0);
+        // 前回の傾き角度を保存（滑らかな変化のため）
+        let lastTiltAngle = 0;
+        
+        // 初期位置設定
+        lastCarPosition.copy(car.position);
+        lastCarRotation.copy(car.quaternion);
+        
+        // カメラ切り替え
+        window.addEventListener('keydown', (e) => {
+            if (e.key === '1' || e.key === '１') {
+                cameraMode = 0; // 俯瞰
+                log("カメラモード: 俯瞰");
+            } else if (e.key === '2' || e.key === '２') {
+                cameraMode = 1; // 追従
+                log("カメラモード: 追従");
+            } else if (e.key === '3' || e.key === '３') {
+                cameraMode = 2; // 車載
+                log("カメラモード: 車載");
+            }
+        });
+        
+        // 情報表示を更新
+        function updateInfo() {
+            const info = document.getElementById('info');
+            const cameraModeText = ['俯瞰', '追従', '車載'][cameraMode];
+            info.innerHTML = `エンドレスカー - 鈴鹿風サーキット<br>
+            速度: ${carSpeed.toFixed(2)}<br>
+            カメラ: ${cameraModeText}<br>
+            「1,2,3」キーでカメラ切替`;
+        }
+        
+        // 多点サンプリングで曲率を計算（より安定した値を得るため）
+        function calculateCurvature(t, samplePoints = 15, sampleDistance = 0.005) {
+            const angles = [];
+            
+            // 複数のサンプル点で角度を計算し平均を取る
+            for (let i = 0; i < samplePoints - 1; i++) {
+                const currentPos = (t + i * sampleDistance) % 1;
+                const nextPos = (currentPos + sampleDistance) % 1;
+                const nextNextPos = (nextPos + sampleDistance) % 1;
+                
+                const point = carPath.getPointAt(currentPos);
+                const nextPoint = carPath.getPointAt(nextPos);
+                const nextNextPoint = carPath.getPointAt(nextNextPos);
+                
+                const v1 = new THREE.Vector2(nextPoint.x - point.x, nextPoint.z - point.z).normalize();
+                const v2 = new THREE.Vector2(nextNextPoint.x - nextPoint.x, nextNextPoint.z - nextPoint.z).normalize();
+                
+                // 2つのベクトル間の角度
+                const angle = Math.acos(Math.min(1, Math.max(-1, v1.dot(v2))));
+                angles.push(angle);
+            }
+            
+            // 角度の平均値を計算
+            const avgAngle = angles.reduce((sum, angle) => sum + angle, 0) / angles.length;
+            
+            // 曲がる方向の判定（中央のサンプルポイントで判定）
+            const middleIndex = Math.floor(samplePoints / 2);
+            const currentPos = (t + middleIndex * sampleDistance) % 1;
+            const nextPos = (currentPos + sampleDistance) % 1;
+            const nextNextPos = (nextPos + sampleDistance) % 1;
+            
+            const pointStart = carPath.getPointAt(currentPos);
+            const pointNext = carPath.getPointAt(nextPos);
+            const pointNextNext = carPath.getPointAt(nextNextPos);
+            
+            const vec1 = new THREE.Vector2(pointNext.x - pointStart.x, pointNext.z - pointStart.z).normalize();
+            const vec2 = new THREE.Vector2(pointNextNext.x - pointNext.x, pointNextNext.z - pointNext.z).normalize();
+            
+            // 曲がり方向を判定（外積）
+            const crossProduct = vec1.x * vec2.y - vec1.y * vec2.x;
+            const tiltDirection = Math.sign(crossProduct);
+            
+            return { angle: avgAngle, direction: tiltDirection };
+        }
+        
+        // 前フレームと現在フレームの値を補間する関数
+        function smoothValue(current, last, factor) {
+            return last * (1 - factor) + current * factor;
+        }
+        
+        // アニメーションループ
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // 車の位置を更新
+            carPosition += carSpeed * 0.001;
+            if (carPosition >= 1) carPosition -= 1;
+            
+            // 道路上の位置を厳密に取得
+            const point = carPath.getPointAt(carPosition);
+            
+            // パスの接線ベクトルを取得（進行方向）
+            const tangent = carPath.getTangentAt(carPosition).normalize();
+            // XZ平面上の接線ベクトル（高さを無視）
+            const flatTangent = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
+            
+            // 曲率を計算
+            const curvatureData = calculateCurvature(carPosition);
+            const curveAngle = curvatureData.angle;
+            const curveTiltDirection = curvatureData.direction;
+            
+            // 基本の高さとカーブに応じた高さ調整
+            const defaultHeight = 1.7; // 基本の高さをさらに上げる
+            const heightAdjustment = curveAngle * 3.0; // 曲率に応じた高さ調整（抑え目に）
+            const dynamicHeight = defaultHeight + heightAdjustment;
+            
+            // 車の位置を道路の中央線上に固定し、適切な高さに調整
+            car.position.set(point.x, dynamicHeight, point.z);
+            
+            // ---------- 回転計算の完全な書き直し ----------
+            
+            // 1. 進行方向ベクトル（常にXZ平面に平行）
+            const forwardVector = flatTangent;
+            
+            // 2. 上向きベクトル（常に世界座標のY軸方向）
+            const upVector = new THREE.Vector3(0, 1, 0);
+            
+            // 3. 右向きベクトル（進行方向と上向きの外積）
+            const rightVector = new THREE.Vector3().crossVectors(forwardVector, upVector).normalize();
+            
+            // 4. 最終的な上向きベクトル（右向きと進行方向の外積で再計算、厳密に直交させる）
+            const correctedUpVector = new THREE.Vector3().crossVectors(rightVector, forwardVector).normalize();
+            
+            // 5. 回転行列を作成（3つの直交ベクトルから）
+            const rotationMatrix = new THREE.Matrix4().makeBasis(
+                rightVector,
+                correctedUpVector,
+                forwardVector.clone().negate() // THREE.jsの車モデルはZ-方向が前方なので反転
+            );
+            
+            // 6. 回転行列からクォータニオンに変換
+            const targetRotation = new THREE.Quaternion().setFromRotationMatrix(rotationMatrix);
+            
+            // 7. 回転を直接適用（スムージングなし - 安定性優先）
+            car.quaternion.copy(targetRotation);
+            
+            // 8. カーブに応じた微小な横傾斜（Z軸回転）
+            // 非常に小さな値に制限し、回転行列に影響を与えないようにする
+            const maxTilt = 0.005; // 約0.3度に制限
+            const tiltFactor = Math.min(maxTilt, curveAngle * carSpeed * 0.02);
+            
+            // 9. 横傾斜を別途適用（既存の回転に小さな修正として追加）
+            car.rotateZ(-tiltFactor * curveTiltDirection);
+            
+            // タイヤの回転と位置調整
+            const wheelRotationSpeed = carSpeed * 0.2;
+            
+            // タイヤの高さを地面に合わせて調整
+            for (let i = 0; i < wheels.length; i++) {
+                // タイヤを回転
+                wheels[i].rotation.x += wheelRotationSpeed;
+                
+                // タイヤの位置を調整
+                const wheelGroup = wheelGroups[i];
+                const isLeftSide = (i % 2 === 0); // 左側のタイヤかどうか
+                
+                // タイヤの基本高さとオフセット
+                const wheelBaseHeight = 0.5;
+                
+                // 傾きによる高さのわずかな調整（ほぼなし）
+                const wheelTiltOffset = isLeftSide ? 
+                    -tiltFactor * curveTiltDirection * 0.2 : // 左側タイヤ（効果を0.2に削減）
+                    tiltFactor * curveTiltDirection * 0.2;   // 右側タイヤ（効果を0.2に削減）
+                
+                // タイヤの高さを設定
+                wheelGroup.position.y = wheelBaseHeight + wheelTiltOffset;
+            }
+            
+            // カメラの位置を更新
+            updateCamera();
+            
+            // 情報表示を更新
+            updateInfo();
+            
+            // 画面描画
+            renderer.render(scene, camera);
+        }
+        
+        // カメラの位置と向きを更新
+        function updateCamera() {
+            switch (cameraMode) {
+                case 0: // 俯瞰
+                    camera.position.set(0, 120, 0);
+                    camera.lookAt(car.position);
+                    break;
+                    
+                case 1: // 追従
+                    // 車の後ろから少し上の位置
+                    const followOffset = new THREE.Vector3(0, 8, -15);
+                    // 車の向きに合わせてオフセットを回転（スムーズ化）
+                    const rotatedOffset = followOffset.clone().applyQuaternion(car.quaternion);
+                    
+                    // カメラ位置をスムーズに更新
+                    const targetCameraPos = new THREE.Vector3().addVectors(car.position, rotatedOffset);
+                    camera.position.lerp(targetCameraPos, 0.1); // スムージング
+                    
+                    camera.lookAt(car.position);
+                    break;
+                    
+                case 2: // 車載
+                    // 車のフロントガラス位置
+                    const fpvOffset = new THREE.Vector3(0, 1.5, -0.5);
+                    fpvOffset.applyQuaternion(car.quaternion);
+                    camera.position.copy(car.position).add(fpvOffset);
+                    
+                    // 車の前方を見る
+                    const lookOffset = new THREE.Vector3(0, 1, 10);
+                    lookOffset.applyQuaternion(car.quaternion);
+                    camera.lookAt(car.position.clone().add(lookOffset));
+                    break;
+            }
+        }
+        
+        // リサイズ処理
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // アニメーションスタート
+        log("アニメーション開始");
+        animate();
+        
+        // 初期情報表示の更新
+        updateInfo();
+    </script>
+</body>
+</html> 

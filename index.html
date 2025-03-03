@@ -199,7 +199,7 @@
             // 白線（実線）を作成
             createRoadLine(detailedPathPoints, 0.05, 0xFFFFFF);
             
-            // 縁石（コーナー部分に設置）
+            // 縁石を作成（コーナー部分）
             createCurbstones();
             
             return roadMesh;
@@ -230,6 +230,12 @@
                     const point = carPath.getPointAt(segmentT);
                     const tangent = carPath.getTangentAt(segmentT);
                     
+                    // 次のポイントと前のポイントを取得して傾斜を計算
+                    const nextT = (segmentT + 0.005) % 1;
+                    const prevT = (segmentT - 0.005 + 1) % 1;
+                    const nextPoint = carPath.getPointAt(nextT);
+                    const prevPoint = carPath.getPointAt(prevT);
+                    
                     // 垂直方向ベクトル（外側方向）
                     const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
                     
@@ -239,6 +245,13 @@
                         normal.clone().multiplyScalar(roadWidth / 2)
                     );
                     
+                    // 前後方向の傾斜角を計算（Y軸方向の変化から）
+                    const slopeDistance = Math.sqrt(
+                        Math.pow(nextPoint.x - prevPoint.x, 2) + 
+                        Math.pow(nextPoint.z - prevPoint.z, 2)
+                    );
+                    const slope = Math.atan2(nextPoint.y - prevPoint.y, slopeDistance);
+                    
                     // 赤白の縁石（交互）
                     const color = j % 2 === 0 ? 0xff0000 : 0xffffff;
                     
@@ -246,23 +259,173 @@
                     const curbMaterial = new THREE.MeshLambertMaterial({ color: color });
                     const curb = new THREE.Mesh(curbGeometry, curbMaterial);
                     
+                    // 縁石の位置を道路の高さに合わせる
                     curb.position.copy(curbPosition);
-                    curb.position.y = 0.15; // 少し浮かせる
+                    curb.position.y = point.y + 0.1; // 道路面より少し浮かせる
                     
-                    // 道路に沿って回転
+                    // 進行方向を向くように回転
                     const lookAtPos = new THREE.Vector3().addVectors(
                         curbPosition,
                         tangent
                     );
                     curb.lookAt(lookAtPos);
                     
+                    // 上下の傾斜に合わせて追加の回転
+                    curb.rotateX(slope);
+                    
                     roadGroup.add(curb);
                 }
             }
         }
         
+        // ガードレールを作成（コース全体の外側）
+        function createGuardrails() {
+            // ガードレールの間隔（パスの割合）
+            const railSpacing = 0.005; // より密に配置
+            const postSpacing = 0.025; // 支柱の間隔
+            
+            // ガードレール用のグループを作成
+            const guardrailGroup = new THREE.Group();
+            roadGroup.add(guardrailGroup);
+            
+            // 連続したガードレールのセグメントを格納する配列
+            const railSegments = [];
+            const railPosts = [];
+            
+            // ガードレール用の頂点とインデックスを収集
+            const railVertices = [];
+            const railIndices = [];
+            const railUvs = [];
+            
+            let vertexIndex = 0;
+            let currentT = 0;
+            
+            // ガードレールの頂点データを生成
+            while (currentT < 1) {
+                const point = carPath.getPointAt(currentT);
+                const tangent = carPath.getTangentAt(currentT);
+                
+                // 次のポイントと前のポイントを取得して傾斜を計算
+                const nextT = (currentT + 0.005) % 1;
+                const prevT = (currentT - 0.005 + 1) % 1;
+                const nextPoint = carPath.getPointAt(nextT);
+                const prevPoint = carPath.getPointAt(prevT);
+                
+                // 垂直方向ベクトル（外側方向）
+                const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+                
+                // ガードレールの位置（道路の外側）
+                const railPosition = new THREE.Vector3().addVectors(
+                    point,
+                    normal.clone().multiplyScalar(roadWidth / 2 + 1.2)
+                );
+                
+                // 前後方向の傾斜角を計算
+                const slopeDistance = Math.sqrt(
+                    Math.pow(nextPoint.x - prevPoint.x, 2) + 
+                    Math.pow(nextPoint.z - prevPoint.z, 2)
+                );
+                const slope = Math.atan2(nextPoint.y - prevPoint.y, slopeDistance);
+                
+                // ガードレールの高さ調整
+                const railHeight = point.y + 0.8; // 道路面から少し高く
+                
+                // ガードレールの上部と下部の頂点を追加
+                const topRailPos = new THREE.Vector3(
+                    railPosition.x,
+                    railHeight + 0.4, // 上部の高さ
+                    railPosition.z
+                );
+                
+                const bottomRailPos = new THREE.Vector3(
+                    railPosition.x,
+                    railHeight, // 下部の高さ
+                    railPosition.z
+                );
+                
+                // 支柱を作成（一定間隔ごと）
+                if (Math.abs(currentT % postSpacing) < railSpacing) {
+                    const postGeometry = new THREE.CylinderGeometry(0.08, 0.08, 1.0, 6);
+                    const postMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
+                    const post = new THREE.Mesh(postGeometry, postMaterial);
+                    
+                    // 支柱の位置を設定
+                    post.position.copy(new THREE.Vector3(
+                        railPosition.x,
+                        point.y + 0.5, // 地面からの高さ
+                        railPosition.z
+                    ));
+                    
+                    // 支柱を少し内側に傾ける
+                    const postLookAt = new THREE.Vector3().addVectors(
+                        post.position,
+                        normal.clone().multiplyScalar(-0.1) // 内側に少し傾ける
+                    );
+                    post.lookAt(postLookAt);
+                    post.rotateX(Math.PI / 2); // 支柱の向きを修正
+                    
+                    // 上下の傾斜に合わせて追加の回転
+                    post.rotateZ(slope); // X軸ではなくZ軸で回転（支柱の向きが変わっているため）
+                    
+                    guardrailGroup.add(post);
+                    railPosts.push(post);
+                }
+                
+                // 頂点データを追加
+                railVertices.push(
+                    topRailPos.x, topRailPos.y, topRailPos.z,
+                    bottomRailPos.x, bottomRailPos.y, bottomRailPos.z
+                );
+                
+                // テクスチャ座標を追加
+                railUvs.push(
+                    currentT * 20, 0, // 上部のUV座標
+                    currentT * 20, 1  // 下部のUV座標
+                );
+                
+                // インデックスを追加（四角形を作成）
+                if (vertexIndex > 0) {
+                    // 各セグメント間を三角形で接続
+                    railIndices.push(
+                        vertexIndex * 2 - 2, vertexIndex * 2, vertexIndex * 2 - 1, // 最初の三角形
+                        vertexIndex * 2 - 1, vertexIndex * 2, vertexIndex * 2 + 1  // 二番目の三角形
+                    );
+                }
+                
+                vertexIndex++;
+                currentT += railSpacing;
+            }
+            
+            // 最後のセグメントを最初のセグメントと接続して閉じる
+            railIndices.push(
+                (vertexIndex - 1) * 2, 0, (vertexIndex - 1) * 2 + 1, // 最初の三角形
+                (vertexIndex - 1) * 2 + 1, 0, 1  // 二番目の三角形
+            );
+            
+            // ガードレールのジオメトリを作成
+            const railGeometry = new THREE.BufferGeometry();
+            railGeometry.setAttribute('position', new THREE.Float32BufferAttribute(railVertices, 3));
+            railGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(railUvs, 2));
+            railGeometry.setIndex(railIndices);
+            railGeometry.computeVertexNormals();
+            
+            // 高速道路のガードレールらしい素材
+            const railMaterial = new THREE.MeshLambertMaterial({
+                color: 0xE0E0E0,
+                side: THREE.DoubleSide,
+                flatShading: false
+            });
+            
+            // ガードレールメッシュを作成
+            const railMesh = new THREE.Mesh(railGeometry, railMaterial);
+            guardrailGroup.add(railMesh);
+        }
+        
         // 道路の可視化
         createRoadSurface();
+        
+        // ガードレールの作成
+        createGuardrails();
         
         log("道路の作成完了");
         
@@ -490,17 +653,20 @@
             } else if (e.key === '3' || e.key === '３') {
                 cameraMode = 2; // 車載
                 log("カメラモード: 車載");
+            } else if (e.key === '4' || e.key === '４') {
+                cameraMode = 3; // 斜め上視点
+                log("カメラモード: 斜め上視点");
             }
         });
         
         // 情報表示を更新
         function updateInfo() {
             const info = document.getElementById('info');
-            const cameraModeText = ['俯瞰', '追従', '車載'][cameraMode];
+            const cameraModeText = ['俯瞰', '追従', '車載', '斜め上視点'][cameraMode];
             info.innerHTML = `エンドレスカー - 鈴鹿風サーキット<br>
             速度: ${carSpeed.toFixed(2)}<br>
             カメラ: ${cameraModeText}<br>
-            「1,2,3」キーでカメラ切替`;
+            「1,2,3,4」キーでカメラ切替`;
         }
         
         // 多点サンプリングで曲率を計算（より安定した値を得るため）
@@ -709,9 +875,25 @@
                     camera.position.copy(car.position).add(fpvOffset);
                     
                     // 車の前方を見る
-                    const lookOffset = new THREE.Vector3(0, 1, 10);
+                    const lookOffset = new THREE.Vector3(0, 1, -10); // Z値を負に変更して前方を見るように修正
                     lookOffset.applyQuaternion(car.quaternion);
                     camera.lookAt(car.position.clone().add(lookOffset));
+                    break;
+                    
+                case 3: // 斜め上視点
+                    // 車の上と横から見る位置（車の傾きを強調して見せるため）
+                    const diagonalOffset = new THREE.Vector3(30, 20, 25); // 右上からかなり離れた位置に配置
+                    // 車の向きに合わせてオフセットを回転
+                    const rotatedDiagOffset = diagonalOffset.clone().applyQuaternion(car.quaternion);
+                    
+                    // カメラ位置をスムーズに更新
+                    const targetDiagCameraPos = new THREE.Vector3().addVectors(car.position, rotatedDiagOffset);
+                    camera.position.lerp(targetDiagCameraPos, 0.1); // スムージング
+                    
+                    // 車をしっかり見る（少し前を見るように設定）
+                    const diagLookOffset = new THREE.Vector3(0, -1, -5).applyQuaternion(car.quaternion);
+                    const diagLookAtPoint = new THREE.Vector3().addVectors(car.position, diagLookOffset);
+                    camera.lookAt(diagLookAtPoint);
                     break;
             }
         }

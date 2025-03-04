@@ -1638,10 +1638,20 @@
             }
             
             // スピードが速いほどアウトを大きく取る（高速コーナリングの挙動向上）
-            // const speedFactor = Math.min(1.0, carSpeed / 0.7); // 速度による追加調整 - 上で宣言済み
-            targetOffset *= (1.0 + speedFactor * 0.4); // 速度が最大の時に40%増しのオフセット
+            const speedFactorForOffset = speedFactor * 0.7; // 速度による追加オフセット（より強調）
+            targetOffset *= (1 + speedFactorForOffset);
             
-            // 目標オフセット値を設定
+            // 道路からはみ出さないようにオフセットを制限
+            // 車の幅を考慮した安全マージン（車の幅の半分+余裕）
+            window.carWidth = 2.5; // 車の幅の概算
+            window.safetyMargin = window.carWidth / 2 + 0.5; // 安全マージン
+            
+            // 道路の有効幅（道路の端からの安全マージンを引いた値）
+            window.effectiveRoadHalfWidth = (roadWidth / 2) - window.safetyMargin;
+            
+            // オフセットが道路の有効幅を超えないように制限
+            targetOffset = Math.max(-window.effectiveRoadHalfWidth, Math.min(window.effectiveRoadHalfWidth, targetOffset));
+            
             window.targetPathOffset = targetOffset;
             
             // 実際のオフセット値を算出（より滑らかな補間）
@@ -1661,8 +1671,47 @@
             const pathOffset = smootherValue(window.intermediateOffset, window.lastPathOffset, transitionSpeed, deltaTime);
             window.lastPathOffset = pathOffset;
             
+            // 道路の有効幅はすでに計算済み（window.effectiveRoadHalfWidthを使用）
+            
             // 接線方向に対して垂直なオフセットベクトルを計算
             const offsetVector = rightVector.clone().multiplyScalar(pathOffset);
+            
+            // 道路の端に近づいているかチェック
+            const edgeProximityThreshold = 0.8; // 道路端からの距離が安全マージンの何倍以下で警告するか
+            const edgeProximity = Math.abs(pathOffset) / window.effectiveRoadHalfWidth;
+            
+            // 初回実行時に既存の警告要素を削除（警告表示機能を無効化）
+            if (window.edgeWarningElement && !window.edgeWarningRemovalAttempted) {
+                if (window.edgeWarningElement.parentNode) {
+                    window.edgeWarningElement.parentNode.removeChild(window.edgeWarningElement);
+                }
+                window.edgeWarningElement = null;
+                window.edgeWarningRemovalAttempted = true;
+            }
+            
+            // 道路端に近づいている場合、自動補正と警告
+            if (edgeProximity > edgeProximityThreshold) {
+                // 道路端に近いほど強く中央方向への補正力を適用
+                const correctionFactor = Math.pow((edgeProximity - edgeProximityThreshold) / (1 - edgeProximityThreshold), 2) * 0.3;
+                const correctionDirection = pathOffset > 0 ? -1 : 1;
+                const correctionVector = rightVector.clone().multiplyScalar(correctionFactor * correctionDirection);
+                
+                // 補正ベクトルを追加
+                offsetVector.add(correctionVector);
+                
+                // 警告メッセージ表示部分を削除（ユーザーリクエストにより）
+            } else if (window.edgeWarningElement) {
+                // 既存の警告要素があれば非表示にして削除
+                window.edgeWarningElement.style.opacity = '0';
+                
+                // 一定時間後に要素を完全に削除
+                setTimeout(() => {
+                    if (window.edgeWarningElement && window.edgeWarningElement.parentNode) {
+                        window.edgeWarningElement.parentNode.removeChild(window.edgeWarningElement);
+                        window.edgeWarningElement = null;
+                    }
+                }, 500);
+            }
             
             // 車の基本位置を取得
             const basePosition = point.clone();
@@ -1734,6 +1783,72 @@
             // タイヤの回転と位置調整
             const wheelRotationSpeed = carSpeed * 0.3; // 回転速度係数を0.2から0.3に上げる
             
+            // フロントタイヤのステアリング角度計算
+            // 曲率が大きいほど、大きくステアリングする
+            // curvatureDataから曲率を取得、方向も考慮
+            const baseSteeringMultiplier = 3.5; // 基本ステアリング係数
+            
+            // コーナーの状態に応じてステアリング係数を調整（より自然な挙動）
+            let steeringMultiplier = baseSteeringMultiplier;
+            
+            // コーナー進入時はより積極的にステアリング、頂点では維持、出口では徐々に戻す
+            if (window.cornerState === 'entry') {
+                // コーナー進入時は早めに大きくステアリング
+                steeringMultiplier = baseSteeringMultiplier * 1.2;
+            } else if (window.cornerState === 'apex') {
+                // コーナー頂点では標準的なステアリング
+                steeringMultiplier = baseSteeringMultiplier;
+            } else if (window.cornerState === 'exit') {
+                // コーナー出口では徐々にステアリングを戻す
+                steeringMultiplier = baseSteeringMultiplier * 0.8;
+            }
+            
+            // スピードに応じた追加調整（高速時はより積極的にステアリング）
+            steeringMultiplier *= (1 + speedFactor * 0.3);
+            
+            // 最終的なステアリング角度を計算
+            // ステアリングの方向を修正
+            // THREE.jsの座標系とステアリングの方向を正しく対応させる
+            
+            // コーナーの状態と方向に基づいてステアリング角度を計算
+            let steeringAngle = 0;
+            const steeringCornerDirection = window.cornerState === 'exit' ? 
+                maxBehindDirection : (window.cornerState === 'entry' ? 
+                maxAheadDirection : stableCurveTiltDirection);
+            
+            // コーナー状態に応じたステアリング角度決定ロジック
+            if (window.cornerState === 'entry') {
+                // 進入時は先読みした曲率に基づいてステアリング
+                steeringAngle = -steeringCornerDirection * Math.abs(maxAheadAngle) * steeringMultiplier;
+            } else if (window.cornerState === 'apex') {
+                // 頂点では現在の曲率に基づいてステアリング
+                steeringAngle = -steeringCornerDirection * Math.abs(avgCurveAngle) * steeringMultiplier;
+            } else if (window.cornerState === 'exit') {
+                // 出口では後ろの曲率に基づいてステアリング（徐々に戻す）
+                steeringAngle = -steeringCornerDirection * Math.abs(maxBehindAngle) * steeringMultiplier;
+            } else {
+                // 直線ではわずかなステアリング（現在の曲率に基づく）
+                steeringAngle = -curveTiltDirection * Math.abs(curveAngle) * steeringMultiplier * 0.5;
+            }
+            
+            const maxSteeringAngle = Math.PI / 2.5; // 最大ステアリング角度
+            
+            // 直線走行時の微小なウォブリング効果（リアルさ向上）
+            let wobblingEffect = 0;
+            if (window.cornerState === 'straight') {
+                // 時間に基づいて微小な振動を生成
+                const wobbleFrequency = 2.0; // 揺れの頻度
+                const wobbleAmount = 0.03; // 揺れの大きさ
+                wobblingEffect = Math.sin(Date.now() / 200 * wobbleFrequency) * wobbleAmount;
+                
+                // 速度が速いほど揺れを小さく
+                wobblingEffect *= (1 - speedFactor * 0.7);
+            }
+            
+            // ウォブリング効果を追加した最終的なステアリング角度
+            const finalSteeringAngle = steeringAngle + wobblingEffect;
+            const clampedSteeringAngle = Math.max(-maxSteeringAngle, Math.min(maxSteeringAngle, finalSteeringAngle));
+            
             // タイヤの高さを地面に合わせて調整
             for (let i = 0; i < wheels.length; i++) {
                 // タイヤを回転
@@ -1742,6 +1857,13 @@
                 // タイヤの位置を調整
                 const wheelGroup = wheelGroups[i];
                 const isLeftSide = (i % 2 === 0); // 左側のタイヤかどうか
+                const isFrontWheel = (i < 2); // 前輪かどうか
+                
+                // 前輪の場合、ステアリング角度を適用
+                if (isFrontWheel) {
+                    // Y軸周りの回転でステアリング効果を実現
+                    wheelGroup.rotation.y = clampedSteeringAngle;
+                }
                 
                 // タイヤの基本高さとオフセット
                 const wheelBaseHeight = 0.5;

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>エンドレスカー - 鈴鹿風サーキット</title>
+    <title>エンドレスカー - ロンドン市街地コース</title>
     <style>
         body {
             margin: 0;
@@ -24,7 +24,7 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
 </head>
 <body>
-    <div id="info">エンドレスカー - 鈴鹿風サーキット</div>
+    <div id="info">エンドレスカー - ロンドン市街地コース</div>
     <script>
         // デバッグ用のログ
         function log(message) {
@@ -38,7 +38,7 @@
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setClearColor(0x87CEEB); // 空の色
+        renderer.setClearColor(0x646464); // 空の色を都会の曇り空に変更
         document.body.appendChild(renderer.domElement);
         
         log("Three.jsの基本設定完了");
@@ -51,10 +51,10 @@
         directionalLight.position.set(1, 1, 1).normalize();
         scene.add(directionalLight);
         
-        // 草原の床を作成
+        // 都市の地面を作成
         const floorSize = 600; // 床のサイズを大きくする
         const floorGeometry = new THREE.PlaneGeometry(floorSize, floorSize);
-        const floorMaterial = new THREE.MeshLambertMaterial({ color: 0x7CFC00, side: THREE.DoubleSide });
+        const floorMaterial = new THREE.MeshLambertMaterial({ color: 0x333333, side: THREE.DoubleSide }); // アスファルトの色に変更
         const floor = new THREE.Mesh(floorGeometry, floorMaterial);
         floor.rotation.x = -Math.PI / 2;
         scene.add(floor);
@@ -189,7 +189,7 @@
             roadGeometry.computeVertexNormals();
             
             const roadMaterial = new THREE.MeshLambertMaterial({
-                color: 0x333333,
+                color: 0x777777, // 0x333333から0x777777に変更して道路を薄く（明るく）する
                 side: THREE.DoubleSide
             });
             
@@ -288,137 +288,144 @@
             const guardrailGroup = new THREE.Group();
             roadGroup.add(guardrailGroup);
             
-            // 連続したガードレールのセグメントを格納する配列
-            const railSegments = [];
-            const railPosts = [];
+            // 道路の両側にガードレールを設置
+            createSideGuardrail(1); // 右側
+            createSideGuardrail(-1); // 左側
             
-            // ガードレール用の頂点とインデックスを収集
-            const railVertices = [];
-            const railIndices = [];
-            const railUvs = [];
-            
-            let vertexIndex = 0;
-            let currentT = 0;
-            
-            // ガードレールの頂点データを生成
-            while (currentT < 1) {
-                const point = carPath.getPointAt(currentT);
-                const tangent = carPath.getTangentAt(currentT);
+            // 特定の側（右側または左側）にガードレールを作成する関数
+            function createSideGuardrail(side) {
+                // 連続したガードレールのセグメントを格納する配列
+                const railSegments = [];
+                const railPosts = [];
                 
-                // 次のポイントと前のポイントを取得して傾斜を計算
-                const nextT = (currentT + 0.005) % 1;
-                const prevT = (currentT - 0.005 + 1) % 1;
-                const nextPoint = carPath.getPointAt(nextT);
-                const prevPoint = carPath.getPointAt(prevT);
+                // ガードレール用の頂点とインデックスを収集
+                const railVertices = [];
+                const railIndices = [];
+                const railUvs = [];
                 
-                // 垂直方向ベクトル（外側方向）
-                const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+                let vertexIndex = 0;
+                let currentT = 0;
                 
-                // ガードレールの位置（道路の外側）
-                const railPosition = new THREE.Vector3().addVectors(
-                    point,
-                    normal.clone().multiplyScalar(roadWidth / 2 + 1.2)
-                );
-                
-                // 前後方向の傾斜角を計算
-                const slopeDistance = Math.sqrt(
-                    Math.pow(nextPoint.x - prevPoint.x, 2) + 
-                    Math.pow(nextPoint.z - prevPoint.z, 2)
-                );
-                const slope = Math.atan2(nextPoint.y - prevPoint.y, slopeDistance);
-                
-                // ガードレールの高さ調整
-                const railHeight = point.y + 0.8; // 道路面から少し高く
-                
-                // ガードレールの上部と下部の頂点を追加
-                const topRailPos = new THREE.Vector3(
-                    railPosition.x,
-                    railHeight + 0.4, // 上部の高さ
-                    railPosition.z
-                );
-                
-                const bottomRailPos = new THREE.Vector3(
-                    railPosition.x,
-                    railHeight, // 下部の高さ
-                    railPosition.z
-                );
-                
-                // 支柱を作成（一定間隔ごと）
-                if (Math.abs(currentT % postSpacing) < railSpacing) {
-                    const postGeometry = new THREE.CylinderGeometry(0.08, 0.08, 1.0, 6);
-                    const postMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
-                    const post = new THREE.Mesh(postGeometry, postMaterial);
+                // ガードレールの頂点データを生成
+                while (currentT < 1) {
+                    const point = carPath.getPointAt(currentT);
+                    const tangent = carPath.getTangentAt(currentT);
                     
-                    // 支柱の位置を設定
-                    post.position.copy(new THREE.Vector3(
+                    // 次のポイントと前のポイントを取得して傾斜を計算
+                    const nextT = (currentT + 0.005) % 1;
+                    const prevT = (currentT - 0.005 + 1) % 1;
+                    const nextPoint = carPath.getPointAt(nextT);
+                    const prevPoint = carPath.getPointAt(prevT);
+                    
+                    // 垂直方向ベクトル（外側方向）
+                    const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+                    
+                    // ガードレールの位置（道路の外側、side=1で右側、side=-1で左側）
+                    const railPosition = new THREE.Vector3().addVectors(
+                        point,
+                        normal.clone().multiplyScalar(side * (roadWidth / 2 + 1.2))
+                    );
+                    
+                    // 前後方向の傾斜角を計算
+                    const slopeDistance = Math.sqrt(
+                        Math.pow(nextPoint.x - prevPoint.x, 2) + 
+                        Math.pow(nextPoint.z - prevPoint.z, 2)
+                    );
+                    const slope = Math.atan2(nextPoint.y - prevPoint.y, slopeDistance);
+                    
+                    // ガードレールの高さ調整
+                    const railHeight = point.y + 0.8; // 道路面から少し高く
+                    
+                    // ガードレールの上部と下部の頂点を追加
+                    const topRailPos = new THREE.Vector3(
                         railPosition.x,
-                        point.y + 0.5, // 地面からの高さ
+                        railHeight + 0.4, // 上部の高さ
                         railPosition.z
-                    ));
-                    
-                    // 支柱を少し内側に傾ける
-                    const postLookAt = new THREE.Vector3().addVectors(
-                        post.position,
-                        normal.clone().multiplyScalar(-0.1) // 内側に少し傾ける
                     );
-                    post.lookAt(postLookAt);
-                    post.rotateX(Math.PI / 2); // 支柱の向きを修正
                     
-                    // 上下の傾斜に合わせて追加の回転
-                    post.rotateZ(slope); // X軸ではなくZ軸で回転（支柱の向きが変わっているため）
+                    const bottomRailPos = new THREE.Vector3(
+                        railPosition.x,
+                        railHeight, // 下部の高さ
+                        railPosition.z
+                    );
                     
-                    guardrailGroup.add(post);
-                    railPosts.push(post);
+                    // 支柱を作成（一定間隔ごと）
+                    if (Math.abs(currentT % postSpacing) < railSpacing) {
+                        const postGeometry = new THREE.CylinderGeometry(0.08, 0.08, 1.0, 6);
+                        const postMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
+                        const post = new THREE.Mesh(postGeometry, postMaterial);
+                        
+                        // 支柱の位置を設定
+                        post.position.copy(new THREE.Vector3(
+                            railPosition.x,
+                            point.y + 0.5, // 地面からの高さ
+                            railPosition.z
+                        ));
+                        
+                        // 支柱を少し内側に傾ける
+                        const postLookAt = new THREE.Vector3().addVectors(
+                            post.position,
+                            normal.clone().multiplyScalar(-0.1 * side) // 内側に少し傾ける
+                        );
+                        post.lookAt(postLookAt);
+                        post.rotateX(Math.PI / 2); // 支柱の向きを修正
+                        
+                        // 上下の傾斜に合わせて追加の回転
+                        post.rotateZ(slope); // X軸ではなくZ軸で回転（支柱の向きが変わっているため）
+                        
+                        guardrailGroup.add(post);
+                        railPosts.push(post);
+                    }
+                    
+                    // 頂点データを追加
+                    railVertices.push(
+                        topRailPos.x, topRailPos.y, topRailPos.z,
+                        bottomRailPos.x, bottomRailPos.y, bottomRailPos.z
+                    );
+                    
+                    // テクスチャ座標を追加
+                    railUvs.push(
+                        currentT * 20, 0, // 上部のUV座標
+                        currentT * 20, 1  // 下部のUV座標
+                    );
+                    
+                    // インデックスを追加（四角形を作成）
+                    if (vertexIndex > 0) {
+                        // 各セグメント間を三角形で接続
+                        railIndices.push(
+                            vertexIndex * 2 - 2, vertexIndex * 2, vertexIndex * 2 - 1, // 最初の三角形
+                            vertexIndex * 2 - 1, vertexIndex * 2, vertexIndex * 2 + 1  // 二番目の三角形
+                        );
+                    }
+                    
+                    vertexIndex++;
+                    currentT += railSpacing;
                 }
                 
-                // 頂点データを追加
-                railVertices.push(
-                    topRailPos.x, topRailPos.y, topRailPos.z,
-                    bottomRailPos.x, bottomRailPos.y, bottomRailPos.z
+                // 最後のセグメントを最初のセグメントと接続して閉じる
+                railIndices.push(
+                    (vertexIndex - 1) * 2, 0, (vertexIndex - 1) * 2 + 1, // 最初の三角形
+                    (vertexIndex - 1) * 2 + 1, 0, 1  // 二番目の三角形
                 );
                 
-                // テクスチャ座標を追加
-                railUvs.push(
-                    currentT * 20, 0, // 上部のUV座標
-                    currentT * 20, 1  // 下部のUV座標
-                );
+                // ガードレールのジオメトリを作成
+                const railGeometry = new THREE.BufferGeometry();
+                railGeometry.setAttribute('position', new THREE.Float32BufferAttribute(railVertices, 3));
+                railGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(railUvs, 2));
+                railGeometry.setIndex(railIndices);
+                railGeometry.computeVertexNormals();
                 
-                // インデックスを追加（四角形を作成）
-                if (vertexIndex > 0) {
-                    // 各セグメント間を三角形で接続
-                    railIndices.push(
-                        vertexIndex * 2 - 2, vertexIndex * 2, vertexIndex * 2 - 1, // 最初の三角形
-                        vertexIndex * 2 - 1, vertexIndex * 2, vertexIndex * 2 + 1  // 二番目の三角形
-                    );
-                }
+                // 高速道路のガードレールらしい素材
+                const railMaterial = new THREE.MeshLambertMaterial({
+                    color: 0xE0E0E0,
+                    side: THREE.DoubleSide,
+                    flatShading: false
+                });
                 
-                vertexIndex++;
-                currentT += railSpacing;
+                // ガードレールメッシュを作成
+                const railMesh = new THREE.Mesh(railGeometry, railMaterial);
+                guardrailGroup.add(railMesh);
             }
-            
-            // 最後のセグメントを最初のセグメントと接続して閉じる
-            railIndices.push(
-                (vertexIndex - 1) * 2, 0, (vertexIndex - 1) * 2 + 1, // 最初の三角形
-                (vertexIndex - 1) * 2 + 1, 0, 1  // 二番目の三角形
-            );
-            
-            // ガードレールのジオメトリを作成
-            const railGeometry = new THREE.BufferGeometry();
-            railGeometry.setAttribute('position', new THREE.Float32BufferAttribute(railVertices, 3));
-            railGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(railUvs, 2));
-            railGeometry.setIndex(railIndices);
-            railGeometry.computeVertexNormals();
-            
-            // 高速道路のガードレールらしい素材
-            const railMaterial = new THREE.MeshLambertMaterial({
-                color: 0xE0E0E0,
-                side: THREE.DoubleSide,
-                flatShading: false
-            });
-            
-            // ガードレールメッシュを作成
-            const railMesh = new THREE.Mesh(railGeometry, railMaterial);
-            guardrailGroup.add(railMesh);
         }
         
         // 道路の可視化
@@ -429,91 +436,343 @@
         
         log("道路の作成完了");
         
-        // 木を追加
-        function createTree(x, z) {
-            const tree = new THREE.Group();
+        // ロンドン風の建物を追加
+        function createLondonBuilding(x, z, type = Math.floor(Math.random() * 5)) {
+            const building = new THREE.Group();
             
-            // 幹
-            const trunkGeometry = new THREE.CylinderGeometry(0.5, 0.8, 5, 8);
-            const trunkMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
-            const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-            trunk.position.y = 2.5;
-            tree.add(trunk);
+            // 建物の種類によって異なる形状と色を設定
+            let width, depth, height, color;
             
-            // 葉
-            const leavesGeometry = new THREE.ConeGeometry(3, 6, 8);
-            const leavesMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 });
-            const leaves = new THREE.Mesh(leavesGeometry, leavesMaterial);
-            leaves.position.y = 8;
-            tree.add(leaves);
-            
-            tree.position.set(x, 0, z);
-            scene.add(tree);
-            
-            return tree;
-        }
-        
-        // コースの周りにランダムに木を配置
-        for (let i = 0; i < 150; i++) {
-            // ランダムな位置（ただしコースから最低距離を保つ）
-            const x = (Math.random() - 0.5) * 250;
-            const z = (Math.random() - 0.5) * 250;
-            
-            // コースからの最短距離を確認
-            let tooClose = false;
-            for (let j = 0; j < detailedPathPoints.length; j += 10) {
-                const point = detailedPathPoints[j];
-                const distance = Math.sqrt((x - point.x) ** 2 + (z - point.z) ** 2);
-                if (distance < roadWidth + 10) {
-                    tooClose = true;
+            switch(type) {
+                case 0: // ヴィクトリア様式の建物（レンガ色）
+                    width = 10 + Math.random() * 5;
+                    depth = 10 + Math.random() * 5;
+                    height = 12 + Math.random() * 10;
+                    color = 0xA0522D; // レンガ色
                     break;
+                case 1: // モダンな高層ビル（青いガラス）
+                    width = 8 + Math.random() * 8;
+                    depth = 8 + Math.random() * 8;
+                    height = 25 + Math.random() * 20;
+                    color = 0x87CEEB; // 水色（ガラス）
+                    break;
+                case 2: // 歴史的な中層建築（石灰岩風）
+                    width = 12 + Math.random() * 6;
+                    depth = 12 + Math.random() * 6;
+                    height = 15 + Math.random() * 8;
+                    color = 0xDCDCDC; // 明るい灰色
+                    break;
+                case 3: // ロンドンの伝統的なテラスハウス
+                    width = 15 + Math.random() * 10;
+                    depth = 8 + Math.random() * 3;
+                    height = 10 + Math.random() * 5;
+                    color = 0xF5F5DC; // ベージュ
+                    break;
+                case 4: // ロンドンの代表的な建物
+                    if (Math.random() > 0.7) {
+                        // ビッグベン風の塔
+                        width = 8;
+                        depth = 8;
+                        height = 40;
+                        color = 0xDEB887; // 砂色
+                        
+                        // 本体
+                        const tower = new THREE.Mesh(
+                            new THREE.BoxGeometry(width, height, depth),
+                            new THREE.MeshLambertMaterial({ color: color })
+                        );
+                        tower.position.y = height / 2;
+                        building.add(tower);
+                        
+                        // 時計部分
+                        const clockSize = width * 1.2;
+                        const clockHeight = 6;
+                        const clockTower = new THREE.Mesh(
+                            new THREE.BoxGeometry(clockSize, clockHeight, clockSize),
+                            new THREE.MeshLambertMaterial({ color: 0xFFFFFF })
+                        );
+                        clockTower.position.y = height - clockHeight / 2;
+                        building.add(clockTower);
+                        
+                        // 尖塔
+                        const spireHeight = 10;
+                        const spire = new THREE.Mesh(
+                            new THREE.ConeGeometry(width / 4, spireHeight, 4),
+                            new THREE.MeshLambertMaterial({ color: 0x333333 })
+                        );
+                        spire.position.y = height + spireHeight / 2;
+                        building.add(spire);
+                        
+                        building.position.set(x, 0, z);
+                        scene.add(building);
+                        return building;
+                    } else {
+                        // タワーブリッジ風の塔（2つの塔とその間の道）
+                        width = 10;
+                        depth = 10;
+                        height = 30;
+                        color = 0xD2B48C; // タン色
+                        
+                        // 左の塔
+                        const leftTower = new THREE.Mesh(
+                            new THREE.BoxGeometry(width, height, depth),
+                            new THREE.MeshLambertMaterial({ color: color })
+                        );
+                        leftTower.position.set(-width * 1.5, height / 2, 0);
+                        building.add(leftTower);
+                        
+                        // 右の塔
+                        const rightTower = new THREE.Mesh(
+                            new THREE.BoxGeometry(width, height, depth),
+                            new THREE.MeshLambertMaterial({ color: color })
+                        );
+                        rightTower.position.set(width * 1.5, height / 2, 0);
+                        building.add(rightTower);
+                        
+                        // 橋の部分
+                        const bridge = new THREE.Mesh(
+                            new THREE.BoxGeometry(width * 4, 2, depth),
+                            new THREE.MeshLambertMaterial({ color: 0x333333 })
+                        );
+                        bridge.position.set(0, height * 0.6, 0);
+                        building.add(bridge);
+                        
+                        building.position.set(x, 0, z);
+                        scene.add(building);
+                        return building;
+                    }
+            }
+            
+            // 標準的な建物の本体
+            const buildingMesh = new THREE.Mesh(
+                new THREE.BoxGeometry(width, height, depth),
+                new THREE.MeshLambertMaterial({ color: color })
+            );
+            buildingMesh.position.y = height / 2;
+            building.add(buildingMesh);
+            
+            // 窓を追加
+            const windowColor = 0x87CEEB;
+            const windowSize = 1;
+            const windowSpacing = 2.5;
+            
+            // 横方向の窓の数
+            const windowsX = Math.floor(width / windowSpacing);
+            // 縦方向の窓の数
+            const windowsY = Math.floor(height / windowSpacing);
+            // 奥行き方向の窓の数
+            const windowsZ = Math.floor(depth / windowSpacing);
+            
+            // 前面と背面の窓
+            for (let y = 0; y < windowsY; y++) {
+                for (let x = 0; x < windowsX; x++) {
+                    // 前面の窓
+                    const frontWindow = new THREE.Mesh(
+                        new THREE.PlaneGeometry(windowSize, windowSize),
+                        new THREE.MeshLambertMaterial({ color: windowColor, side: THREE.DoubleSide })
+                    );
+                    frontWindow.position.set(
+                        (x * windowSpacing) - (width / 2) + windowSpacing / 2,
+                        (y * windowSpacing) + windowSpacing,
+                        depth / 2 + 0.1
+                    );
+                    building.add(frontWindow);
+                    
+                    // 背面の窓
+                    const backWindow = new THREE.Mesh(
+                        new THREE.PlaneGeometry(windowSize, windowSize),
+                        new THREE.MeshLambertMaterial({ color: windowColor, side: THREE.DoubleSide })
+                    );
+                    backWindow.position.set(
+                        (x * windowSpacing) - (width / 2) + windowSpacing / 2,
+                        (y * windowSpacing) + windowSpacing,
+                        -depth / 2 - 0.1
+                    );
+                    backWindow.rotation.y = Math.PI;
+                    building.add(backWindow);
                 }
             }
             
-            if (!tooClose) {
-                createTree(x, z);
+            // 側面の窓
+            for (let y = 0; y < windowsY; y++) {
+                for (let z = 0; z < windowsZ; z++) {
+                    // 左側面の窓
+                    const leftWindow = new THREE.Mesh(
+                        new THREE.PlaneGeometry(windowSize, windowSize),
+                        new THREE.MeshLambertMaterial({ color: windowColor, side: THREE.DoubleSide })
+                    );
+                    leftWindow.position.set(
+                        -width / 2 - 0.1,
+                        (y * windowSpacing) + windowSpacing,
+                        (z * windowSpacing) - (depth / 2) + windowSpacing / 2
+                    );
+                    leftWindow.rotation.y = -Math.PI / 2;
+                    building.add(leftWindow);
+                    
+                    // 右側面の窓
+                    const rightWindow = new THREE.Mesh(
+                        new THREE.PlaneGeometry(windowSize, windowSize),
+                        new THREE.MeshLambertMaterial({ color: windowColor, side: THREE.DoubleSide })
+                    );
+                    rightWindow.position.set(
+                        width / 2 + 0.1,
+                        (y * windowSpacing) + windowSpacing,
+                        (z * windowSpacing) - (depth / 2) + windowSpacing / 2
+                    );
+                    rightWindow.rotation.y = Math.PI / 2;
+                    building.add(rightWindow);
+                }
+            }
+            
+            // 建物を少しランダムに回転
+            building.rotation.y = Math.random() * Math.PI * 2;
+            
+            building.position.set(x, 0, z);
+            scene.add(building);
+            
+            return building;
+        }
+        
+        // 街灯を作成する関数
+        function createStreetLight(x, z) {
+            const streetLight = new THREE.Group();
+            
+            // 支柱
+            const poleGeometry = new THREE.CylinderGeometry(0.3, 0.4, 8, 8);
+            const poleMaterial = new THREE.MeshLambertMaterial({ color: 0x333333 });
+            const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+            pole.position.y = 4;
+            streetLight.add(pole);
+            
+            // ランプ
+            const lampGeometry = new THREE.SphereGeometry(0.8, 8, 8);
+            const lampMaterial = new THREE.MeshLambertMaterial({ 
+                color: 0xFFFF99,
+                emissive: 0xFFFF00,
+                emissiveIntensity: 0.5
+            });
+            const lamp = new THREE.Mesh(lampGeometry, lampMaterial);
+            lamp.position.y = 8;
+            streetLight.add(lamp);
+            
+            // ランプカバー
+            const coverGeometry = new THREE.CylinderGeometry(1.2, 0.6, 1, 8);
+            const coverMaterial = new THREE.MeshLambertMaterial({ color: 0x444444 });
+            const cover = new THREE.Mesh(coverGeometry, coverMaterial);
+            cover.position.y = 7.2;
+            streetLight.add(cover);
+            
+            streetLight.position.set(x, 0, z);
+            scene.add(streetLight);
+            
+            return streetLight;
+        }
+        
+        // コースの周りにランダムに建物と街灯を配置
+        function createCityEnvironment() {
+            const minDistanceFromRoad = roadWidth + 10;
+            
+            // ロンドンの象徴的な建物をランダムな主要な位置に配置
+            const landmarkPositions = [];
+            for (let i = 0; i < 5; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = 100 + Math.random() * 100;
+                const x = Math.cos(angle) * distance;
+                const z = Math.sin(angle) * distance;
+                
+                // 他のランドマークや道路との距離を確認
+                let tooClose = false;
+                
+                // 他のランドマークとの距離チェック
+                for (const pos of landmarkPositions) {
+                    const dist = Math.sqrt(Math.pow(x - pos.x, 2) + Math.pow(z - pos.z, 2));
+                    if (dist < 60) {
+                        tooClose = true;
+                        break;
+                    }
+                }
+                
+                // 道路との距離チェック
+                if (!tooClose) {
+                    for (let j = 0; j < detailedPathPoints.length; j += 10) {
+                        const point = detailedPathPoints[j];
+                        const dist = Math.sqrt(Math.pow(x - point.x, 2) + Math.pow(z - point.z, 2));
+                        if (dist < minDistanceFromRoad) {
+                            tooClose = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (!tooClose) {
+                    landmarkPositions.push({x, z});
+                    createLondonBuilding(x, z, 4); // ランドマーク建築
+                }
+            }
+            
+            // 通常の建物を配置
+            for (let i = 0; i < 100; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = 60 + Math.random() * 180;
+                const x = Math.cos(angle) * distance;
+                const z = Math.sin(angle) * distance;
+                
+                // 他の建物や道路との距離を確認
+                let tooClose = false;
+                
+                // ランドマークとの距離チェック
+                for (const pos of landmarkPositions) {
+                    const dist = Math.sqrt(Math.pow(x - pos.x, 2) + Math.pow(z - pos.z, 2));
+                    if (dist < 40) {
+                        tooClose = true;
+                        break;
+                    }
+                }
+                
+                // 道路との距離チェック
+                if (!tooClose) {
+                    for (let j = 0; j < detailedPathPoints.length; j += 10) {
+                        const point = detailedPathPoints[j];
+                        const dist = Math.sqrt(Math.pow(x - point.x, 2) + Math.pow(z - point.z, 2));
+                        if (dist < minDistanceFromRoad) {
+                            tooClose = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (!tooClose) {
+                    const buildingType = Math.floor(Math.random() * 4);
+                    createLondonBuilding(x, z, buildingType);
+                }
+            }
+            
+            // 街灯を道路沿いに配置
+            for (let t = 0; t < 1; t += 0.02) {
+                const pathPoint = carPath.getPointAt(t);
+                const tangent = carPath.getTangentAt(t);
+                
+                // 道路の横に街灯を配置
+                const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+                const lightPosition = new THREE.Vector3().addVectors(
+                    pathPoint,
+                    normal.clone().multiplyScalar(roadWidth / 2 + 3)
+                );
+                
+                createStreetLight(lightPosition.x, lightPosition.z);
+                
+                // 道路の反対側にも街灯を配置
+                const oppositePosition = new THREE.Vector3().addVectors(
+                    pathPoint,
+                    normal.clone().multiplyScalar(-(roadWidth / 2 + 3))
+                );
+                
+                createStreetLight(oppositePosition.x, oppositePosition.z);
             }
         }
         
-        // 観客席（コーナーの外側）
-        function createGrandstand(position, tangent, size) {
-            const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
-            
-            // 観客席の位置（コーナーの外側）
-            const standPosition = new THREE.Vector3().addVectors(
-                position,
-                normal.clone().multiplyScalar(roadWidth + 10)
-            );
-            
-            // 観客席の作成
-            const standGeometry = new THREE.BoxGeometry(size, 5, size);
-            const standMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
-            const stand = new THREE.Mesh(standGeometry, standMaterial);
-            
-            stand.position.copy(standPosition);
-            stand.position.y = 2.5; // 高さ
-            
-            // 道路と平行に配置
-            const lookAtPos = new THREE.Vector3().addVectors(
-                standPosition,
-                tangent
-            );
-            stand.lookAt(lookAtPos);
-            
-            scene.add(stand);
-            
-            return stand;
-        }
-        
-        // 主要コーナーに観客席を配置
-        const grandstandPositions = [0.15, 0.35, 0.55, 0.85];
-        for (let i = 0; i < grandstandPositions.length; i++) {
-            const t = grandstandPositions[i];
-            const position = carPath.getPointAt(t);
-            const tangent = carPath.getTangentAt(t);
-            
-            createGrandstand(position, tangent, 20);
-        }
+        // 都市環境を作成
+        createCityEnvironment();
         
         // 詳細な車のモデルを作成
         function createDetailedCar() {
@@ -663,7 +922,7 @@
         function updateInfo() {
             const info = document.getElementById('info');
             const cameraModeText = ['俯瞰', '追従', '車載', '斜め上視点'][cameraMode];
-            info.innerHTML = `エンドレスカー - 鈴鹿風サーキット<br>
+            info.innerHTML = `エンドレスカー - ロンドン市街地コース<br>
             速度: ${carSpeed.toFixed(2)}<br>
             カメラ: ${cameraModeText}<br>
             「1,2,3,4」キーでカメラ切替`;

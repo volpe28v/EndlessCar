@@ -142,7 +142,7 @@
         scene.add(directionalLight);
         
         // 都市の地面を作成
-        const floorSize = 3750; // 床のサイズを2500から1.5倍の3750に拡大
+        const floorSize = 4250; // 床のサイズを2500から1.7倍の4250に拡大
         const floorGeometry = new THREE.PlaneGeometry(floorSize, floorSize);
         const floorMaterial = new THREE.MeshStandardMaterial({ 
             color: 0x336633, 
@@ -159,35 +159,35 @@
         
         // リッジレーサー風の上級コース定義（すべて地上・閉ループ化）
         const trackPoints = [
-            // 新しいトラックポイント（x, 高度, z）- 1.5倍に拡大
-            [200 * 1.5, 0, 350 * 1.5],      // 4,7,0
-            [50 * 1.5, 0, 350 * 1.5],       // 1,7,0
-            [0 * 1.5, 1, 250 * 1.5],        // 0,5,1
-            [25 * 1.5, 2, 200 * 1.5],       // 0.5,4,2
-            [60 * 1.5, 2, 215 * 1.5],       // 1.2,4.3,2
-            [125 * 1.5, 2, 140 * 1.5],      // 2.5,2.8,2
-            [100 * 1.5, 3, 50 * 1.5],       // 2,1,3
-            [135 * 1.5, 2.5, 0 * 1.5],      // 2.7,0,2.5
-            [200 * 1.5, 0, 50 * 1.5],       // 4,1,0
-            [240 * 1.5, 0, 40 * 1.5],       // 4.8,0.8,0
-            [295 * 1.5, 0, 90 * 1.5],       // 5.9,1.8,0
-            [285 * 1.5, 1, 105 * 1.5],      // 5.7,2.1,1
-            [210 * 1.5, 1, 110 * 1.5],      // 4.2,2.2,1
-            [185 * 1.5, 2, 145 * 1.5],      // 3.7,2.9,2
-            [150 * 1.5, 2, 235 * 1.5],      // 3,4.7,2
-            [170 * 1.5, 1, 275 * 1.5],      // 3.4,5.5,1
-            [220 * 1.5, 1, 275 * 1.5],      // 4.4,5.5,1
-            [270 * 1.5, 2, 225 * 1.5],      // 5.4,4.5,2
-            [285 * 1.5, 2, 180 * 1.5],      // 5.7,3.6,2
-            [365 * 1.5, 1, 150 * 1.5],      // 7.3,3,1
-            [400 * 1.5, 1, 165 * 1.5],      // 8,3.3,1
-            [475 * 1.5, 2, 175 * 1.5],      // 9.5,3.5,2
-            [450 * 1.5, 1, 250 * 1.5],      // 9,5,1
-            [395 * 1.5, 1, 285 * 1.5],      // 7.9,5.7,1
-            [350 * 1.5, 1, 265 * 1.5],      // 7,5.3,1
-            [300 * 1.5, 0, 275 * 1.5],      // 6,5.5,0
-            [245 * 1.5, 0, 350 * 1.5],      // 4.9,7,0
-            [200 * 1.5, 0, 350 * 1.5]       // 4,7,0
+            // 新しいトラックポイント（x, 高度, z）- 1.7倍に拡大、高さは2倍
+            [200 * 1.7, 0, 350 * 1.7],      // 4,7,0
+            [50 * 1.7, 0, 350 * 1.7],       // 1,7,0
+            [0 * 1.7, 1 * 2, 250 * 1.7],    // 0,5,1
+            [25 * 1.7, 2 * 2, 200 * 1.7],   // 0.5,4,2
+            [60 * 1.7, 2 * 2, 215 * 1.7],   // 1.2,4.3,2
+            [125 * 1.7, 2 * 2, 140 * 1.7],  // 2.5,2.8,2
+            [100 * 1.7, 5 * 2, 50 * 1.7],   // 2,1,3
+            [135 * 1.7, 3 * 2, 0 * 1.7],    // 2.7,0,2.5
+            [200 * 1.7, 0, 50 * 1.7],       // 4,1,0
+            [240 * 1.7, 0, 40 * 1.7],       // 4.8,0.8,0
+            [295 * 1.7, 0, 90 * 1.7],       // 5.9,1.8,0
+            [285 * 1.7, 1 * 2, 105 * 1.7],  // 5.7,2.1,1
+            [210 * 1.7, 1 * 2, 110 * 1.7],  // 4.2,2.2,1
+            [185 * 1.7, 2 * 2, 145 * 1.7],  // 3.7,2.9,2
+            [150 * 1.7, 2 * 2, 235 * 1.7],  // 3,4.7,2
+            [170 * 1.7, 1 * 2, 275 * 1.7],  // 3.4,5.5,1
+            [220 * 1.7, 1 * 2, 275 * 1.7],  // 4.4,5.5,1
+            [270 * 1.7, 2 * 2, 225 * 1.7],  // 5.4,4.5,2
+            [285 * 1.7, 2 * 2, 180 * 1.7],  // 5.7,3.6,2
+            [365 * 1.7, 1 * 2, 150 * 1.7],  // 7.3,3,1
+            [400 * 1.7, 1 * 2, 165 * 1.7],  // 8,3.3,1
+            [475 * 1.7, 2 * 2, 175 * 1.7],  // 9.5,3.5,2
+            [450 * 1.7, 1 * 2, 250 * 1.7],  // 9,5,1
+            [395 * 1.7, 1 * 2, 285 * 1.7],  // 7.9,5.7,1
+            [350 * 1.7, 1 * 2, 265 * 1.7],  // 7,5.3,1
+            [300 * 1.7, 0, 275 * 1.7],      // 6,5.5,0
+            [245 * 1.7, 0, 350 * 1.7],      // 4.9,7,0
+            [200 * 1.7, 0, 350 * 1.7]       // 4,7,0
         ];
         
         // 道路を作成
@@ -787,7 +787,7 @@
             const perpendicular = new THREE.Vector3(-roadDirection.z, 0, roadDirection.x).normalize();
             
             // ビルの列数（道路の片側ごと）- より少なく
-            const rows = 5;
+            const rows = 6;
             // ビルの各列の距離
             const spacing = new THREE.Vector3().subVectors(endPoint, startPoint).length() / rows;
             
@@ -800,8 +800,8 @@
                     const t = i / rows;
                     const roadPos = new THREE.Vector3().lerpVectors(startPoint, endPoint, t);
                     
-                    // 道路からの距離（横方向）- 道路から少し離して配置
-                    const sideDistance = roadWidth/2 + 10 + Math.random() * 5; // 道路端から10-15単位離す
+                    // 道路からの距離（横方向）- サーキットサイズに合わせて調整
+                    const sideDistance = roadWidth * 1.7 + 15 + Math.random() * 10; // 道路幅の1.7倍+15-25単位
                     
                     // 横方向にオフセット
                     const offset = new THREE.Vector3().copy(perpendicular).multiplyScalar(sideDistance * side);
@@ -820,8 +820,8 @@
                     const building = createLondonBuilding(buildingPos.x, buildingPos.z, buildingType);
                     building.rotation.y = rotationY;
                     
-                    // ビルの高さと幅を抑える
-                    building.scale.set(0.5, 0.6, 0.5);
+                    // ビルの高さと幅を抑える - さらに小さくする
+                    building.scale.set(0.4, 0.5, 0.4);
                     
                     // 作成したビルをグループに追加
                     buildingsGroup.add(building);
@@ -1093,6 +1093,9 @@
                 cameraMode = 2; // 車載
                 log("カメラモード: 車載");
             } else if (e.key === '4' || e.key === '４') {
+                cameraMode = 4; // 車前方
+                log("カメラモード: 車前方");
+            } else if (e.key === '5' || e.key === '５') {
                 cameraMode = 3; // 斜め上視点
                 log("カメラモード: 斜め上視点");
             }
@@ -1101,7 +1104,7 @@
         // 情報表示を更新
         function updateInfo() {
             const info = document.getElementById('info');
-            const cameraModeText = ['俯瞰', '追従', '車載', '斜め上視点'][cameraMode];
+            const cameraModeText = ['俯瞰', '追従', '車載', '斜め上視点', '車前方'][cameraMode];
             
             // 時間の表示を整形
             const hours = Math.floor(gameTime);
@@ -1127,7 +1130,7 @@
             時間: ${timeString} (${timeOfDay})<br>
             速度: ${speedKmph} km/h<br>
             カメラ: ${cameraModeText}<br>
-            「1,2,3,4」キーでカメラ切替`;
+            「1,2,3,4,5」キーでカメラ切替`;
         }
         
         // 多点サンプリングで曲率を計算（より安定した値を得るため）
@@ -1862,7 +1865,7 @@
         function updateCamera() {
             switch (cameraMode) {
                 case 0: // 俯瞰
-                    camera.position.set(0, 200, 0); // より高い位置からの俯瞰視点（コース拡大と高低差に対応）
+                    camera.position.set(3 * 50 * 1.7, 300, 9 * 50 * 1.7); // より高い位置からの俯瞰視点（コース拡大と高低差に対応）
                     camera.lookAt(car.position);
                     break;
                     
@@ -1884,16 +1887,19 @@
                     
                 case 2: // 車載
                     // 車のフロントガラス位置
-                    const fpvOffset = new THREE.Vector3(0, 1.5, -0.5);
-                    fpvOffset.applyQuaternion(car.quaternion);
-                    camera.position.copy(car.position).add(fpvOffset);
+                    const fpvOffset = new THREE.Vector3(0, 2, 4); // 高さを少し上げる（起伏に対応）
+                    // 車の向きに合わせてオフセットを回転
+                    const rotatedFpvOffset = fpvOffset.clone().applyQuaternion(car.quaternion);
                     
-                    // 車の前方を見る
-                    const lookOffset = new THREE.Vector3(0, 1, -10); // Z値を負に変更して前方を見るように修正
-                    lookOffset.applyQuaternion(car.quaternion);
-                    camera.lookAt(car.position.clone().add(lookOffset));
+                    // カメラ位置をスムーズに更新
+                    const targetFpvCameraPos = new THREE.Vector3().addVectors(car.position, rotatedFpvOffset);
+                    camera.position.lerp(targetFpvCameraPos, 0.2); // スムージング
+                    
+                    // カメラの注視点を車の位置に設定（少し前に）
+                    const fpvAheadOffset = new THREE.Vector3(0, -3, -20).applyQuaternion(car.quaternion);
+                    const fpvAtPoint = new THREE.Vector3().addVectors(car.position, fpvAheadOffset);
+                    camera.lookAt(fpvAtPoint);
                     break;
-                    
                 case 3: // 斜め上視点
                     // 車の上と横から見る位置（車の傾きを強調して見せるため）
                     const diagonalOffset = new THREE.Vector3(50, 40, 20); // 右上からかなり離れた位置に配置
@@ -1908,6 +1914,22 @@
                     const diagLookOffset = new THREE.Vector3(0, -1, -5).applyQuaternion(car.quaternion);
                     const diagLookAtPoint = new THREE.Vector3().addVectors(car.position, diagLookOffset);
                     camera.lookAt(diagLookAtPoint);
+                    break;
+                    
+                case 4: // 車前方から後方を見る視点
+                    // 車の前方の位置（Z軸を負に変更して車の前方に）
+                    const frontOffset = new THREE.Vector3(0, 5, -30); // 車の前方、より離れた位置に変更
+                    // 車の向きに合わせてオフセットを回転
+                    const rotatedFrontOffset = frontOffset.clone().applyQuaternion(car.quaternion);
+                    
+                    // カメラ位置をスムーズに更新
+                    const targetFrontCameraPos = new THREE.Vector3().addVectors(car.position, rotatedFrontOffset);
+                    camera.position.lerp(targetFrontCameraPos, 0.1); // スムージング
+                    
+                    // カメラが車の後方を見るようにする
+                    const lookBackOffset = new THREE.Vector3(0, 0, 20).applyQuaternion(car.quaternion);
+                    const lookBackPoint = new THREE.Vector3().addVectors(car.position, lookBackOffset);
+                    camera.lookAt(lookBackPoint);
                     break;
             }
         }

@@ -338,8 +338,7 @@
                     // 前後方向の傾斜角を計算（Y軸方向の変化から）
                     const slopeDistance = Math.sqrt(
                         Math.pow(nextPoint.x - prevPoint.x, 2) + 
-                        Math.pow(nextPoint.z - prevPoint.z, 2)
-                    );
+                        Math.pow(nextPoint.z - prevPoint.z, 2));
                     const slope = Math.atan2(nextPoint.y - prevPoint.y, slopeDistance);
                     
                     // 赤白の縁石（交互）
@@ -419,8 +418,7 @@
                     // 前後方向の傾斜角を計算
                     const slopeDistance = Math.sqrt(
                         Math.pow(nextPoint.x - prevPoint.x, 2) + 
-                        Math.pow(nextPoint.z - prevPoint.z, 2)
-                    );
+                        Math.pow(nextPoint.z - prevPoint.z, 2));
                     const slope = Math.atan2(nextPoint.y - prevPoint.y, slopeDistance);
                     
                     // ガードレールの高さ調整
@@ -869,68 +867,181 @@
         function createDetailedCar() {
             const car = new THREE.Group();
             
-            // 車体（赤いスポーツカー風）
-            const carBodyGeometry = new THREE.BoxGeometry(2, 0.6, 4.5);
-            const carBodyMaterial = new THREE.MeshLambertMaterial({ color: 0xff0000 });
+            // 車体ベース（ランボルギーニ風の低く、幅広いウェッジ型）
+            const carBodyGeometry = new THREE.BoxGeometry(2.4, 0.4, 4.8);
+            const carBodyMaterial = new THREE.MeshLambertMaterial({ color: 0x0052CC }); // ブルー（ランボルギーニ風）
             const carBody = new THREE.Mesh(carBodyGeometry, carBodyMaterial);
-            carBody.position.y = 0.6;
+            carBody.position.y = 0.65; // 車体をさらに高くする
             car.add(carBody);
             
-            // フロントガラス
-            const windshieldGeometry = new THREE.BoxGeometry(1.8, 0.5, 1.2);
-            const windshieldMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            // フロント部分（先端が低くなるように）
+            const frontGeometry = new THREE.BoxGeometry(2.2, 0.25, 1.2);
+            const frontMaterial = new THREE.MeshLambertMaterial({ color: 0x0052CC }); // ブルー
+            const front = new THREE.Mesh(frontGeometry, frontMaterial);
+            front.position.set(0, 0.55, -1.8); // 高さ調整
+            car.add(front);
+            
+            // リア部分（エンジンカバー）
+            const rearGeometry = new THREE.BoxGeometry(2.2, 0.25, 2.0);
+            const rearMaterial = new THREE.MeshLambertMaterial({ color: 0x0052CC }); // ブルー
+            const rear = new THREE.Mesh(rearGeometry, rearMaterial);
+            rear.position.set(0, 0.75, 1.4); // 高さ調整
+            car.add(rear);
+            
+            // サイドフェンダー（タイヤを覆う部分）
+            const fenderMaterial = new THREE.MeshLambertMaterial({ color: 0x0052CC }); // ブルー
+            
+            // 左前フェンダー
+            const leftFrontFenderGeometry = new THREE.BoxGeometry(0.4, 0.4, 1.2);
+            const leftFrontFender = new THREE.Mesh(leftFrontFenderGeometry, fenderMaterial);
+            leftFrontFender.position.set(-1.1, 0.65, -1.7); // 高さと形状を調整
+            car.add(leftFrontFender);
+            
+            // 右前フェンダー
+            const rightFrontFenderGeometry = new THREE.BoxGeometry(0.4, 0.4, 1.2);
+            const rightFrontFender = new THREE.Mesh(rightFrontFenderGeometry, fenderMaterial);
+            rightFrontFender.position.set(1.1, 0.65, -1.7); // 高さと形状を調整
+            car.add(rightFrontFender);
+            
+            // 左後フェンダー
+            const leftRearFenderGeometry = new THREE.BoxGeometry(0.4, 0.4, 1.2);
+            const leftRearFender = new THREE.Mesh(leftRearFenderGeometry, fenderMaterial);
+            leftRearFender.position.set(-1.2, 0.65, 1.7); // 高さと形状を調整
+            car.add(leftRearFender);
+            
+            // 右後フェンダー
+            const rightRearFenderGeometry = new THREE.BoxGeometry(0.4, 0.4, 1.2);
+            const rightRearFender = new THREE.Mesh(rightRearFenderGeometry, fenderMaterial);
+            rightRearFender.position.set(1.2, 0.65, 1.7); // 高さと形状を調整
+            car.add(rightRearFender);
+            
+            // フロントガラス（低く傾斜をつける）
+            const windshieldGeometry = new THREE.BoxGeometry(1.8, 0.35, 1.4);
+            const windshieldMaterial = new THREE.MeshLambertMaterial({ color: 0x333333 });
             const windshield = new THREE.Mesh(windshieldGeometry, windshieldMaterial);
-            windshield.position.set(0, 1.1, -0.2);
+            windshield.position.set(0, 1.0, -0.4); // 高さ調整
+            // フロントガラスを傾ける
+            windshield.rotation.x = Math.PI * 0.08;
             car.add(windshield);
             
-            // スポイラー
-            const spoilerGeometry = new THREE.BoxGeometry(1.5, 0.2, 0.5);
+            // リアウィング（大型）
+            const spoilerGeometry = new THREE.BoxGeometry(2.2, 0.1, 0.6);
             const spoilerMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
             const spoiler = new THREE.Mesh(spoilerGeometry, spoilerMaterial);
-            spoiler.position.set(0, 0.9, 2.0);
+            spoiler.position.set(0, 1.15, 2.2); // 高さ調整
             car.add(spoiler);
             
             // スポイラーの支柱
-            const pillarGeometry = new THREE.BoxGeometry(0.1, 0.3, 0.1);
+            const pillarGeometry = new THREE.BoxGeometry(0.1, 0.4, 0.1);
             const pillarMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
             
             const pillarLeft = new THREE.Mesh(pillarGeometry, pillarMaterial);
-            pillarLeft.position.set(0.5, 0.75, 2.0);
+            pillarLeft.position.set(0.8, 0.95, 2.2); // 高さ調整
             car.add(pillarLeft);
             
             const pillarRight = new THREE.Mesh(pillarGeometry, pillarMaterial);
-            pillarRight.position.set(-0.5, 0.75, 2.0);
+            pillarRight.position.set(-0.8, 0.95, 2.2); // 高さ調整
             car.add(pillarRight);
+            
+            // ヘッドライト
+            const headlightGeometry = new THREE.BoxGeometry(0.4, 0.1, 0.1);
+            const headlightMaterial = new THREE.MeshLambertMaterial({ 
+                color: 0xFFFFFF,
+                emissive: 0xFFFFCC,
+                emissiveIntensity: 0.5
+            });
+            
+            const leftHeadlight = new THREE.Mesh(headlightGeometry, headlightMaterial);
+            leftHeadlight.position.set(0.7, 0.65, -2.35); // 高さ調整
+            car.add(leftHeadlight);
+            
+            const rightHeadlight = new THREE.Mesh(headlightGeometry, headlightMaterial);
+            rightHeadlight.position.set(-0.7, 0.65, -2.35); // 高さ調整
+            car.add(rightHeadlight);
+            
+            // テールライト
+            const taillightGeometry = new THREE.BoxGeometry(0.8, 0.1, 0.1);
+            const taillightMaterial = new THREE.MeshLambertMaterial({ 
+                color: 0xFF0000,
+                emissive: 0xFF0000,
+                emissiveIntensity: 0.5
+            });
+            
+            const taillight = new THREE.Mesh(taillightGeometry, taillightMaterial);
+            taillight.position.set(0, 0.85, 2.35); // 高さ調整
+            car.add(taillight);
+            
+            // サイドエアインテーク（ランボルギーニの特徴的なエアインテーク）
+            const leftIntakeGeometry = new THREE.BoxGeometry(0.1, 0.3, 1.0);
+            const intakeMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            const leftIntake = new THREE.Mesh(leftIntakeGeometry, intakeMaterial);
+            leftIntake.position.set(1.15, 0.75, 0.5); // 高さ調整
+            car.add(leftIntake);
+            
+            const rightIntakeGeometry = new THREE.BoxGeometry(0.1, 0.3, 1.0);
+            const rightIntake = new THREE.Mesh(rightIntakeGeometry, intakeMaterial);
+            rightIntake.position.set(-1.15, 0.75, 0.5); // 高さ調整
+            car.add(rightIntake);
+            
+            // ドア（シザードア風）
+            const doorGeometry = new THREE.BoxGeometry(0.1, 0.3, 1.8);
+            const doorMaterial = new THREE.MeshLambertMaterial({ color: 0x0052CC }); // ブルー
+            
+            const leftDoor = new THREE.Mesh(doorGeometry, doorMaterial);
+            leftDoor.position.set(1.15, 0.85, -0.5); // 高さ調整
+            car.add(leftDoor);
+            
+            const rightDoor = new THREE.Mesh(doorGeometry, doorMaterial);
+            rightDoor.position.set(-1.15, 0.85, -0.5); // 高さ調整
+            car.add(rightDoor);
             
             // タイヤを作成する関数
             function createWheel(x, z) {
                 const wheelGroup = new THREE.Group();
                 
                 // タイヤ本体
-                const wheelGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.3, 16);
+                const wheelGeometry = new THREE.CylinderGeometry(0.45, 0.45, 0.35, 16); // さらに小さく
                 const wheelMaterial = new THREE.MeshLambertMaterial({ color: 0x111111 });
                 const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
                 wheel.rotation.z = Math.PI / 2;
                 wheelGroup.add(wheel);
                 
                 // ホイール部分
-                const hubGeometry = new THREE.CylinderGeometry(0.25, 0.25, 0.31, 8);
-                const hubMaterial = new THREE.MeshLambertMaterial({ color: 0xCCCCCC });
+                const hubGeometry = new THREE.CylinderGeometry(0.25, 0.25, 0.36, 10);
+                const hubMaterial = new THREE.MeshLambertMaterial({ color: 0xC0C0C0 }); // シルバー
                 const hub = new THREE.Mesh(hubGeometry, hubMaterial);
                 hub.rotation.z = Math.PI / 2;
                 wheelGroup.add(hub);
                 
-                wheelGroup.position.set(x, 0.5, z);
+                // ホイールのセンターキャップ
+                const capGeometry = new THREE.CylinderGeometry(0.08, 0.08, 0.37, 8);
+                const capMaterial = new THREE.MeshLambertMaterial({ color: 0x0052CC }); // ブルー（車体と同じ色）
+                const cap = new THREE.Mesh(capGeometry, capMaterial);
+                cap.rotation.z = Math.PI / 2;
+                wheelGroup.add(cap);
+                
+                // スポークを追加
+                for (let i = 0; i < 5; i++) {
+                    const spokeGeometry = new THREE.BoxGeometry(0.05, 0.02, 0.3);
+                    const spokeMaterial = new THREE.MeshLambertMaterial({ color: 0xC0C0C0 });
+                    const spoke = new THREE.Mesh(spokeGeometry, spokeMaterial);
+                    spoke.rotation.z = Math.PI / 2;
+                    spoke.rotation.x = (Math.PI * 2 / 5) * i;
+                    spoke.position.y = 0;
+                    wheelGroup.add(spoke);
+                }
+                
+                wheelGroup.position.set(x, 0.4, z); // タイヤの位置をさらに下げる
                 car.add(wheelGroup);
                 
                 return { wheel, wheelGroup };
             }
             
-            // 4つのタイヤを作成
-            const frontLeftWheel = createWheel(-1, -1.5);
-            const frontRightWheel = createWheel(1, -1.5);
-            const rearLeftWheel = createWheel(-1, 1.5);
-            const rearRightWheel = createWheel(1, 1.5);
+            // 4つのタイヤを作成（前輪は若干内側に、後輪は外側に）
+            const frontLeftWheel = createWheel(-1, -1.7);
+            const frontRightWheel = createWheel(1, -1.7);
+            const rearLeftWheel = createWheel(-1.1, 1.7);
+            const rearRightWheel = createWheel(1.1, 1.7);
             
             const wheels = [
                 frontLeftWheel.wheel,
@@ -1039,7 +1150,7 @@
             }
             
             // 速度をkm/hに変換
-            const speedKmph = Math.round(carSpeed * 400); // 係数を300から400に上げる
+            const speedKmph = Math.round(carSpeed * 180); // 係数を200から180に下げて最高速度を180km/hに調整
             
             info.innerHTML = `エンドレスカー - ロンドン市街地コース<br>
             時間: ${timeString} (${timeOfDay})<br>
@@ -1162,9 +1273,43 @@
             return last * (1 - factor) + current * factor;
         }
         
+        // より滑らかなEasing補間を行う関数（2次のベジェ曲線に基づくなめらかな補間）
+        function smootherValue(target, current, speed, deltaTime = 1) {
+            // デフォルトのデルタタイムは1フレーム分（60fpsを想定）
+            const delta = (target - current);
+            
+            // 非常に小さな変化は無視する（ノイズによる微小変動を防止）
+            if (Math.abs(delta) < 0.001) {
+                return current;
+            }
+            
+            // より自然な動きのために3次のベジェ曲線のイージングを適用
+            // これにより、目標値に近づくほど徐々に減速する効果が得られる
+            const easeFactor = Math.min(1.0, speed * deltaTime);
+            
+            // 改良されたスムーズステップ関数（より高次の関数で滑らかさを向上）
+            const t = Math.max(0, Math.min(1, easeFactor));
+            const easeFactorCubic = t * t * (3 - 2 * t);
+            const easeFactorQuintic = t * t * t * (t * (t * 6 - 15) + 10); // より滑らかな5次関数
+            
+            // 二つの関数をブレンド（大きな変化には5次関数、小さな変化には3次関数を適用）
+            const blendFactor = Math.min(1.0, Math.abs(delta) / 0.5);
+            const finalEaseFactor = easeFactorCubic * (1 - blendFactor) + easeFactorQuintic * blendFactor;
+            
+            return current + delta * finalEaseFactor;
+        }
+        
+        // 過去フレームの時間を記録する変数
+        let lastFrameTime = Date.now();
+        
         // アニメーションループ
         function animate() {
             requestAnimationFrame(animate);
+            
+            // フレーム間のデルタタイムを計算
+            const currentFrameTime = Date.now();
+            const deltaTime = (currentFrameTime - lastFrameTime) / 16.67; // 60fpsを基準にした値
+            lastFrameTime = currentFrameTime;
             
             // 時間の更新と昼夜サイクルの適用
             updateDayNightCycle();
@@ -1213,13 +1358,19 @@
             const curveAngle = curvatureData.angle;
             const curveTiltDirection = curvatureData.direction;
             
+            // ノイズフィルタリング - 非常に小さな曲率変化を無視
+            // これにより、わずかな道路の揺れなどによる不要な反応を防止
+            const minCurvatureThreshold = 0.005; // 最小閾値以下は真っ直ぐとみなす
+            const filteredCurveAngle = Math.abs(curveAngle) < minCurvatureThreshold ? 0 : curveAngle;
+            const filteredDirection = filteredCurveAngle === 0 ? 0 : curveTiltDirection;
+            
             // 車の高さは道路の高さに合わせる
             const carHeight = point.y + 0.3; // 道路の高さに対して少しオフセット
             
-            // 車の位置を道路の中央線上に固定し、適切な高さに調整
-            car.position.set(point.x, carHeight, point.z);
+            // スピードファクターを先に計算（他の場所で使用するため）
+            const speedFactor = Math.min(1.0, carSpeed / 0.7); // 速度による調整係数
             
-            // ---------- 回転計算の完全な書き直し ----------
+            // ---------- 車の回転方向の計算（先に行う） ----------
             
             // 1. 進行方向ベクトル（常にXZ平面に平行）
             const forwardVector = flatTangent;
@@ -1232,6 +1383,327 @@
             
             // 4. 最終的な上向きベクトル（右向きと進行方向の外積で再計算、厳密に直交させる）
             const correctedUpVector = new THREE.Vector3().crossVectors(rightVector, forwardVector).normalize();
+            
+            // ---------- アウトインアウト走法のための詳細な路線計算 ----------
+            
+            // 道路の幅に応じてオフセット量を調整（より大きなオフセットに調整）
+            const pathOffsetAmount = 4.0;
+            
+            // 曲率をより正確に計算するためのパラメータ
+            const detailedSamplePoints = 20;
+            const detailedSampleDistance = 0.004;
+            
+            // コーナー検出のための複数のポイントをサンプリング
+            const lookAheadDistances = [0.15, 0.1, 0.05, 0.03];
+            const lookBehindDistances = [0.05, 0.02];
+            
+            // 各距離でのカーブデータを取得（フィルタリングを適用）
+            const filteredAheadCurveData = lookAheadDistances.map(dist => {
+                const data = calculateCurvature((carPosition + dist) % 1, detailedSamplePoints, detailedSampleDistance);
+                return {
+                    angle: Math.abs(data.angle) < minCurvatureThreshold ? 0 : data.angle,
+                    direction: Math.abs(data.angle) < minCurvatureThreshold ? 0 : data.direction
+                };
+            });
+            
+            const filteredBehindCurveData = lookBehindDistances.map(dist => {
+                const data = calculateCurvature((carPosition - dist + 1) % 1, detailedSamplePoints, detailedSampleDistance);
+                return {
+                    angle: Math.abs(data.angle) < minCurvatureThreshold ? 0 : data.angle,
+                    direction: Math.abs(data.angle) < minCurvatureThreshold ? 0 : data.direction
+                };
+            });
+            
+            // フィルタリングされた曲率を使用
+            const filteredAheadAngles = filteredAheadCurveData.map(data => data.angle);
+            const filteredBehindAngles = filteredBehindCurveData.map(data => data.angle);
+            
+            // 最大の曲率とその方向を特定
+            const maxAheadAngle = Math.max(...filteredAheadAngles);
+            const maxAheadIndex = filteredAheadAngles.indexOf(maxAheadAngle);
+            const maxAheadDirection = filteredAheadCurveData[maxAheadIndex].direction;
+            
+            const maxBehindAngle = Math.max(...filteredBehindAngles);
+            const maxBehindIndex = filteredBehindAngles.indexOf(maxBehindAngle);
+            const maxBehindDirection = filteredBehindCurveData[maxBehindIndex].direction;
+            
+            // オフセット計算用の変数の初期化
+            if (typeof lastPathOffset === 'undefined') {
+                window.lastPathOffset = 0;
+                window.lastCornerState = 'straight';
+                window.cornerState = 'straight';
+                window.stateChangeTime = 0;
+                window.cornerHistory = []; 
+                window.targetPathOffset = 0;
+                window.cornerDetectionHistory = [];
+                window.directionHistory = [];
+                window.intermediateOffset = 0;
+            }
+            
+            // 現在の曲率を履歴に追加（最新の30サンプルを保持）
+            if (!Array.isArray(window.cornerHistory)) {
+                window.cornerHistory = [];
+            }
+            window.cornerHistory.push(filteredCurveAngle);
+            if (window.cornerHistory.length > 30) {
+                window.cornerHistory.shift();
+            }
+            
+            // 曲率履歴の平均を計算（ノイズを除去）- 重み付き平均を導入して最新の値をより重視
+            let totalWeight = 0;
+            let weightedSum = 0;
+            for (let i = 0; i < window.cornerHistory.length; i++) {
+                // 新しいデータほど重みを大きくする（最新のデータが最も重要）
+                const weight = Math.pow(1.1, i);
+                weightedSum += window.cornerHistory[window.cornerHistory.length - 1 - i] * weight;
+                totalWeight += weight;
+            }
+            const avgCurveAngle = weightedSum / totalWeight;
+            
+            // 方向の一貫性確認のため、方向履歴も保持
+            if (!Array.isArray(window.directionHistory)) {
+                window.directionHistory = [];
+            }
+            window.directionHistory.push(filteredDirection); // フィルタリングされた方向を使用
+            if (window.directionHistory.length > 20) {
+                window.directionHistory.shift();
+            }
+            
+            // 方向の多数決を取る（最頻値を採用）
+            const directionCounts = {};
+            let maxCount = 0;
+            let dominantDirection = 0;
+            
+            window.directionHistory.forEach(dir => {
+                directionCounts[dir] = (directionCounts[dir] || 0) + 1;
+                if (directionCounts[dir] > maxCount) {
+                    maxCount = directionCounts[dir];
+                    dominantDirection = dir;
+                }
+            });
+            
+            // カーブの方向として支配的な方向を使用
+            const stableCurveTiltDirection = dominantDirection;
+            
+            // コーナー検出用のモデルを構築
+            // 各位置の曲率情報を元に、コーナーの状態を判断するための特徴量を作成
+            const cornerDetectionFeatures = {
+                current: avgCurveAngle,               // 現在地点の曲率（平均化済み）
+                ahead: filteredAheadAngles,           // 複数の先読み地点の曲率（フィルタリング済み）
+                behind: filteredBehindAngles,         // 複数の後読み地点の曲率（フィルタリング済み）
+                maxAhead: maxAheadAngle,              // 最大の先読み曲率
+                maxBehind: maxBehindAngle,            // 最大の後読み曲率
+                direction: stableCurveTiltDirection,  // 安定化された現在の曲がり方向
+                aheadDirection: maxAheadDirection,    // 先のカーブの曲がり方向
+                behindDirection: maxBehindDirection,  // 後ろのカーブの曲がり方向
+                speed: carSpeed                       // 現在の速度
+            };
+            
+            // コーナー検出情報を履歴に追加（状態変更の安定性向上のため）
+            if (!Array.isArray(window.cornerDetectionHistory)) {
+                window.cornerDetectionHistory = [];
+            }
+            window.cornerDetectionHistory.push(cornerDetectionFeatures);
+            if (window.cornerDetectionHistory.length > 15) {
+                window.cornerDetectionHistory.shift();
+            }
+            
+            // 曲率の急激な変化を検出するための閾値
+            const curvatureThreshold = 0.015;  // 通常のカーブ検出閾値
+            const entryThreshold = 0.014;      // コーナー進入検出閾値
+            const apexThreshold = 0.018;       // コーナー頂点検出閾値
+            const exitThreshold = 0.015;       // コーナー出口検出閾値
+            const hysteresis = 0.008;          // ヒステリシス
+            
+            // 状態変更の時間制限（急激な状態変更を防止）- デルタタイムに応じて調整
+            const baseStateChangeDuration = 800; // 基本の最小状態変更間隔（ミリ秒）
+            const speedBasedDuration = baseStateChangeDuration * (1.0 + speedFactor * 0.5); // 高速時はより長い間隔
+            const minStateChangeDuration = Math.min(1200, speedBasedDuration); // 最大1.2秒まで
+            
+            const currentTime = Date.now();
+            const canChangeState = (currentTime - window.stateChangeTime) > minStateChangeDuration;
+            
+            // コーナー検出履歴の安定性確認（必要なフレーム数を増やして安定性向上）
+            const isStableAheadCurve = window.cornerDetectionHistory.filter(
+                hist => hist.maxAhead > entryThreshold).length >= 5;
+            
+            const isStableCurrentCurve = window.cornerDetectionHistory.filter(
+                hist => hist.current > apexThreshold).length >= 5;
+            
+            const isStableBehindCurve = window.cornerDetectionHistory.filter(
+                hist => hist.maxBehind > exitThreshold).length >= 5;
+            
+            // 連続したフレームでの同一方向性の確認（方向の一貫性をチェック）
+            const aheadDirectionConsistency = window.cornerDetectionHistory.filter(
+                (hist, i, arr) => i > 0 && hist.aheadDirection === arr[i-1].aheadDirection).length / 
+                Math.max(1, window.cornerDetectionHistory.length - 1);
+            
+            const behindDirectionConsistency = window.cornerDetectionHistory.filter(
+                (hist, i, arr) => i > 0 && hist.behindDirection === arr[i-1].behindDirection).length / 
+                Math.max(1, window.cornerDetectionHistory.length - 1);
+            
+            // 方向の一貫性が高い場合のみ状態遷移を許可（方向が安定している場合のみ）
+            const directionStability = Math.min(aheadDirectionConsistency, behindDirectionConsistency);
+            const hasStableDirection = directionStability > 0.7;
+            
+            // コーナー状態の遷移判定を安定性を考慮して行う
+            let newCornerState = window.cornerState;
+            
+            if (canChangeState && hasStableDirection) {
+                // コーナー進入検出（先の安定したカーブを検出）
+                if (maxAheadAngle > entryThreshold && 
+                    maxAheadAngle > (avgCurveAngle + hysteresis) &&
+                    maxAheadDirection !== 0 && // 方向が0でない場合のみ（有効なカーブ方向）
+                    isStableAheadCurve && 
+                    window.cornerState !== 'entry') {
+                    
+                    newCornerState = 'entry';
+                    window.stateChangeTime = currentTime;
+                } 
+                // コーナー中間（現在地点で大きな曲率を検出）
+                else if (avgCurveAngle > apexThreshold && 
+                        stableCurveTiltDirection !== 0 && // 有効なカーブ方向
+                        isStableCurrentCurve &&
+                        window.cornerState !== 'apex' && 
+                        (window.cornerState === 'entry' || maxAheadAngle > entryThreshold)) {
+                    
+                    newCornerState = 'apex';
+                    window.stateChangeTime = currentTime;
+                } 
+                // コーナー出口（後方の安定したカーブを検出）
+                else if (maxBehindAngle > exitThreshold && 
+                        maxBehindAngle > (avgCurveAngle + hysteresis) &&
+                        maxBehindDirection !== 0 && // 有効なカーブ方向
+                        isStableBehindCurve &&
+                        window.cornerState === 'apex') {
+                    
+                    newCornerState = 'exit';
+                    window.stateChangeTime = currentTime;
+                } 
+                // 直線区間（曲率が十分に小さくなった場合）
+                else if (avgCurveAngle < (curvatureThreshold - hysteresis * 2) && 
+                        maxBehindAngle < (exitThreshold - hysteresis) &&
+                        maxAheadAngle < (entryThreshold - hysteresis) &&
+                        window.cornerState === 'exit') {
+                    
+                    newCornerState = 'straight';
+                    window.stateChangeTime = currentTime;
+                }
+            }
+            
+            // 状態が変更された場合、前の状態を記録
+            if (newCornerState !== window.cornerState) {
+                window.lastCornerState = window.cornerState;
+                window.cornerState = newCornerState;
+                console.log("コーナー状態変更: " + window.cornerState); // デバッグ用
+            }
+            
+            // コーナーの曲がり方向を決定（より安定した方向を使用）
+            // 安定化された方向を使用
+            const cornerTiltDirection = window.cornerState === 'exit' ? 
+                maxBehindDirection : (window.cornerState === 'entry' ? 
+                maxAheadDirection : stableCurveTiltDirection);
+            
+            // 各コーナー状態に基づいて目標オフセット値を設定
+            let targetOffset = 0;
+            
+            // コーナー状態に基づいてオフセットを計算
+            switch (window.cornerState) {
+                case 'entry':
+                    // 進入時はアウト側から入る（より大きなオフセット）
+                    targetOffset = -pathOffsetAmount * 1.5 * cornerTiltDirection;
+                    // 曲率に応じてオフセット量を調整（曲率に対する感度向上）
+                    targetOffset *= Math.min(1.0, Math.pow(maxAheadAngle / 0.04, 0.7));
+                    break;
+                    
+                case 'apex':
+                    // 頂点ではイン側に寄せる（より強くインを攻める）
+                    targetOffset = pathOffsetAmount * 1.2 * cornerTiltDirection;
+                    // 曲率に応じて調整（より強めにインを攻める）
+                    targetOffset *= Math.min(1.0, Math.pow(avgCurveAngle / 0.04, 0.6));
+                    break;
+                    
+                case 'exit':
+                    // 出口では再びアウト側に大きく膨らむ
+                    targetOffset = -pathOffsetAmount * 1.8 * cornerTiltDirection;
+                    // 曲率に応じて調整（より敏感に反応）
+                    targetOffset *= Math.min(1.0, Math.pow(maxBehindAngle / 0.04, 0.7));
+                    break;
+                    
+                case 'straight':
+                default:
+                    // 直線では少し中央から外側に寄せる（より自然なドライビングライン）
+                    targetOffset = 0.5 * (window.lastCornerState === 'exit' ? -cornerTiltDirection : 0);
+                    break;
+            }
+            
+            // スピードが速いほどアウトを大きく取る（高速コーナリングの挙動向上）
+            // const speedFactor = Math.min(1.0, carSpeed / 0.7); // 速度による追加調整 - 上で宣言済み
+            targetOffset *= (1.0 + speedFactor * 0.4); // 速度が最大の時に40%増しのオフセット
+            
+            // 目標オフセット値を設定
+            window.targetPathOffset = targetOffset;
+            
+            // 実際のオフセット値を算出（より滑らかな補間）
+            // 改良されたEasing補間関数を使用して自然な動きを実現
+            const baseTransitionSpeed = 0.05; // 基本トランジション速度（より小さくして安定性向上）
+            const speedAdjustedTransition = baseTransitionSpeed * (1.0 - speedFactor * 0.4); // 高速時は遅い変化
+            const transitionSpeed = Math.max(0.02, speedAdjustedTransition); // 最小値を設定
+            
+            // Easing関数による二重スムージング - 非常に滑らかな動きを実現
+            // 一時的な中間値を計算してからさらにスムージング
+            if (typeof window.intermediateOffset === 'undefined') {
+                window.intermediateOffset = window.lastPathOffset;
+            }
+            
+            // 二段階のスムージングで非常に滑らかな動きを実現
+            window.intermediateOffset = smootherValue(window.targetPathOffset, window.intermediateOffset, transitionSpeed * 1.5, deltaTime);
+            const pathOffset = smootherValue(window.intermediateOffset, window.lastPathOffset, transitionSpeed, deltaTime);
+            window.lastPathOffset = pathOffset;
+            
+            // 接線方向に対して垂直なオフセットベクトルを計算
+            const offsetVector = rightVector.clone().multiplyScalar(pathOffset);
+            
+            // 車の基本位置を取得
+            const basePosition = point.clone();
+            
+            // オフセットを適用
+            const offsetPosition = basePosition.add(offsetVector);
+            
+            // 車の位置を設定
+            car.position.set(offsetPosition.x, carHeight, offsetPosition.z);
+            
+            // コーナーの状態をデバッグ表示
+            const cornerStateEmoji = {
+                'straight': '→',
+                'entry': '↘',
+                'apex': '↓',
+                'exit': '↗'
+            };
+            const cornerEmoji = cornerStateEmoji[window.cornerState] || '→';
+            
+            // スタイルカラーをコーナー状態に応じて変更
+            const cornerStateColor = {
+                'straight': 'white',
+                'entry': 'yellow',
+                'apex': 'red',
+                'exit': 'green'
+            };
+            const cornerColor = cornerStateColor[window.cornerState] || 'white';
+            
+            // 既存の情報表示に追加（スタイルを適用）
+            const infoElement = document.getElementById('info');
+            const originalContent = infoElement.innerHTML;
+            
+            // <br>タグで分割し、最初の4行のみを保持
+            const lines = originalContent.split('<br>');
+            const mainInfo = lines.slice(0, 4).join('<br>');
+            
+            // 新しいコーナー情報を追加
+            infoElement.innerHTML = `${mainInfo}<br>
+            <span style="color:${cornerColor}">${cornerEmoji} ${window.cornerState.toUpperCase()}: ${Math.abs(pathOffset).toFixed(1)}</span>`;
+            
+            // ---------- 回転計算の残りの部分 ----------
             
             // 5. 回転行列を作成（3つの直交ベクトルから）
             const rotationMatrix = new THREE.Matrix4().makeBasis(

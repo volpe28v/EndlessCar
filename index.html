@@ -979,14 +979,14 @@
         
         // 車の位置パラメータ
         let carPosition = 0; // パス上の位置（0から1）
-        let carSpeed = 0.3;  // 車の速度
-        let targetSpeed = 0.3; // 目標速度
+        let carSpeed = 0.5;  // 車の速度（0.3から0.5に上げる）
+        let targetSpeed = 0.5; // 目標速度（0.3から0.5に上げる）
         
         // 速度の範囲を設定（60km/h～200km/h）
-        const MIN_SPEED = 0.2; // 60km/h相当
-        const MAX_SPEED = 0.67; // 200km/h相当
-        const ACCELERATION_RATE = 0.008; // 加速率（上げて加速を速く）
-        const DECELERATION_RATE = 0.015; // 減速率（上げて減速も速く）
+        const MIN_SPEED = 0.4; // 最低速度を上げる（0.2から0.4に）
+        const MAX_SPEED = 1.0; // 最高速度を上げる（0.67から1.0に）
+        const ACCELERATION_RATE = 0.01; // 加速率を上げる（0.008から0.01に）
+        const DECELERATION_RATE = 0.02; // 減速率も上げる（0.015から0.02に）
         
         // 前回の位置と回転を保存（スムージング用）
         let lastCarPosition = new THREE.Vector3();
@@ -1039,7 +1039,7 @@
             }
             
             // 速度をkm/hに変換
-            const speedKmph = Math.round(carSpeed * 300);
+            const speedKmph = Math.round(carSpeed * 400); // 係数を300から400に上げる
             
             info.innerHTML = `エンドレスカー - ロンドン市街地コース<br>
             時間: ${timeString} (${timeOfDay})<br>
@@ -1260,7 +1260,7 @@
             car.rotateZ(-tiltFactor * curveTiltDirection);
             
             // タイヤの回転と位置調整
-            const wheelRotationSpeed = carSpeed * 0.2;
+            const wheelRotationSpeed = carSpeed * 0.3; // 回転速度係数を0.2から0.3に上げる
             
             // タイヤの高さを地面に合わせて調整
             for (let i = 0; i < wheels.length; i++) {

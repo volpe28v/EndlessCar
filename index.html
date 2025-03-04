@@ -142,7 +142,7 @@
         scene.add(directionalLight);
         
         // 都市の地面を作成
-        const floorSize = 2500; // 床のサイズを調整してコースに最適化
+        const floorSize = 3750; // 床のサイズを2500から1.5倍の3750に拡大
         const floorGeometry = new THREE.PlaneGeometry(floorSize, floorSize);
         const floorMaterial = new THREE.MeshStandardMaterial({ 
             color: 0x336633, 
@@ -159,36 +159,36 @@
         
         // リッジレーサー風の上級コース定義（すべて地上・閉ループ化）
         const trackPoints = [
-    // 新しいトラックポイント（x, 高度, z）
-    [200, 0, 350],      // 4,7,0
-    [50, 0, 350],       // 1,7,0
-    [0, 1, 250],        // 0,5,1
-    [25, 2, 200],       // 0.5,4,2
-    [60, 2, 215],       // 1.2,4.3,2
-    [125, 2, 140],      // 2.5,2.8,2
-    [100, 3, 50],       // 2,1,3
-    [135, 2.5, 0],      // 2.7,0,2.5
-    [200, 0, 50],       // 4,1,0
-    [240, 0, 40],       // 4.8,0.8,0
-    [295, 0, 90],       // 5.9,1.8,0
-    [285, 1, 105],      // 5.7,2.1,1
-    [210, 1, 110],      // 4.2,2.2,1
-    [185, 2, 145],      // 3.7,2.9,2
-    [150, 2, 235],      // 3,4.7,2
-    [170, 1, 275],      // 3.4,5.5,1
-    [220, 1, 275],      // 4.4,5.5,1
-    [270, 2, 225],      // 5.4,4.5,2
-    [285, 2, 180],      // 5.7,3.6,2
-    [365, 1, 150],      // 7.3,3,1
-    [400, 1, 165],      // 8,3.3,1
-    [475, 2, 175],      // 9.5,3.5,2
-    [450, 1, 250],      // 9,5,1
-    [395, 1, 285],      // 7.9,5.7,1
-    [350, 1, 265],      // 7,5.3,1
-    [300, 0, 275],      // 6,5.5,0
-    [245, 0, 350],      // 4.9,7,0
-    [200, 0, 350]       // 4,7,0
-];
+            // 新しいトラックポイント（x, 高度, z）- 1.5倍に拡大
+            [200 * 1.5, 0, 350 * 1.5],      // 4,7,0
+            [50 * 1.5, 0, 350 * 1.5],       // 1,7,0
+            [0 * 1.5, 1, 250 * 1.5],        // 0,5,1
+            [25 * 1.5, 2, 200 * 1.5],       // 0.5,4,2
+            [60 * 1.5, 2, 215 * 1.5],       // 1.2,4.3,2
+            [125 * 1.5, 2, 140 * 1.5],      // 2.5,2.8,2
+            [100 * 1.5, 3, 50 * 1.5],       // 2,1,3
+            [135 * 1.5, 2.5, 0 * 1.5],      // 2.7,0,2.5
+            [200 * 1.5, 0, 50 * 1.5],       // 4,1,0
+            [240 * 1.5, 0, 40 * 1.5],       // 4.8,0.8,0
+            [295 * 1.5, 0, 90 * 1.5],       // 5.9,1.8,0
+            [285 * 1.5, 1, 105 * 1.5],      // 5.7,2.1,1
+            [210 * 1.5, 1, 110 * 1.5],      // 4.2,2.2,1
+            [185 * 1.5, 2, 145 * 1.5],      // 3.7,2.9,2
+            [150 * 1.5, 2, 235 * 1.5],      // 3,4.7,2
+            [170 * 1.5, 1, 275 * 1.5],      // 3.4,5.5,1
+            [220 * 1.5, 1, 275 * 1.5],      // 4.4,5.5,1
+            [270 * 1.5, 2, 225 * 1.5],      // 5.4,4.5,2
+            [285 * 1.5, 2, 180 * 1.5],      // 5.7,3.6,2
+            [365 * 1.5, 1, 150 * 1.5],      // 7.3,3,1
+            [400 * 1.5, 1, 165 * 1.5],      // 8,3.3,1
+            [475 * 1.5, 2, 175 * 1.5],      // 9.5,3.5,2
+            [450 * 1.5, 1, 250 * 1.5],      // 9,5,1
+            [395 * 1.5, 1, 285 * 1.5],      // 7.9,5.7,1
+            [350 * 1.5, 1, 265 * 1.5],      // 7,5.3,1
+            [300 * 1.5, 0, 275 * 1.5],      // 6,5.5,0
+            [245 * 1.5, 0, 350 * 1.5],      // 4.9,7,0
+            [200 * 1.5, 0, 350 * 1.5]       // 4,7,0
+        ];
         
         // 道路を作成
         const roadGroup = new THREE.Group();
@@ -524,7 +524,15 @@
         // ガードレールの作成
         createGuardrails();
         
+        // トンネルの作成
+        createTunnels();
+        
         log("道路の作成完了");
+        
+        // トンネルを作成する関数
+        function createTunnels() {
+            // ... existing code ...
+        }
         
         // ロンドン風の建物を追加
         function createLondonBuilding(x, z, type = Math.floor(Math.random() * 5)) {
@@ -759,110 +767,72 @@
             return streetLight;
         }
         
+        // 環境オブジェクトを配置
         // コースの周りにランダムに建物と街灯を配置
-        function createCityEnvironment() {
-            const minDistanceFromRoad = roadWidth + 30; // 道路からの最小距離を拡大
+        function placeEnvironmentObjects() {
+            log("環境オブジェクトの配置開始");
             
-            // 周辺環境のランドマークをランダムな主要な位置に配置
-            const landmarkPositions = [];
-            for (let i = 0; i < 18; i++) { // ランドマークの数を増加
-                const angle = Math.random() * Math.PI * 2;
-                const distance = 400 + Math.random() * 600; // 距離を拡大
-                const x = Math.cos(angle) * distance;
-                const z = Math.sin(angle) * distance;
+            // 既存の建物グループを作成（後で全削除できるように）
+            const buildingsGroup = new THREE.Group();
+            scene.add(buildingsGroup);
+            
+            // 0番目から1番目のトラックポイント間の道路両側にのみビルを配置
+            const startPoint = new THREE.Vector3(trackPoints[0][0], trackPoints[0][1], trackPoints[0][2]);
+            const endPoint = new THREE.Vector3(trackPoints[1][0], trackPoints[1][1], trackPoints[1][2]);
+            
+            // 道路の方向ベクトルを計算
+            const roadDirection = new THREE.Vector3().subVectors(endPoint, startPoint).normalize();
+            
+            // 道路に垂直な方向ベクトルを計算（Y軸回りに90度回転）
+            const perpendicular = new THREE.Vector3(-roadDirection.z, 0, roadDirection.x).normalize();
+            
+            // ビルの列数（道路の片側ごと）- より少なく
+            const rows = 5;
+            // ビルの各列の距離
+            const spacing = new THREE.Vector3().subVectors(endPoint, startPoint).length() / rows;
+            
+            // 道路の両側にビルを配置
+            for (let side = -1; side <= 1; side += 2) { // -1: 左側, 1: 右側
+                if (side === 0) continue; // 中央はスキップ
                 
-                // 他のランドマークや道路との距離を確認
-                let tooClose = false;
-                
-                // 他のランドマークとの距離チェック
-                for (const pos of landmarkPositions) {
-                    const dist = Math.sqrt(Math.pow(x - pos.x, 2) + Math.pow(z - pos.z, 2));
-                    if (dist < 200) { // 最小距離を拡大
-                        tooClose = true;
-                        break;
+                for (let i = 0; i <= rows; i++) {
+                    // 道路に沿った位置を計算
+                    const t = i / rows;
+                    const roadPos = new THREE.Vector3().lerpVectors(startPoint, endPoint, t);
+                    
+                    // 道路からの距離（横方向）- 道路から少し離して配置
+                    const sideDistance = roadWidth/2 + 10 + Math.random() * 5; // 道路端から10-15単位離す
+                    
+                    // 横方向にオフセット
+                    const offset = new THREE.Vector3().copy(perpendicular).multiplyScalar(sideDistance * side);
+                    const buildingPos = new THREE.Vector3().addVectors(roadPos, offset);
+                    
+                    // 通りに面するようにビルの向きを調整するための角度を計算
+                    let rotationY = 0;
+                    if (side === -1) { // 左側
+                        rotationY = Math.atan2(roadDirection.x, roadDirection.z);
+                    } else { // 右側
+                        rotationY = Math.atan2(-roadDirection.x, -roadDirection.z);
                     }
-                }
-                
-                // 道路との距離をチェック
-                for (let j = 0; j < detailedPathPoints.length; j += 10) {
-                    const point = detailedPathPoints[j];
-                    const dist = Math.sqrt(Math.pow(x - point.x, 2) + Math.pow(z - point.z, 2));
-                    if (dist < minDistanceFromRoad) {
-                        tooClose = true;
-                        break;
-                    }
-                }
-                
-                if (!tooClose) {
-                    landmarkPositions.push({ x, z });
-                    createLondonBuilding(x, z, 6); // ランドマークのサイズを拡大
+                    
+                    // ビルを作成して配置 - 小さめのビルタイプのみ使用
+                    const buildingType = Math.floor(Math.random() * 2); // 0-1のタイプに限定（最も小さいビル）
+                    const building = createLondonBuilding(buildingPos.x, buildingPos.z, buildingType);
+                    building.rotation.y = rotationY;
+                    
+                    // ビルの高さと幅を抑える
+                    building.scale.set(0.5, 0.6, 0.5);
+                    
+                    // 作成したビルをグループに追加
+                    buildingsGroup.add(building);
                 }
             }
             
-            // 通常の建物をより多く配置
-            for (let i = 0; i < 250; i++) { // 建物の数を増加
-                const r = 120 + Math.random() * 400; // 距離を拡大
-                const angle = Math.random() * Math.PI * 2;
-                const x = Math.cos(angle) * r;
-                const z = Math.sin(angle) * r;
-                
-                // 他の建物や道路との距離を確認
-                let tooClose = false;
-                
-                // ランドマークとの距離チェック
-                for (const pos of landmarkPositions) {
-                    const dist = Math.sqrt(Math.pow(x - pos.x, 2) + Math.pow(z - pos.z, 2));
-                    if (dist < 80) { // 最小距離を拡大
-                        tooClose = true;
-                        break;
-                    }
-                }
-                
-                // 道路との距離をチェック
-                for (let j = 0; j < detailedPathPoints.length; j += 10) {
-                    const point = detailedPathPoints[j];
-                    const dist = Math.sqrt(Math.pow(x - point.x, 2) + Math.pow(z - point.z, 2));
-                    if (dist < minDistanceFromRoad) {
-                        tooClose = true;
-                        break;
-                    }
-                }
-                
-                if (!tooClose) {
-                    const buildingType = Math.floor(Math.random() * 4);
-                    createLondonBuilding(x, z, buildingType);
-                }
-            }
-            
-            // 街灯を道路沿いに配置
-            for (let t = 0; t < 1; t += 0.04) { // 密度を下げる（0.01→0.04）
-                const pathPoint = carPath.getPointAt(t);
-                const tangent = carPath.getTangentAt(t);
-                
-                // 道路の横に街灯を交互に配置
-                const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
-                
-                // tの値によって左右を切り替え
-                if (Math.round(t * 100) % 2 === 0) {
-                    // 右側に配置
-                    const lightPosition = new THREE.Vector3().addVectors(
-                        pathPoint,
-                        normal.clone().multiplyScalar(roadWidth / 2 + 3)
-                    );
-                    createStreetLight(lightPosition.x, lightPosition.z);
-                } else {
-                    // 左側に配置
-                    const oppositePosition = new THREE.Vector3().addVectors(
-                        pathPoint,
-                        normal.clone().multiplyScalar(-(roadWidth / 2 + 3))
-                    );
-                    createStreetLight(oppositePosition.x, oppositePosition.z);
-                }
-            }
+            log("環境オブジェクトの配置完了");
         }
         
-        // 都市環境を作成
-        createCityEnvironment();
+        // 環境オブジェクトを配置
+        placeEnvironmentObjects();
         
         // 詳細な車のモデルを作成
         function createDetailedCar() {

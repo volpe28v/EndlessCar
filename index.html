@@ -980,6 +980,13 @@
         // 車の位置パラメータ
         let carPosition = 0; // パス上の位置（0から1）
         let carSpeed = 0.3;  // 車の速度
+        let targetSpeed = 0.3; // 目標速度
+        
+        // 速度の範囲を設定（60km/h～200km/h）
+        const MIN_SPEED = 0.2; // 60km/h相当
+        const MAX_SPEED = 0.67; // 200km/h相当
+        const ACCELERATION_RATE = 0.008; // 加速率（上げて加速を速く）
+        const DECELERATION_RATE = 0.015; // 減速率（上げて減速も速く）
         
         // 前回の位置と回転を保存（スムージング用）
         let lastCarPosition = new THREE.Vector3();
@@ -1031,9 +1038,12 @@
                 timeOfDay = "夜";
             }
             
+            // 速度をkm/hに変換
+            const speedKmph = Math.round(carSpeed * 300);
+            
             info.innerHTML = `エンドレスカー - ロンドン市街地コース<br>
             時間: ${timeString} (${timeOfDay})<br>
-            速度: ${carSpeed.toFixed(2)}<br>
+            速度: ${speedKmph} km/h<br>
             カメラ: ${cameraModeText}<br>
             「1,2,3,4」キーでカメラ切替`;
         }
@@ -1083,6 +1093,70 @@
             return { angle: avgAngle, direction: tiltDirection };
         }
         
+        // 前方のカーブを予測する関数
+        function predictUpcomingCurve(currentPosition, lookAheadDistance = 0.05) {
+            // 現在の位置から少し先の位置でのカーブ強度を取得
+            const upcomingPos = (currentPosition + lookAheadDistance) % 1;
+            const curvatureData = calculateCurvature(upcomingPos);
+            return curvatureData.angle;
+        }
+        
+        // 速度を更新する関数（スローインファーストアウト）
+        function updateSpeed() {
+            // 現在のカーブ強度を取得
+            const currentCurvature = calculateCurvature(carPosition).angle;
+            
+            // 前方のカーブ強度を予測
+            const upcomingCurvature = predictUpcomingCurve(carPosition, 0.05);
+            
+            // カーブ強度に基づいて目標速度を計算
+            // 曲率が大きいほど速度を下げる
+            const curvatureThreshold = 0.03; // カーブ検出の閾値（少し下げてより早くカーブを検知）
+            
+            if (upcomingCurvature > curvatureThreshold) {
+                // カーブが近づいている場合（スローイン）
+                // カーブ強度に応じて目標速度を下げる
+                const curveFactor = Math.min(1, upcomingCurvature / 0.08); // カーブ強度を0-1の範囲に正規化（値を小さくしてより敏感に）
+                targetSpeed = MAX_SPEED - (MAX_SPEED - MIN_SPEED) * Math.pow(curveFactor, 0.7); // べき乗を使って急激な減速を実現
+            } else if (currentCurvature > curvatureThreshold / 2) {
+                // カーブ中の場合
+                const curveFactor = Math.min(1, currentCurvature / 0.08);
+                targetSpeed = MAX_SPEED - (MAX_SPEED - MIN_SPEED) * Math.pow(curveFactor, 0.7);
+            } else {
+                // カーブを抜けた場合（ファーストアウト）
+                targetSpeed = MAX_SPEED;
+            }
+            
+            // 下り坂では少し加速、上り坂では少し減速
+            const nextPos = (carPosition + 0.01) % 1;
+            const prevPos = (carPosition - 0.01 + 1) % 1;
+            const point = carPath.getPointAt(carPosition);
+            const nextPoint = carPath.getPointAt(nextPos);
+            const prevPoint = carPath.getPointAt(prevPos);
+            
+            // 傾斜を計算
+            const slope = Math.atan2(nextPoint.y - prevPoint.y, 
+                Math.sqrt(Math.pow(nextPoint.x - prevPoint.x, 2) + Math.pow(nextPoint.z - prevPoint.z, 2)));
+            
+            // 傾斜に応じて速度を調整（下り坂で加速、上り坂で減速）
+            if (slope < -0.01) {
+                // 下り坂
+                targetSpeed *= (1.0 - slope); // 傾斜が大きいほど加速
+            } else if (slope > 0.01) {
+                // 上り坂
+                targetSpeed *= (1.0 - slope * 0.5); // 傾斜が大きいほど減速
+            }
+            
+            // 現在の速度を目標速度に徐々に近づける（加速・減速）
+            if (carSpeed < targetSpeed) {
+                // 加速（ゆっくり）
+                carSpeed = Math.min(targetSpeed, carSpeed + ACCELERATION_RATE);
+            } else if (carSpeed > targetSpeed) {
+                // 減速（素早く）
+                carSpeed = Math.max(targetSpeed, carSpeed - DECELERATION_RATE);
+            }
+        }
+        
         // 前フレームと現在フレームの値を補間する関数
         function smoothValue(current, last, factor) {
             return last * (1 - factor) + current * factor;
@@ -1094,6 +1168,9 @@
             
             // 時間の更新と昼夜サイクルの適用
             updateDayNightCycle();
+            
+            // 速度を更新（カーブに応じて）
+            updateSpeed();
             
             // 車の位置を更新
             carPosition += carSpeed * 0.001;

@@ -106,27 +106,36 @@
         
         // 街灯の明るさを更新
         function updateStreetLights() {
-            // 夜間（18時～6時）は街灯を点灯
+            // 夜間かどうかの判定（18時から6時まで）
             const isNight = (gameTime >= 18 || gameTime < 6);
             
-            // すべての街灯を取得して更新
+            // 街灯のオブジェクトとライトを更新
             scene.traverse((object) => {
-                // 街灯のライト部分を見つける（ランプという名前のメッシュ）
-                if (object.name === "streetlamp") {
-                    const lampMaterial = object.material;
-                    if (isNight) {
-                        // 夜間は光を強くする
-                        lampMaterial.emissiveIntensity = 0.8;
-                        // 街灯の光のサイズを大きくする
-                        if (object.scale.x < 1.2) {
-                            object.scale.set(1.2, 1.2, 1.2);
+                if (object.userData && object.userData.isStreetlight) {
+                    // 街灯本体の発光を設定
+                    if (object.material && object.material.emissive) {
+                        if (isNight) {
+                            // 夜間は明るく発光
+                            object.material.emissive.set(0xFFDD99);
+                            object.material.emissiveIntensity = 1.0;
+                        } else {
+                            // 昼間は発光を弱める
+                            object.material.emissive.set(0x333333);
+                            object.material.emissiveIntensity = 0.1;
                         }
-                    } else {
-                        // 昼間は光を弱くする
-                        lampMaterial.emissiveIntensity = 0.1;
-                        // 街灯の光のサイズを元に戻す
-                        if (object.scale.x > 1.0) {
-                            object.scale.set(1.0, 1.0, 1.0);
+                    }
+                    
+                    // 関連付けられたポイントライトの明るさを設定
+                    if (object.userData.pointLight) {
+                        const pointLight = object.userData.pointLight;
+                        if (isNight) {
+                            // 夜間はライトを明るく
+                            pointLight.intensity = 2.5;
+                            pointLight.distance = 150;
+                        } else {
+                            // 昼間はライトを弱く（完全に消さない）
+                            pointLight.intensity = 0.2;
+                            pointLight.distance = 10;
                         }
                     }
                 }
@@ -534,305 +543,39 @@
             // ... existing code ...
         }
         
-        // ロンドン風の建物を追加
-        function createLondonBuilding(x, z, type = Math.floor(Math.random() * 5)) {
-            const building = new THREE.Group();
+        // 星空のスカイボックスを作成する関数（前回の編集で追加）
+        function createStarrySkybox() {
+            // キューブテクスチャ用の画像パスを設定
+            const nightSkyUrls = [
+                'https://threejs.org/examples/textures/cube/MilkyWay/dark-s_px.jpg', // right
+                'https://threejs.org/examples/textures/cube/MilkyWay/dark-s_nx.jpg', // left
+                'https://threejs.org/examples/textures/cube/MilkyWay/dark-s_py.jpg', // top
+                'https://threejs.org/examples/textures/cube/MilkyWay/dark-s_ny.jpg', // bottom
+                'https://threejs.org/examples/textures/cube/MilkyWay/dark-s_pz.jpg', // front
+                'https://threejs.org/examples/textures/cube/MilkyWay/dark-s_nz.jpg'  // back
+            ];
             
-            // 建物の種類によって異なる形状と色を設定
-            let width, depth, height, color;
+            // 星空のキューブテクスチャを読み込み
+            const nightSkyboxTexture = new THREE.CubeTextureLoader().load(nightSkyUrls);
             
-            switch(type) {
-                case 0: // ヴィクトリア様式の建物（レンガ色）
-                    width = 10 + Math.random() * 5;
-                    depth = 10 + Math.random() * 5;
-                    height = 12 + Math.random() * 10;
-                    color = 0xA0522D; // レンガ色
-                    break;
-                case 1: // モダンな高層ビル（青いガラス）
-                    width = 8 + Math.random() * 8;
-                    depth = 8 + Math.random() * 8;
-                    height = 25 + Math.random() * 20;
-                    color = 0x87CEEB; // 水色（ガラス）
-                    break;
-                case 2: // 歴史的な中層建築（石灰岩風）
-                    width = 12 + Math.random() * 6;
-                    depth = 12 + Math.random() * 6;
-                    height = 15 + Math.random() * 8;
-                    color = 0xDCDCDC; // 明るい灰色
-                    break;
-                case 3: // ロンドンの伝統的なテラスハウス
-                    width = 15 + Math.random() * 10;
-                    depth = 8 + Math.random() * 3;
-                    height = 10 + Math.random() * 5;
-                    color = 0xF5F5DC; // ベージュ
-                    break;
-                case 4: // ロンドンの代表的な建物
-                    if (Math.random() > 0.7) {
-                        // ビッグベン風の塔
-                        width = 8;
-                        depth = 8;
-                        height = 40;
-                        color = 0xDEB887; // 砂色
-                        
-                        // 本体
-                        const tower = new THREE.Mesh(
-                            new THREE.BoxGeometry(width, height, depth),
-                            new THREE.MeshLambertMaterial({ color: color })
-                        );
-                        tower.position.y = height / 2;
-                        building.add(tower);
-                        
-                        // 時計部分
-                        const clockSize = width * 1.2;
-                        const clockHeight = 6;
-                        const clockTower = new THREE.Mesh(
-                            new THREE.BoxGeometry(clockSize, clockHeight, clockSize),
-                            new THREE.MeshLambertMaterial({ color: 0xFFFFFF })
-                        );
-                        clockTower.position.y = height - clockHeight / 2;
-                        building.add(clockTower);
-                        
-                        // 尖塔
-                        const spireHeight = 10;
-                        const spire = new THREE.Mesh(
-                            new THREE.ConeGeometry(width / 4, spireHeight, 4),
-                            new THREE.MeshLambertMaterial({ color: 0x333333 })
-                        );
-                        spire.position.y = height + spireHeight / 2;
-                        building.add(spire);
-                        
-                        building.position.set(x, 0, z);
-                        scene.add(building);
-                        return building;
-                    } else {
-                        // タワーブリッジ風の塔（2つの塔とその間の道）
-                        width = 10;
-                        depth = 10;
-                        height = 30;
-                        color = 0xD2B48C; // タン色
-                        
-                        // 左の塔
-                        const leftTower = new THREE.Mesh(
-                            new THREE.BoxGeometry(width, height, depth),
-                            new THREE.MeshLambertMaterial({ color: color })
-                        );
-                        leftTower.position.set(-width * 1.5, height / 2, 0);
-                        building.add(leftTower);
-                        
-                        // 右の塔
-                        const rightTower = new THREE.Mesh(
-                            new THREE.BoxGeometry(width, height, depth),
-                            new THREE.MeshLambertMaterial({ color: color })
-                        );
-                        rightTower.position.set(width * 1.5, height / 2, 0);
-                        building.add(rightTower);
-                        
-                        // 橋の部分
-                        const bridge = new THREE.Mesh(
-                            new THREE.BoxGeometry(width * 4, 2, depth),
-                            new THREE.MeshLambertMaterial({ color: 0x333333 })
-                        );
-                        bridge.position.set(0, height * 0.6, 0);
-                        building.add(bridge);
-                        
-                        building.position.set(x, 0, z);
-                        scene.add(building);
-                        return building;
-                    }
-            }
-            
-            // 標準的な建物の本体
-            const buildingMesh = new THREE.Mesh(
-                new THREE.BoxGeometry(width, height, depth),
-                new THREE.MeshLambertMaterial({ color: color })
-            );
-            buildingMesh.position.y = height / 2;
-            building.add(buildingMesh);
-            
-            // 窓を追加
-            const windowColor = 0x87CEEB;
-            const windowSize = 1;
-            const windowSpacing = 2.5;
-            
-            // 横方向の窓の数
-            const windowsX = Math.floor(width / windowSpacing);
-            // 縦方向の窓の数
-            const windowsY = Math.floor(height / windowSpacing);
-            // 奥行き方向の窓の数
-            const windowsZ = Math.floor(depth / windowSpacing);
-            
-            // 前面と背面の窓
-            for (let y = 0; y < windowsY; y++) {
-                for (let x = 0; x < windowsX; x++) {
-                    // 前面の窓
-                    const frontWindow = new THREE.Mesh(
-                        new THREE.PlaneGeometry(windowSize, windowSize),
-                        new THREE.MeshLambertMaterial({ color: windowColor, side: THREE.DoubleSide })
-                    );
-                    frontWindow.position.set(
-                        (x * windowSpacing) - (width / 2) + windowSpacing / 2,
-                        (y * windowSpacing) + windowSpacing,
-                        depth / 2 + 0.1
-                    );
-                    building.add(frontWindow);
-                    
-                    // 背面の窓
-                    const backWindow = new THREE.Mesh(
-                        new THREE.PlaneGeometry(windowSize, windowSize),
-                        new THREE.MeshLambertMaterial({ color: windowColor, side: THREE.DoubleSide })
-                    );
-                    backWindow.position.set(
-                        (x * windowSpacing) - (width / 2) + windowSpacing / 2,
-                        (y * windowSpacing) + windowSpacing,
-                        -depth / 2 - 0.1
-                    );
-                    backWindow.rotation.y = Math.PI;
-                    building.add(backWindow);
-                }
-            }
-            
-            // 側面の窓
-            for (let y = 0; y < windowsY; y++) {
-                for (let z = 0; z < windowsZ; z++) {
-                    // 左側面の窓
-                    const leftWindow = new THREE.Mesh(
-                        new THREE.PlaneGeometry(windowSize, windowSize),
-                        new THREE.MeshLambertMaterial({ color: windowColor, side: THREE.DoubleSide })
-                    );
-                    leftWindow.position.set(
-                        -width / 2 - 0.1,
-                        (y * windowSpacing) + windowSpacing,
-                        (z * windowSpacing) - (depth / 2) + windowSpacing / 2
-                    );
-                    leftWindow.rotation.y = -Math.PI / 2;
-                    building.add(leftWindow);
-                    
-                    // 右側面の窓
-                    const rightWindow = new THREE.Mesh(
-                        new THREE.PlaneGeometry(windowSize, windowSize),
-                        new THREE.MeshLambertMaterial({ color: windowColor, side: THREE.DoubleSide })
-                    );
-                    rightWindow.position.set(
-                        width / 2 + 0.1,
-                        (y * windowSpacing) + windowSpacing,
-                        (z * windowSpacing) - (depth / 2) + windowSpacing / 2
-                    );
-                    rightWindow.rotation.y = Math.PI / 2;
-                    building.add(rightWindow);
-                }
-            }
-            
-            // 建物を少しランダムに回転
-            building.rotation.y = Math.random() * Math.PI * 2;
-            
-            building.position.set(x, 0, z);
-            scene.add(building);
-            
-            return building;
+            // 星空を夜間モードで使用するために保存
+            window.nightSkyboxTexture = nightSkyboxTexture;
         }
         
-        // 街灯を作成する関数
-        function createStreetLight(x, z) {
-            const streetLight = new THREE.Group();
-            
-            // 支柱
-            const poleGeometry = new THREE.CylinderGeometry(0.3, 0.4, 8, 8);
-            const poleMaterial = new THREE.MeshLambertMaterial({ color: 0x333333 });
-            const pole = new THREE.Mesh(poleGeometry, poleMaterial);
-            pole.position.y = 4;
-            streetLight.add(pole);
-            
-            // ランプ
-            const lampGeometry = new THREE.SphereGeometry(0.8, 8, 8);
-            const lampMaterial = new THREE.MeshLambertMaterial({ 
-                color: 0xFFFF99,
-                emissive: 0xFFFF00,
-                emissiveIntensity: 0.1 // 初期状態では暗い
-            });
-            const lamp = new THREE.Mesh(lampGeometry, lampMaterial);
-            lamp.position.y = 8;
-            lamp.name = "streetlamp"; // 名前を設定して後で特定できるようにする
-            streetLight.add(lamp);
-            
-            // ランプカバー
-            const coverGeometry = new THREE.CylinderGeometry(1.2, 0.6, 1, 8);
-            const coverMaterial = new THREE.MeshLambertMaterial({ color: 0x444444 });
-            const cover = new THREE.Mesh(coverGeometry, coverMaterial);
-            cover.position.y = 7.2;
-            streetLight.add(cover);
-            
-            streetLight.position.set(x, 0, z);
-            scene.add(streetLight);
-            
-            return streetLight;
-        }
-        
-        // 環境オブジェクトを配置
-        // コースの周りにランダムに建物と街灯を配置
+        // 環境オブジェクトを配置（ビルは削除して星空のみに）
         function placeEnvironmentObjects() {
             log("環境オブジェクトの配置開始");
             
-            // 既存の建物グループを作成（後で全削除できるように）
-            const buildingsGroup = new THREE.Group();
-            scene.add(buildingsGroup);
-            
-            // 0番目から1番目のトラックポイント間の道路両側にのみビルを配置
-            const startPoint = new THREE.Vector3(trackPoints[0][0], trackPoints[0][1], trackPoints[0][2]);
-            const endPoint = new THREE.Vector3(trackPoints[1][0], trackPoints[1][1], trackPoints[1][2]);
-            
-            // 道路の方向ベクトルを計算
-            const roadDirection = new THREE.Vector3().subVectors(endPoint, startPoint).normalize();
-            
-            // 道路に垂直な方向ベクトルを計算（Y軸回りに90度回転）
-            const perpendicular = new THREE.Vector3(-roadDirection.z, 0, roadDirection.x).normalize();
-            
-            // ビルの列数（道路の片側ごと）- より少なく
-            const rows = 6;
-            // ビルの各列の距離
-            const spacing = new THREE.Vector3().subVectors(endPoint, startPoint).length() / rows;
-            
-            // 道路の両側にビルを配置
-            for (let side = -1; side <= 1; side += 2) { // -1: 左側, 1: 右側
-                if (side === 0) continue; // 中央はスキップ
-                
-                for (let i = 0; i <= rows; i++) {
-                    // 道路に沿った位置を計算
-                    const t = i / rows;
-                    const roadPos = new THREE.Vector3().lerpVectors(startPoint, endPoint, t);
-                    
-                    // 道路からの距離（横方向）- サーキットサイズに合わせて調整
-                    const sideDistance = roadWidth * 1.7 + 15 + Math.random() * 10; // 道路幅の1.7倍+15-25単位
-                    
-                    // 横方向にオフセット
-                    const offset = new THREE.Vector3().copy(perpendicular).multiplyScalar(sideDistance * side);
-                    const buildingPos = new THREE.Vector3().addVectors(roadPos, offset);
-                    
-                    // 通りに面するようにビルの向きを調整するための角度を計算
-                    let rotationY = 0;
-                    if (side === -1) { // 左側
-                        rotationY = Math.atan2(roadDirection.x, roadDirection.z);
-                    } else { // 右側
-                        rotationY = Math.atan2(-roadDirection.x, -roadDirection.z);
-                    }
-                    
-                    // ビルを作成して配置 - 小さめのビルタイプのみ使用
-                    const buildingType = Math.floor(Math.random() * 2); // 0-1のタイプに限定（最も小さいビル）
-                    const building = createLondonBuilding(buildingPos.x, buildingPos.z, buildingType);
-                    building.rotation.y = rotationY;
-                    
-                    // ビルの高さと幅を抑える - さらに小さくする
-                    building.scale.set(0.4, 0.5, 0.4);
-                    
-                    // 作成したビルをグループに追加
-                    buildingsGroup.add(building);
-                }
-            }
+            // 星空のスカイボックスを作成
+            createStarrySkybox();
             
             log("環境オブジェクトの配置完了");
         }
         
-        // 環境オブジェクトを配置
-        placeEnvironmentObjects();
+        // 詳細な車のモデルを作成
+        function createDetailedCarModel() {
+            // 詳細な車のモデル作成コード
+        }
         
         // 詳細な車のモデルを作成
         function createDetailedCar() {
@@ -1947,6 +1690,9 @@
         
         // 初期情報表示の更新
         updateInfo();
+        
+        // 環境オブジェクトを配置
+        placeEnvironmentObjects();
     </script>
 </body>
 </html> 

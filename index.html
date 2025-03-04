@@ -38,10 +38,100 @@
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setClearColor(0x646464); // 空の色を都会の曇り空に変更
+        renderer.setClearColor(0x646464); // 初期の空の色を設定
         document.body.appendChild(renderer.domElement);
         
         log("Three.jsの基本設定完了");
+
+        // 時間システムの追加
+        let gameTime = 0; // ゲーム内時間（0～24）
+        const timeSpeed = 0.005; // 時間の進む速度
+        
+        // 時間帯に応じた空の色と光の設定
+        function updateDayNightCycle() {
+            // 時間を更新
+            gameTime = (gameTime + timeSpeed) % 24;
+            
+            // 時間帯に応じた空の色の設定
+            let skyColor;
+            let lightIntensity;
+            let ambientIntensity;
+            
+            if (gameTime >= 5 && gameTime < 7) {
+                // 朝焼け（5時～7時）
+                const t = (gameTime - 5) / 2; // 0～1の範囲に正規化
+                skyColor = new THREE.Color(0xff9966).lerp(new THREE.Color(0x87CEEB), t);
+                lightIntensity = 0.5 + t * 0.5;
+                ambientIntensity = 0.3 + t * 0.3;
+            } else if (gameTime >= 7 && gameTime < 17) {
+                // 昼間（7時～17時）
+                skyColor = new THREE.Color(0x87CEEB);
+                lightIntensity = 1.0;
+                ambientIntensity = 0.6;
+            } else if (gameTime >= 17 && gameTime < 19) {
+                // 夕焼け（17時～19時）
+                const t = (gameTime - 17) / 2; // 0～1の範囲に正規化
+                skyColor = new THREE.Color(0x87CEEB).lerp(new THREE.Color(0xff7733), t);
+                lightIntensity = 1.0 - t * 0.5;
+                ambientIntensity = 0.6 - t * 0.3;
+            } else if (gameTime >= 19 && gameTime < 21) {
+                // 日没後（19時～21時）
+                const t = (gameTime - 19) / 2; // 0～1の範囲に正規化
+                skyColor = new THREE.Color(0xff7733).lerp(new THREE.Color(0x111133), t);
+                lightIntensity = 0.5 - t * 0.4;
+                ambientIntensity = 0.3 - t * 0.2;
+            } else {
+                // 夜間（21時～5時）
+                if (gameTime >= 21) {
+                    skyColor = new THREE.Color(0x111133);
+                } else {
+                    // 夜明け前（4時～5時）
+                    const t = gameTime / 5; // 0～1の範囲に正規化
+                    skyColor = new THREE.Color(0x111133).lerp(new THREE.Color(0xff9966), t);
+                }
+                lightIntensity = 0.1;
+                ambientIntensity = 0.1;
+            }
+            
+            // 空の色を設定
+            renderer.setClearColor(skyColor.getHex());
+            
+            // 光源の強度を設定
+            directionalLight.intensity = lightIntensity;
+            ambientLight.intensity = ambientIntensity;
+            
+            // 夜間は街灯を明るく
+            updateStreetLights();
+        }
+        
+        // 街灯の明るさを更新
+        function updateStreetLights() {
+            // 夜間（18時～6時）は街灯を点灯
+            const isNight = (gameTime >= 18 || gameTime < 6);
+            
+            // すべての街灯を取得して更新
+            scene.traverse((object) => {
+                // 街灯のライト部分を見つける（ランプという名前のメッシュ）
+                if (object.name === "streetlamp") {
+                    const lampMaterial = object.material;
+                    if (isNight) {
+                        // 夜間は光を強くする
+                        lampMaterial.emissiveIntensity = 0.8;
+                        // 街灯の光のサイズを大きくする
+                        if (object.scale.x < 1.2) {
+                            object.scale.set(1.2, 1.2, 1.2);
+                        }
+                    } else {
+                        // 昼間は光を弱くする
+                        lampMaterial.emissiveIntensity = 0.1;
+                        // 街灯の光のサイズを元に戻す
+                        if (object.scale.x > 1.0) {
+                            object.scale.set(1.0, 1.0, 1.0);
+                        }
+                    }
+                }
+            });
+        }
 
         // 光源
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -649,10 +739,11 @@
             const lampMaterial = new THREE.MeshLambertMaterial({ 
                 color: 0xFFFF99,
                 emissive: 0xFFFF00,
-                emissiveIntensity: 0.5
+                emissiveIntensity: 0.1 // 初期状態では暗い
             });
             const lamp = new THREE.Mesh(lampGeometry, lampMaterial);
             lamp.position.y = 8;
+            lamp.name = "streetlamp"; // 名前を設定して後で特定できるようにする
             streetLight.add(lamp);
             
             // ランプカバー
@@ -922,7 +1013,26 @@
         function updateInfo() {
             const info = document.getElementById('info');
             const cameraModeText = ['俯瞰', '追従', '車載', '斜め上視点'][cameraMode];
+            
+            // 時間の表示を整形
+            const hours = Math.floor(gameTime);
+            const minutes = Math.floor((gameTime % 1) * 60);
+            const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+            
+            // 時間帯のテキスト
+            let timeOfDay;
+            if (gameTime >= 5 && gameTime < 10) {
+                timeOfDay = "朝";
+            } else if (gameTime >= 10 && gameTime < 17) {
+                timeOfDay = "昼";
+            } else if (gameTime >= 17 && gameTime < 19) {
+                timeOfDay = "夕方";
+            } else {
+                timeOfDay = "夜";
+            }
+            
             info.innerHTML = `エンドレスカー - ロンドン市街地コース<br>
+            時間: ${timeString} (${timeOfDay})<br>
             速度: ${carSpeed.toFixed(2)}<br>
             カメラ: ${cameraModeText}<br>
             「1,2,3,4」キーでカメラ切替`;
@@ -981,6 +1091,9 @@
         // アニメーションループ
         function animate() {
             requestAnimationFrame(animate);
+            
+            // 時間の更新と昼夜サイクルの適用
+            updateDayNightCycle();
             
             // 車の位置を更新
             carPosition += carSpeed * 0.001;

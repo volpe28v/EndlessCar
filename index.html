@@ -142,55 +142,86 @@
         scene.add(directionalLight);
         
         // 都市の地面を作成
-        const floorSize = 600; // 床のサイズを大きくする
+        const floorSize = 2400; // 床のサイズを4倍に拡大
         const floorGeometry = new THREE.PlaneGeometry(floorSize, floorSize);
-        const floorMaterial = new THREE.MeshLambertMaterial({ color: 0x333333, side: THREE.DoubleSide }); // アスファルトの色に変更
+        const floorMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x336633, 
+            roughness: 0.8, 
+            metalness: 0.2 
+        });
         const floor = new THREE.Mesh(floorGeometry, floorMaterial);
         floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -5; // 床の位置を下げる
         scene.add(floor);
         
-        // 鈴鹿風サーキットのコース定義（約2倍の長さに拡張）（高さ情報を追加）
+        // 舗装された道路の幅
+        const roadWidth = 16; // 道路の幅を維持
+        
+        // リッジレーサー風の上級コース定義（すべて地上・閉ループ化）
         const trackPoints = [
-            [0, 0, 0],       // スタート/ゴール地点
-            [40, 0, 0],      // 1コーナー手前（距離拡張）
-            [80, 3.5, 40],     // 1コーナー（距離拡張）- 少し上り
-            [100, 7, 80],   // 2コーナー手前（距離拡張）- 上り
-            [80, 10.5, 120],   // 2コーナー（距離拡張）- 山頂部分
+            // スタートエリア - 緩やかな下り坂から始まる
+            [0, 20, 0],            // スタート地点
+            [100, 18, -20],        // 最初の下り直線
+            [200, 16, -50],        // 下り坂の続き
             
-            // 新しいセクション1 - ストレート区間（下り坂）
-            [60, 8.4, 150],   // ストレート始点 - 下り始め
-            [30, 5.6, 170],    // 緩やかなカーブ - 下り
+            // 第1セクション - ワイディングダウンヒル
+            [280, 15, -100],       // 第1コーナー（右）進入
+            [320, 13, -180],       // 第1コーナー（右）出口
+            [300, 11, -260],       // 第2コーナー（左）進入
+            [220, 10, -300],       // 第2コーナー（左）出口
             
-            // Sカーブセクション（拡張）（谷底部分）
-            [0, 3.5, 180],     // Sカーブ始点（距離拡張）- 谷底
-            [-30, 3.5, 190],   // Sカーブ中間（距離拡張）- 平坦部分
-            [-60, 5.6, 180],   // Sカーブ終点（距離拡張）- 上り始め
+            // 第2セクション - 谷底の緩やかなカーブ
+            [130, 9, -280],        // 第3コーナー（右）進入
+            [80, 9, -200],         // 第3コーナー（右）中間
+            [60, 9, -100],         // 第3コーナー（右）出口
             
-            // 新しいセクション2 - ヘアピンカーブ（山岳路）
-            [-80, 10.5, 160],  // ヘアピン入口 - 急上り
-            [-90, 17.5, 130],  // ヘアピン頂点 - 最高地点
-            [-80, 14, 100],  // ヘアピン出口 - 下り始め
+            // 第3セクション - 上り坂のヘアピン
+            [0, 12, -50],          // 第4コーナー（左）進入 - 上り始め
+            [-80, 15, -80],        // 第4コーナー（左）中間
+            [-120, 20, -40],       // 第4コーナー（左）出口
+            [-100, 25, 20],        // 第5コーナー（右）進入
+            [-50, 30, 40],         // 第5コーナー（右）出口
             
-            // デグナーカーブセクション（拡張）（下り区間）
-            [-70, 10.5, 70],   // デグナー入口（距離拡張）- 下り続き
-            [-90, 7, 40],   // デグナー中間（距離拡張）- さらに下り
-            [-120, 3.5, 0],    // デグナー出口（距離拡張）- 谷底に
+            // 第4セクション - 山頂フラットコーナー
+            [0, 35, 20],           // 第6コーナー（左）進入
+            [50, 35, -20],         // 第6コーナー（左）出口
+            [40, 35, -80],         // 第7コーナー（右）進入
+            [-20, 35, -120],       // 第7コーナー（右）出口
             
-            // 新しいセクション3 - スプーンカーブ（平坦区間）
-            [-100, 3.5, -40],  // スプーン入口 - 平坦
-            [-60, 3.5, -60],   // スプーン中間 - 平坦
-            [-30, 2.1, -20],   // スプーン出口 - わずかに上り
+            // 第5セクション - スリリングな下り
+            [-80, 33, -130],       // 降下開始
+            [-150, 25, -100],      // 降下中間地点
+            [-200, 17, -50],       // 降下終了
             
-            // 最終コーナーとストレート（拡張）（最終上り）
-            [-20, 0.7, 0],   // 最終コーナー手前（距離拡張）- わずかな上り
-            [-10, 0, 0],   // 最終コーナー手前（距離拡張）- わずかな上り
-            [0, 0, 0]        // スタート/ゴールに戻る - 平坦に
+            // 第6セクション - テクニカルコーナーコンビネーション
+            [-240, 15, 0],         // 第8コーナー（左）進入
+            [-220, 15, 50],        // 第8コーナー（左）出口
+            [-170, 15, 80],        // 第9コーナー（右）進入
+            [-100, 16, 70],        // 第9コーナー（右）出口
+            [-50, 17, 30],         // 第10コーナー（左）進入
+            [-30, 18, -20],        // 第10コーナー（左）出口
+            
+            // 最終セクション - 長いバンクS字
+            [20, 19, -70],         // 第11コーナー（右）進入
+            [100, 21, -60],        // 第11コーナー（右）出口
+            [160, 23, 0],          // 第12コーナー（左）進入
+            [140, 25, 60],         // 第12コーナー（左）出口
+            
+            // ゴール前の最終直線 - 上り坂
+            [100, 27, 120],        // 最終直線開始
+            [50, 29, 180],         // 最終直線中間
+            [0, 30, 240],          // ゴール地点
+            
+            // ループに戻るコーナー
+            [-50, 27, 180],        // 最終コーナー進入
+            [-80, 24, 100],        // 最終コーナー中間
+            [-40, 22, 50],         // 最終コーナー出口
+            [0, 20, 0]             // スタート地点に戻る
         ];
+        
         // 道路を作成
         const roadGroup = new THREE.Group();
         scene.add(roadGroup);
-        
-        const roadWidth = 12; // 道路の幅
         
         // 3Dパスポイントに変換
         const carPathPoints = [];
@@ -201,7 +232,7 @@
         
         // カトマル・ロムスプラインで滑らかな曲線を作成
         const carPath = new THREE.CatmullRomCurve3(carPathPoints);
-        carPath.closed = true;
+        carPath.closed = true; // 閉じたループに戻す
         
         // パスの詳細なポイントを取得（道路生成用）
         const detailedPathPoints = carPath.getPoints(500);
@@ -289,8 +320,8 @@
             // 白線（実線）を作成 - 削除
             // createRoadLine(detailedPathPoints, 0.05, 0xFFFFFF);
             
-            // 縁石を作成（コーナー部分）
-            createCurbstones();
+            // 縁石を作成（コーナー部分） - 削除
+            // createCurbstones();
             
             return roadMesh;
         }
@@ -759,13 +790,13 @@
         
         // コースの周りにランダムに建物と街灯を配置
         function createCityEnvironment() {
-            const minDistanceFromRoad = roadWidth + 10;
+            const minDistanceFromRoad = roadWidth + 30; // 道路からの最小距離を拡大
             
-            // ロンドンの象徴的な建物をランダムな主要な位置に配置
+            // 周辺環境のランドマークをランダムな主要な位置に配置
             const landmarkPositions = [];
-            for (let i = 0; i < 5; i++) {
+            for (let i = 0; i < 18; i++) { // ランドマークの数を増加
                 const angle = Math.random() * Math.PI * 2;
-                const distance = 100 + Math.random() * 100;
+                const distance = 400 + Math.random() * 600; // 距離を拡大
                 const x = Math.cos(angle) * distance;
                 const z = Math.sin(angle) * distance;
                 
@@ -775,36 +806,34 @@
                 // 他のランドマークとの距離チェック
                 for (const pos of landmarkPositions) {
                     const dist = Math.sqrt(Math.pow(x - pos.x, 2) + Math.pow(z - pos.z, 2));
-                    if (dist < 60) {
+                    if (dist < 200) { // 最小距離を拡大
                         tooClose = true;
                         break;
                     }
                 }
                 
-                // 道路との距離チェック
-                if (!tooClose) {
-                    for (let j = 0; j < detailedPathPoints.length; j += 10) {
-                        const point = detailedPathPoints[j];
-                        const dist = Math.sqrt(Math.pow(x - point.x, 2) + Math.pow(z - point.z, 2));
-                        if (dist < minDistanceFromRoad) {
-                            tooClose = true;
-                            break;
-                        }
+                // 道路との距離をチェック
+                for (let j = 0; j < detailedPathPoints.length; j += 10) {
+                    const point = detailedPathPoints[j];
+                    const dist = Math.sqrt(Math.pow(x - point.x, 2) + Math.pow(z - point.z, 2));
+                    if (dist < minDistanceFromRoad) {
+                        tooClose = true;
+                        break;
                     }
                 }
                 
                 if (!tooClose) {
-                    landmarkPositions.push({x, z});
-                    createLondonBuilding(x, z, 4); // ランドマーク建築
+                    landmarkPositions.push({ x, z });
+                    createLondonBuilding(x, z, 6); // ランドマークのサイズを拡大
                 }
             }
             
-            // 通常の建物を配置
-            for (let i = 0; i < 100; i++) {
+            // 通常の建物をより多く配置
+            for (let i = 0; i < 250; i++) { // 建物の数を増加
+                const r = 120 + Math.random() * 400; // 距離を拡大
                 const angle = Math.random() * Math.PI * 2;
-                const distance = 60 + Math.random() * 180;
-                const x = Math.cos(angle) * distance;
-                const z = Math.sin(angle) * distance;
+                const x = Math.cos(angle) * r;
+                const z = Math.sin(angle) * r;
                 
                 // 他の建物や道路との距離を確認
                 let tooClose = false;
@@ -812,21 +841,19 @@
                 // ランドマークとの距離チェック
                 for (const pos of landmarkPositions) {
                     const dist = Math.sqrt(Math.pow(x - pos.x, 2) + Math.pow(z - pos.z, 2));
-                    if (dist < 40) {
+                    if (dist < 80) { // 最小距離を拡大
                         tooClose = true;
                         break;
                     }
                 }
                 
-                // 道路との距離チェック
-                if (!tooClose) {
-                    for (let j = 0; j < detailedPathPoints.length; j += 10) {
-                        const point = detailedPathPoints[j];
-                        const dist = Math.sqrt(Math.pow(x - point.x, 2) + Math.pow(z - point.z, 2));
-                        if (dist < minDistanceFromRoad) {
-                            tooClose = true;
-                            break;
-                        }
+                // 道路との距離をチェック
+                for (let j = 0; j < detailedPathPoints.length; j += 10) {
+                    const point = detailedPathPoints[j];
+                    const dist = Math.sqrt(Math.pow(x - point.x, 2) + Math.pow(z - point.z, 2));
+                    if (dist < minDistanceFromRoad) {
+                        tooClose = true;
+                        break;
                     }
                 }
                 
@@ -837,26 +864,29 @@
             }
             
             // 街灯を道路沿いに配置
-            for (let t = 0; t < 1; t += 0.02) {
+            for (let t = 0; t < 1; t += 0.04) { // 密度を下げる（0.01→0.04）
                 const pathPoint = carPath.getPointAt(t);
                 const tangent = carPath.getTangentAt(t);
                 
-                // 道路の横に街灯を配置
+                // 道路の横に街灯を交互に配置
                 const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
-                const lightPosition = new THREE.Vector3().addVectors(
-                    pathPoint,
-                    normal.clone().multiplyScalar(roadWidth / 2 + 3)
-                );
                 
-                createStreetLight(lightPosition.x, lightPosition.z);
-                
-                // 道路の反対側にも街灯を配置
-                const oppositePosition = new THREE.Vector3().addVectors(
-                    pathPoint,
-                    normal.clone().multiplyScalar(-(roadWidth / 2 + 3))
-                );
-                
-                createStreetLight(oppositePosition.x, oppositePosition.z);
+                // tの値によって左右を切り替え
+                if (Math.round(t * 100) % 2 === 0) {
+                    // 右側に配置
+                    const lightPosition = new THREE.Vector3().addVectors(
+                        pathPoint,
+                        normal.clone().multiplyScalar(roadWidth / 2 + 3)
+                    );
+                    createStreetLight(lightPosition.x, lightPosition.z);
+                } else {
+                    // 左側に配置
+                    const oppositePosition = new THREE.Vector3().addVectors(
+                        pathPoint,
+                        normal.clone().multiplyScalar(-(roadWidth / 2 + 3))
+                    );
+                    createStreetLight(oppositePosition.x, oppositePosition.z);
+                }
             }
         }
         

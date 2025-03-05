@@ -717,41 +717,11 @@
         // ガードレールの作成
         createGuardrails();
         
-        // トンネルの作成
-        createTunnels();
-        
         log("道路の作成完了");
-        
-        // トンネルを作成する関数
-        function createTunnels() {
-            // ... existing code ...
-        }
-        
-        // 星空のスカイボックスを作成する関数（前回の編集で追加）
-        function createStarrySkybox() {
-            // キューブテクスチャ用の画像パスを設定
-            const nightSkyUrls = [
-                'https://threejs.org/examples/textures/cube/MilkyWay/dark-s_px.jpg', // right
-                'https://threejs.org/examples/textures/cube/MilkyWay/dark-s_nx.jpg', // left
-                'https://threejs.org/examples/textures/cube/MilkyWay/dark-s_py.jpg', // top
-                'https://threejs.org/examples/textures/cube/MilkyWay/dark-s_ny.jpg', // bottom
-                'https://threejs.org/examples/textures/cube/MilkyWay/dark-s_pz.jpg', // front
-                'https://threejs.org/examples/textures/cube/MilkyWay/dark-s_nz.jpg'  // back
-            ];
-            
-            // 星空のキューブテクスチャを読み込み
-            const nightSkyboxTexture = new THREE.CubeTextureLoader().load(nightSkyUrls);
-            
-            // 星空を夜間モードで使用するために保存
-            window.nightSkyboxTexture = nightSkyboxTexture;
-        }
         
         // 環境オブジェクトを配置（ビルは削除して星空のみに）
         function placeEnvironmentObjects() {
             log("環境オブジェクトの配置開始");
-            
-            // 星空のスカイボックスを作成
-            createStarrySkybox();
             
             // 街灯を配置
             createStreetlights();

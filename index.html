@@ -200,9 +200,14 @@
         let rainParticles;
         let snowParticles;
         let cloudParticles; // 雲パーティクル追加
+        let driftSmokeParticles; // ドリフト煙パーティクル
+        let driftSmokeData; // ドリフト煙データ
         let isRaining = false;
         let isSnowing = false;
         let isCloudy = false; // 曇りフラグ追加
+        let lastWeatherChangeTime = Date.now(); // 最後に天気が変更された時刻
+        let weatherChangeInterval = 30000; // 天気変更の間隔（ミリ秒）
+        let availableWeathers = ['sunny', 'cloudy', 'rain', 'snow']; // 利用可能な天気の配列
         let currentFrameTime = Date.now(); // グローバル変数として定義
         
         // ヘッドライト用のグローバル変数
@@ -2219,9 +2224,20 @@
             if (useRealTime) {
                 this.textContent = '🕒';
                 this.title = '現在の時刻に連動（クリックで切替）';
+                
+                // 現実時間モードに戻ったら天気の自動変更をリセット
+                lastWeatherChangeTime = Date.now();
+                weatherChangeInterval = 30000;
             } else {
                 this.textContent = '⏩';
                 this.title = 'ゲーム内時間モード（クリックで切替）';
+                
+                // 早送りモードに入ったら即座に天気を変更
+                const availableChoices = availableWeathers.filter(w => w !== currentWeather);
+                const nextWeather = availableChoices[Math.floor(Math.random() * availableChoices.length)];
+                changeWeather(nextWeather);
+                lastWeatherChangeTime = Date.now();
+                weatherChangeInterval = 20000 + Math.random() * 20000;
             }
         });
 
@@ -2618,6 +2634,28 @@
 
         // 天気の更新
         function updateWeather(deltaTime) {
+            // 早送りモード時の自動天気変更
+            if (!useRealTime) {
+                const currentTime = Date.now();
+                if (currentTime - lastWeatherChangeTime > weatherChangeInterval) {
+                    // 現在の天気を除外した選択肢から次の天気をランダムに選択
+                    const availableChoices = availableWeathers.filter(w => w !== currentWeather);
+                    const nextWeather = availableChoices[Math.floor(Math.random() * availableChoices.length)];
+                    
+                    // 天気を変更
+                    changeWeather(nextWeather);
+                    
+                    // 天気変更時刻を更新
+                    lastWeatherChangeTime = currentTime;
+                    
+                    // 次回の天気変更までの間隔をランダムに設定（20秒から40秒の間）
+                    weatherChangeInterval = 20000 + Math.random() * 20000;
+                    
+                    console.log("天気自動変更: " + nextWeather);
+                }
+            }
+            
+            // 既存の天気更新処理
             if (isCloudy && cloudParticles) {
                 // 雲のパーティクル更新
                 const cloudPositions = cloudParticles.geometry.attributes.position.array;

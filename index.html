@@ -116,10 +116,10 @@
 </head>
 <body>
     <div id="viewButtons">
-        <button class="viewButton active" data-view="0" title="俯瞰視点 (1)">俯瞰</button>
+        <button class="viewButton" data-view="0" title="俯瞰視点 (1)">俯瞰</button>
         <button class="viewButton" data-view="1" title="追従視点 (2)">追従</button>
         <button class="viewButton" data-view="2" title="車載視点 (3)">車載</button>
-        <button class="viewButton" data-view="3" title="斜め上視点 (4)">斜め</button>
+        <button class="viewButton active" data-view="3" title="斜め上視点 (4)">斜め</button>
         <button class="viewButton" data-view="4" title="前方視点 (5)">前方</button>
     </div>
     <div id="minimap-container">
@@ -1767,6 +1767,9 @@
                     updateButtonActiveState();
                 });
             });
+            
+            // 初期表示時にボタンのアクティブ状態を更新
+            updateButtonActiveState();
         }
 
         // ボタンのアクティブ状態を更新

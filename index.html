@@ -110,6 +110,12 @@
                 height: 100px;
                 right: 55px;
             }
+            
+            /* スマホ向け時間モードボタン位置調整 */
+            #timeToggle {
+                right: 55px;
+                top: 160px; /* 視点ボタンの下に配置 */
+            }
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
@@ -121,6 +127,9 @@
         <button class="viewButton" data-view="2" title="車載視点 (3)">車載</button>
         <button class="viewButton active" data-view="3" title="斜め上視点 (4)">斜め</button>
         <button class="viewButton" data-view="4" title="前方視点 (5)">前方</button>
+    </div>
+    <div id="timeToggle" style="position: fixed; top: 10px; right: 80px; z-index: 100;">
+        <button id="timeToggleButton" title="現在の時刻に連動（クリックで切替）">🕒</button>
     </div>
     <div id="minimap-container">
         <canvas id="minimap" width="150" height="120"></canvas>
@@ -144,18 +153,34 @@
         log("Three.jsの基本設定完了");
 
         // 時間システムの追加
-        let gameTime = 8.0; // ゲーム内時間（0～24）- 朝8時からスタート
-        const timeSpeed = 0.005; // 時間の進む速度
+        let gameTime = 5.0; // 朝5時からスタート
+        const timeSpeed = 0.01; // 時間の進む速度
+        let isNightMode = false;
+        
+        // 時間モード切替フラグ
+        let useRealTime = true; // デフォルトは現在時刻に連動
+        
+        // ヘッドライト用のグローバル変数
+        let leftHeadlightLight;
+        let rightHeadlightLight;
         
         // 時間帯に応じた空の色と光の設定
         function updateDayNightCycle() {
-            // 時間を更新
-            gameTime = (gameTime + timeSpeed) % 24;
+            // 時間モードに応じて時間を更新
+            if (useRealTime) {
+                // 現在時刻を取得
+                const now = new Date();
+                gameTime = now.getHours() + now.getMinutes() / 60;
+            } else {
+                // アプリケーション内の時間を早回しで進める
+                gameTime = (gameTime + timeSpeed) % 24;
+            }
             
             // 時間帯に応じた空の色の設定
             let skyColor;
             let lightIntensity;
             let ambientIntensity;
+            let isNight = false; // 夜間かどうかのフラグ
             
             if (gameTime >= 5 && gameTime < 7) {
                 // 朝焼け（5時～7時）
@@ -180,17 +205,19 @@
                 skyColor = new THREE.Color(0xff7733).lerp(new THREE.Color(0x111133), t);
                 lightIntensity = 0.5 - t * 0.4;
                 ambientIntensity = 0.3 - t * 0.2;
+                isNight = true; // 夜間に設定
             } else {
                 // 夜間（21時～5時）
                 if (gameTime >= 21) {
                     skyColor = new THREE.Color(0x111133);
                 } else {
-                    // 夜明け前（4時～5時）
+                    // 夜明け前（0時～5時）
                     const t = gameTime / 5; // 0～1の範囲に正規化
                     skyColor = new THREE.Color(0x111133).lerp(new THREE.Color(0xff9966), t);
                 }
                 lightIntensity = 0.1;
                 ambientIntensity = 0.1;
+                isNight = true; // 夜間に設定
             }
             
             // 空の色を設定
@@ -201,14 +228,17 @@
             ambientLight.intensity = ambientIntensity;
             
             // 夜間は街灯を明るく
-            updateStreetLights();
+            updateStreetLights(isNight);
+            
+            // 夜間はヘッドライトをオン、昼間はオフ
+            if (leftHeadlightLight && rightHeadlightLight) {
+                leftHeadlightLight.visible = isNight;
+                rightHeadlightLight.visible = isNight;
+            }
         }
         
         // 街灯の明るさを更新
-        function updateStreetLights() {
-            // 夜間かどうかの判定（18時から6時まで）
-            const isNight = (gameTime >= 18 || gameTime < 6);
-            
+        function updateStreetLights(isNight) {
             // 街灯のオブジェクトとライトを更新
             scene.traverse((object) => {
                 if (object.userData && object.userData.isStreetlight) {
@@ -231,7 +261,7 @@
                         if (isNight) {
                             // 夜間はライトを明るく
                             pointLight.intensity = 2.5;
-                            pointLight.distance = 150;
+                            pointLight.distance = 50;
                         } else {
                             // 昼間はライトを弱く（完全に消さない）
                             pointLight.intensity = 0.2;
@@ -251,7 +281,7 @@
         scene.add(directionalLight);
         
         // 都市の地面を作成
-        const floorSize = 4250; // 床のサイズを2500から1.7倍の4250に拡大
+        const floorSize = 5000; // 床のサイズを2500から2.0倍の5000に拡大
         const floorGeometry = new THREE.PlaneGeometry(floorSize, floorSize);
         const floorMaterial = new THREE.MeshStandardMaterial({ 
             color: 0x336633, 
@@ -264,39 +294,39 @@
         scene.add(floor);
         
         // 舗装された道路の幅
-        const roadWidth = 16; // 道路の幅を維持
+        const roadWidth = 16; // 道路の幅を元に戻す
         
         // リッジレーサー風の上級コース定義（すべて地上・閉ループ化）
         const trackPoints = [
-            // 新しいトラックポイント（x, 高度, z）- 1.7倍に拡大、高さは2倍
-            [200 * 1.7, 0, 350 * 1.7],      // 4,7,0
-            [50 * 1.7, 0, 350 * 1.7],       // 1,7,0
-            [0 * 1.7, 1 * 2, 250 * 1.7],    // 0,5,1
-            [25 * 1.7, 2 * 2, 200 * 1.7],   // 0.5,4,2
-            [60 * 1.7, 2 * 2, 215 * 1.7],   // 1.2,4.3,2
-            [125 * 1.7, 2 * 2, 140 * 1.7],  // 2.5,2.8,2
-            [100 * 1.7, 5 * 2, 50 * 1.7],   // 2,1,3
-            [135 * 1.7, 3 * 2, 0 * 1.7],    // 2.7,0,2.5
-            [200 * 1.7, 0, 50 * 1.7],       // 4,1,0
-            [220 * 1.7, 0, 40 * 1.7],       // 4.4,0.8,0
-            [295 * 1.7, 0, 90 * 1.7],       // 5.9,1.8,0
-            [285 * 1.7, 1 * 2, 105 * 1.7],  // 5.7,2.1,1
-            [210 * 1.7, 1 * 2, 110 * 1.7],  // 4.2,2.2,1
-            [185 * 1.7, 2 * 2, 145 * 1.7],  // 3.7,2.9,2
-            [150 * 1.7, 2 * 2, 235 * 1.7],  // 3,4.7,2
-            [170 * 1.7, 1 * 2, 275 * 1.7],  // 3.4,5.5,1
-            [220 * 1.7, 1 * 2, 275 * 1.7],  // 4.4,5.5,1
-            [270 * 1.7, 2 * 2, 225 * 1.7],  // 5.4,4.5,2
-            [285 * 1.7, 2 * 2, 180 * 1.7],  // 5.7,3.6,2
-            [365 * 1.7, 1 * 2, 150 * 1.7],  // 7.3,3,1
-            [400 * 1.7, 1 * 2, 165 * 1.7],  // 8,3.3,1
-            [475 * 1.7, 2 * 2, 175 * 1.7],  // 9.5,3.5,2
-            [450 * 1.7, 1 * 2, 250 * 1.7],  // 9,5,1
-            [395 * 1.7, 1 * 2, 285 * 1.7],  // 7.9,5.7,1
-            [350 * 1.7, 1 * 2, 265 * 1.7],  // 7,5.3,1
-            [300 * 1.7, 0, 275 * 1.7],      // 6,5.5,0
-            [245 * 1.7, 0, 350 * 1.7],      // 4.9,7,0
-            [200 * 1.7, 0, 350 * 1.7]       // 4,7,0
+            // 新しいトラックポイント（x, 高度, z）- 2.0倍に拡大、高さは2倍
+            [200 * 2.0, 0, 350 * 2.0],      // 4,7,0
+            [50 * 2.0, 0, 350 * 2.0],       // 1,7,0
+            [0 * 2.0, 1 * 2, 250 * 2.0],    // 0,5,1
+            [25 * 2.0, 2 * 2, 200 * 2.0],   // 0.5,4,2
+            [60 * 2.0, 2 * 2, 215 * 2.0],   // 1.2,4.3,2
+            [125 * 2.0, 2 * 2, 140 * 2.0],  // 2.5,2.8,2
+            [100 * 2.0, 5 * 2, 50 * 2.0],   // 2,1,3
+            [135 * 2.0, 3 * 2, 0 * 2.0],    // 2.7,0,2.5
+            [200 * 2.0, 0, 50 * 2.0],       // 4,1,0
+            [220 * 2.0, 0, 40 * 2.0],       // 4.4,0.8,0
+            [295 * 2.0, 0, 90 * 2.0],       // 5.9,1.8,0
+            [285 * 2.0, 1 * 2, 105 * 2.0],  // 5.7,2.1,1
+            [210 * 2.0, 1 * 2, 110 * 2.0],  // 4.2,2.2,1
+            [185 * 2.0, 2 * 2, 145 * 2.0],  // 3.7,2.9,2
+            [150 * 2.0, 2 * 2, 235 * 2.0],  // 3,4.7,2
+            [170 * 2.0, 1 * 2, 275 * 2.0],  // 3.4,5.5,1
+            [220 * 2.0, 1 * 2, 275 * 2.0],  // 4.4,5.5,1
+            [270 * 2.0, 2 * 2, 225 * 2.0],  // 5.4,4.5,2
+            [285 * 2.0, 2 * 2, 180 * 2.0],  // 5.7,3.6,2
+            [365 * 2.0, 1 * 2, 150 * 2.0],  // 7.3,3,1
+            [400 * 2.0, 1 * 2, 165 * 2.0],  // 8,3.3,1
+            [475 * 2.0, 2 * 2, 175 * 2.0],  // 9.5,3.5,2
+            [450 * 2.0, 1 * 2, 250 * 2.0],  // 9,5,1
+            [395 * 2.0, 1 * 2, 285 * 2.0],  // 7.9,5.7,1
+            [350 * 2.0, 1 * 2, 265 * 2.0],  // 7,5.3,1
+            [300 * 2.0, 0, 275 * 2.0],      // 6,5.5,0
+            [245 * 2.0, 0, 350 * 2.0],      // 4.9,7,0
+            [200 * 2.0, 0, 350 * 2.0]       // 4,7,0
         ];
         
         // 道路を作成
@@ -669,7 +699,103 @@
             // 星空のスカイボックスを作成
             createStarrySkybox();
             
+            // 街灯を配置
+            createStreetlights();
+            
             log("環境オブジェクトの配置完了");
+        }
+        
+        // 街灯を作成する関数
+        function createStreetlights() {
+            // 街灯の間隔（パスの割合）
+            const streetlightSpacing = 0.04; // コース全体で約25本の街灯
+            
+            // 街灯用のグループを作成
+            const streetlightGroup = new THREE.Group();
+            roadGroup.add(streetlightGroup);
+            
+            // コース全体に街灯を配置
+            let currentT = 0;
+            while (currentT < 1) {
+                // パス上の位置と接線を取得
+                const point = carPath.getPointAt(currentT);
+                const tangent = carPath.getTangentAt(currentT);
+                
+                // 垂直方向ベクトル（外側方向）
+                const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+                
+                // 道路の右側に街灯を設置
+                createSingleStreetlight(point, normal, 1); // 右側
+                
+                currentT += streetlightSpacing;
+            }
+            
+            // 1本の街灯を作成する関数
+            function createSingleStreetlight(point, normal, side) {
+                // 街灯の位置（道路の外側）
+                const lightPosition = new THREE.Vector3().addVectors(
+                    point,
+                    normal.clone().multiplyScalar(side * (roadWidth / 2 + 2.0))
+                );
+                
+                // 街灯の支柱
+                const poleGeometry = new THREE.CylinderGeometry(0.15, 0.2, 8, 8);
+                const poleMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
+                const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+                
+                // 支柱の位置を設定
+                pole.position.copy(new THREE.Vector3(
+                    lightPosition.x,
+                    point.y + 4, // 地面からの高さ
+                    lightPosition.z
+                ));
+                
+                // 支柱を垂直に立てる
+                pole.rotation.x = Math.PI / 2;
+                
+                streetlightGroup.add(pole);
+                
+                // 街灯の頭部
+                const headGeometry = new THREE.BoxGeometry(1.0, 0.4, 0.4);
+                const headMaterial = new THREE.MeshStandardMaterial({ 
+                    color: 0x333333,
+                    emissive: 0xFFDD99,
+                    emissiveIntensity: 0.1 // 初期値は低く
+                });
+                const head = new THREE.Mesh(headGeometry, headMaterial);
+                
+                // 頭部の位置を設定
+                head.position.copy(new THREE.Vector3(
+                    lightPosition.x,
+                    point.y + 8, // 支柱の上部
+                    lightPosition.z
+                ));
+                
+                // 頭部を道路に向ける
+                head.lookAt(new THREE.Vector3(
+                    point.x,
+                    point.y + 8,
+                    point.z
+                ));
+                
+                // ユーザーデータに街灯フラグを設定
+                head.userData.isStreetlight = true;
+                
+                streetlightGroup.add(head);
+                
+                // 街灯のライト
+                const light = new THREE.PointLight(0xFFDD99, 0.2, 10, 2);
+                light.position.copy(new THREE.Vector3(
+                    lightPosition.x,
+                    point.y + 8, // 支柱の上部
+                    lightPosition.z
+                ));
+                
+                // ライトを街灯の頭部に関連付ける
+                head.userData.pointLight = light;
+                
+                streetlightGroup.add(light);
+            }
         }
         
         // 詳細な車のモデルを作成
@@ -761,8 +887,8 @@
             const headlightGeometry = new THREE.BoxGeometry(0.4, 0.1, 0.1);
             const headlightMaterial = new THREE.MeshLambertMaterial({ 
                 color: 0xFFFFFF,
-                emissive: 0xFFFFCC,
-                emissiveIntensity: 0.5
+                emissive: 0xFFFFFF,
+                emissiveIntensity: 1.0 // 発光強度を上げる
             });
             
             const leftHeadlight = new THREE.Mesh(headlightGeometry, headlightMaterial);
@@ -773,6 +899,21 @@
             rightHeadlight.position.set(-0.7, 0.65, -2.35); // 高さ調整
             car.add(rightHeadlight);
             
+            // ヘッドライトのスポットライトを追加
+            leftHeadlightLight = new THREE.SpotLight(0xFFFFFF, 1.5, 50, Math.PI / 6, 0.3, 1);
+            leftHeadlightLight.position.set(0.6, 2.0, -2.0); // より高い位置に配置
+            leftHeadlightLight.target.position.set(0.3, 0.0, -20); // 道路表面に向けて角度を調整
+            leftHeadlightLight.visible = false; // 初期状態ではオフ
+            car.add(leftHeadlightLight);
+            car.add(leftHeadlightLight.target);
+            
+            rightHeadlightLight = new THREE.SpotLight(0xFFFFFF, 1.5, 50, Math.PI / 6, 0.3, 1);
+            rightHeadlightLight.position.set(-0.6, 2.0, -2.0); // より高い位置に配置
+            rightHeadlightLight.target.position.set(-0.3, 0.0, -20); // 道路表面に向けて角度を調整
+            rightHeadlightLight.visible = false; // 初期状態ではオフ
+            car.add(rightHeadlightLight);
+            car.add(rightHeadlightLight.target);
+
             // テールライト
             const taillightGeometry = new THREE.BoxGeometry(0.8, 0.1, 0.1);
             const taillightMaterial = new THREE.MeshLambertMaterial({ 
@@ -1172,7 +1313,7 @@
             // ---------- アウトインアウト走法のための詳細な路線計算 ----------
             
             // 道路の幅に応じてオフセット量を調整（より大きなオフセットに調整）
-            const pathOffsetAmount = 4.0;
+            const pathOffsetAmount = 4.0; // 元の値に戻す
             
             // 曲率をより正確に計算するためのパラメータ
             const detailedSamplePoints = 20;
@@ -1661,8 +1802,12 @@
         function updateCamera() {
             switch (cameraMode) {
                 case 0: // 俯瞰
-                    camera.position.set(3 * 50 * 1.7, 300, 9 * 50 * 1.7); // より高い位置からの俯瞰視点（コース拡大と高低差に対応）
+                    camera.position.set(3 * 50 * 2.0, 350, 9 * 50 * 2.0); // より高い位置からの俯瞰視点（コース拡大と高低差に対応）
                     camera.lookAt(car.position);
+                    
+                    // 標準の視野角に戻す
+                    camera.fov = 60;
+                    camera.updateProjectionMatrix();
                     break;
                     
                 case 1: // 追従
@@ -1679,21 +1824,43 @@
                     const lookAheadOffset = new THREE.Vector3(0, -2, -20).applyQuaternion(car.quaternion);
                     const lookAtPoint = new THREE.Vector3().addVectors(car.position, lookAheadOffset);
                     camera.lookAt(lookAtPoint);
+                    
+                    // 標準の視野角に戻す
+                    camera.fov = 60;
+                    camera.updateProjectionMatrix();
                     break;
                     
                 case 2: // 車載
-                    // 車のフロントガラス位置
-                    const fpvOffset = new THREE.Vector3(0, 2, 4); // 高さを少し上げる（起伏に対応）
+                    // 運転席の位置（実際のドライバー目線の位置に）
+                    const fpvOffset = new THREE.Vector3(0, 1.1, -12); // ドライバーの目の高さと位置に調整
                     // 車の向きに合わせてオフセットを回転
                     const rotatedFpvOffset = fpvOffset.clone().applyQuaternion(car.quaternion);
                     
-                    // カメラ位置をスムーズに更新
-                    const targetFpvCameraPos = new THREE.Vector3().addVectors(car.position, rotatedFpvOffset);
-                    camera.position.lerp(targetFpvCameraPos, 0.2); // スムージング
+                    // 車体の揺れを計算（カーブでの傾きを反映）
+                    const curvatureData = calculateCurvature(carPosition);
+                    const tiltAngle = curvatureData.angle * 0.2; // カーブでの傾き
                     
-                    // カメラの注視点を車の位置に設定（少し前に）
-                    const fpvAheadOffset = new THREE.Vector3(0, -3, -20).applyQuaternion(car.quaternion);
+                    // 上下の揺れを追加（道路の起伏や速度による揺れ）
+                    const bumpiness = Math.sin(Date.now() * 0.01) * 0.05 * carSpeed;
+                    
+                    // カメラ位置をスムーズに更新（揺れを加える）
+                    const targetFpvCameraPos = new THREE.Vector3().addVectors(car.position, rotatedFpvOffset);
+                    targetFpvCameraPos.y += bumpiness; // 上下の揺れを追加
+                    camera.position.lerp(targetFpvCameraPos, 0.15); // スムージング（少し遅めに）
+                    
+                    // カメラの注視点を車の前方に設定（少し前と少し下を見るように）
+                    const fpvAheadOffset = new THREE.Vector3(0, -1, -20).applyQuaternion(car.quaternion);
                     const fpvAtPoint = new THREE.Vector3().addVectors(car.position, fpvAheadOffset);
+                    
+                    // カメラの傾きを計算（カーブでの傾きを反映）
+                    const fpvUpVector = new THREE.Vector3(Math.sin(tiltAngle), 1, 0);
+                    camera.up.copy(fpvUpVector.normalize());
+                    
+                    // 車載視点のFOV(視野角)を調整して没入感を高める
+                    camera.fov = 75; // 広い視野角に設定
+                    camera.updateProjectionMatrix();
+                    
+                    // カメラの注視点を設定
                     camera.lookAt(fpvAtPoint);
                     break;
                 case 3: // 斜め上視点
@@ -1710,6 +1877,10 @@
                     const diagLookOffset = new THREE.Vector3(0, -1, -5).applyQuaternion(car.quaternion);
                     const diagLookAtPoint = new THREE.Vector3().addVectors(car.position, diagLookOffset);
                     camera.lookAt(diagLookAtPoint);
+                    
+                    // 標準の視野角に戻す
+                    camera.fov = 60;
+                    camera.updateProjectionMatrix();
                     break;
                     
                 case 4: // 車前方から後方を見る視点
@@ -1726,6 +1897,10 @@
                     const lookBackOffset = new THREE.Vector3(0, 0, 20).applyQuaternion(car.quaternion);
                     const lookBackPoint = new THREE.Vector3().addVectors(car.position, lookBackOffset);
                     camera.lookAt(lookBackPoint);
+                    
+                    // 標準の視野角に戻す
+                    camera.fov = 60;
+                    camera.updateProjectionMatrix();
                     break;
             }
         }
@@ -1941,6 +2116,28 @@
         function setupKeyboardControls() {
             // ... existing code ...
         }
+
+        // 時間モード切替ボタンのイベントリスナー
+        document.getElementById('timeToggleButton').addEventListener('click', function() {
+            useRealTime = !useRealTime;
+            
+            // ボタンの表示を更新
+            if (useRealTime) {
+                this.textContent = '🕒';
+                this.title = '現在の時刻に連動（クリックで切替）';
+            } else {
+                this.textContent = '⏩';
+                this.title = 'ゲーム内時間モード（クリックで切替）';
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初期化完了後の処理
+            log("DOMContentLoaded イベント発火");
+            
+            // アニメーションの開始
+            animate();
+        });
     </script>
 </body>
 </html> 

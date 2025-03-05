@@ -212,6 +212,7 @@
         let weatherChangeInterval = 30000; // 天気変更の間隔（ミリ秒）
         let availableWeathers = ['sunny', 'cloudy', 'rain', 'snow']; // 利用可能な天気の配列
         let currentFrameTime = Date.now(); // グローバル変数として定義
+        let weatherApiKey = '2416f36c5b6368d2de6d3016e34ae8f8'; // OpenWeatherMap APIキー
         
         // ヘッドライト用のグローバル変数
         let leftHeadlightLight;
@@ -2327,6 +2328,9 @@
                 weatherChangeInterval = 30000;
                 lastCameraChangeTime = Date.now();
                 cameraChangeInterval = 30000;
+                
+                // 現在地点の天気を取得して反映
+                fetchCurrentWeather();
             } else {
                 this.textContent = '⏩';
                 this.title = 'ゲーム内時間モード（クリックで切替）';
@@ -2588,6 +2592,16 @@
             
             rainParticles.instanceMatrix.needsUpdate = true;
             scene.add(rainParticles);
+            
+            // 初期天気の設定
+            if (useRealTime) {
+                // 現在地点の天気を取得して反映
+                fetchCurrentWeather();
+            } else {
+                // ランダムな天気を設定
+                const randomWeather = availableWeathers[Math.floor(Math.random() * availableWeathers.length)];
+                changeWeather(randomWeather);
+            }
         }
         
         // 天気を変更する関数
@@ -2906,7 +2920,85 @@
                 }
             });
         }
+
+        // 現在位置の天気を取得する関数
+        async function fetchCurrentWeather() {
+            try {
+                // 現在位置を取得
+                const position = await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, {
+                        timeout: 10000,
+                        maximumAge: 0
+                    });
+                });
+                
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                
+                log(`現在位置を取得しました: 緯度 ${lat}, 経度 ${lon}`);
+                
+                // OpenWeatherMap APIを呼び出し
+                const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${weatherApiKey}&units=metric`);
+                
+                if (!response.ok) {
+                    throw new Error('天気情報の取得に失敗しました');
+                }
+                
+                const data = await response.json();
+                log('現在の天気情報を取得しました: ' + data.weather[0].main);
+                
+                // 天気コードに基づいて天気を設定
+                const weatherCode = data.weather[0].id;
+                let gameWeather = 'sunny'; // デフォルト
+                
+                // 天気コードに基づいて天気を判定
+                // 雪 (Snow): 600-622
+                if (weatherCode >= 600 && weatherCode < 623) {
+                    gameWeather = 'snow';
+                }
+                // 雨 (Rain): 500-531, 雷雨 (Thunderstorm): 200-232
+                else if ((weatherCode >= 500 && weatherCode < 532) || (weatherCode >= 200 && weatherCode < 233)) {
+                    gameWeather = 'rain';
+                }
+                // 曇り (Clouds): 801-804
+                else if (weatherCode >= 801 && weatherCode < 805) {
+                    gameWeather = 'cloudy';
+                }
+                // 晴れ (Clear): 800
+                else if (weatherCode === 800) {
+                    gameWeather = 'sunny';
+                }
+                // その他の天気（霧、霞など）は曇りとして扱う
+                else {
+                    gameWeather = 'cloudy';
+                }
+                
+                log(`天気を変更します: ${gameWeather}`);
+                
+                // 天気を変更
+                changeWeather(gameWeather);
+                
+                // 天気メニューのアクティブ状態を更新
+                document.querySelectorAll('.weatherOption').forEach(button => {
+                    if (button.getAttribute('data-weather') === gameWeather) {
+                        button.classList.add('active');
+                    } else {
+                        button.classList.remove('active');
+                    }
+                });
+                
+                return gameWeather;
+            } catch (error) {
+                console.error('天気情報の取得エラー:', error);
+                log('天気情報の取得に失敗しました。デフォルトの天気を使用します。');
+                
+                // エラーの場合はランダムな天気を設定
+                const randomWeather = availableWeathers[Math.floor(Math.random() * availableWeathers.length)];
+                changeWeather(randomWeather);
+                
+                return null;
+            }
+        }
     </script>
 </body>
-</html> 
 </html> 

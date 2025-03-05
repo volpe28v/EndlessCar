@@ -19,12 +19,73 @@
             padding: 10px;
             border-radius: 5px;
             font-size: 14px;
+            max-width: calc(100% - 190px); /* ボタン幅を考慮して調整 */
+            z-index: 10;
+        }
+        #viewButtons {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            flex-direction: column; /* 縦に並べる */
+            gap: 5px;
+            z-index: 100;
+            flex-wrap: nowrap; /* 折り返しなし */
+            justify-content: flex-start;
+            max-width: 60px; /* ボタンの幅に合わせて調整 */
+        }
+        .viewButton {
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: 1px solid white;
+            border-radius: 3px;
+            padding: 4px 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.1s;
+            margin-bottom: 3px;
+            min-width: 30px;
+            text-align: center; /* テキストを中央揃え */
+            width: 100%; /* ボタンの幅を親要素に合わせる */
+        }
+        .viewButton:hover {
+            background-color: rgba(50, 50, 50, 0.7);
+        }
+        .viewButton:active {
+            transform: scale(0.95);
+        }
+        .viewButton.active {
+            background-color: rgba(100, 100, 255, 0.7);
+        }
+        /* スマートフォン向け調整 */
+        @media (max-width: 480px) {
+            #info {
+                max-width: 60%;
+                font-size: 12px;
+                padding: 6px;
+            }
+            .viewButton {
+                padding: 3px 4px;
+                font-size: 10px;
+                min-width: 24px;
+            }
+            #viewButtons {
+                gap: 2px;
+                max-width: 45px; /* スマホ向けにさらに小さく */
+            }
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
 </head>
 <body>
     <div id="info">エンドレスカー - ロンドン市街地コース</div>
+    <div id="viewButtons">
+        <button class="viewButton active" data-view="0" title="俯瞰視点 (1)">俯瞰</button>
+        <button class="viewButton" data-view="1" title="追従視点 (2)">追従</button>
+        <button class="viewButton" data-view="2" title="車載視点 (3)">車載</button>
+        <button class="viewButton" data-view="3" title="斜め上視点 (4)">斜め</button>
+        <button class="viewButton" data-view="4" title="前方視点 (5)">前方</button>
+    </div>
     <script>
         // デバッグ用のログ
         function log(message) {
@@ -1685,14 +1746,78 @@
         });
         
         // アニメーションスタート
-        log("アニメーション開始");
-        animate();
+        // log("アニメーション開始");
+        // animate();
         
         // 初期情報表示の更新
-        updateInfo();
+        // updateInfo();
         
         // 環境オブジェクトを配置
-        placeEnvironmentObjects();
+        // placeEnvironmentObjects();
+
+        // キーボードイベントの処理
+        document.addEventListener('keydown', (event) => {
+            // カメラモード切り替え
+            if (event.key === '1') {
+                cameraMode = 0; // 俯瞰
+                updateButtonActiveState();
+            } else if (event.key === '2') {
+                cameraMode = 1; // 追従
+                updateButtonActiveState();
+            } else if (event.key === '3') {
+                cameraMode = 2; // 車載
+                updateButtonActiveState();
+            } else if (event.key === '4') {
+                cameraMode = 3; // 斜め上
+                updateButtonActiveState();
+            } else if (event.key === '5') {
+                cameraMode = 4; // 前方
+                updateButtonActiveState();
+            }
+        });
+
+        // 視点切り替えボタンの設定
+        function setupViewButtons() {
+            const buttons = document.querySelectorAll('.viewButton');
+            buttons.forEach(button => {
+                button.addEventListener('click', () => {
+                    cameraMode = parseInt(button.getAttribute('data-view'));
+                    updateButtonActiveState();
+                });
+            });
+        }
+
+        // ボタンのアクティブ状態を更新
+        function updateButtonActiveState() {
+            const buttons = document.querySelectorAll('.viewButton');
+            buttons.forEach(button => {
+                const viewMode = parseInt(button.getAttribute('data-view'));
+                if (viewMode === cameraMode) {
+                    button.classList.add('active');
+                } else {
+                    button.classList.remove('active');
+                }
+            });
+        }
+
+        // 初期化関数
+        function init() {
+            // 初期情報表示の更新
+            updateInfo();
+            
+            // 環境オブジェクトを配置
+            placeEnvironmentObjects();
+            
+            // 視点切り替えボタンの設定
+            setupViewButtons();
+            
+            // アニメーションスタート
+            log("アニメーション開始");
+            animate();
+        }
+
+        // ページ読み込み完了時に初期化を実行
+        window.onload = init;
     </script>
 </body>
 </html> 

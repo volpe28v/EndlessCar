@@ -116,6 +116,33 @@
                 right: 55px;
                 top: 160px; /* 視点ボタンの下に配置 */
             }
+            
+            /* スマホ向け天気ボタン位置調整 */
+            #weatherToggle {
+                right: 55px;
+                top: 210px; /* 時間モードボタンの下に配置 */
+            }
+        }
+        
+        #weatherToggleButton, .weatherOption {
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 16px;
+            cursor: pointer;
+            outline: none;
+            transition: background-color 0.3s;
+        }
+        
+        #weatherToggleButton:hover, .weatherOption:hover {
+            background-color: rgba(50, 50, 50, 0.7);
+        }
+        
+        .weatherOption.active {
+            background-color: rgba(100, 100, 100, 0.7);
+            border-color: #888;
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
@@ -130,6 +157,15 @@
     </div>
     <div id="timeToggle" style="position: fixed; top: 10px; right: 80px; z-index: 100;">
         <button id="timeToggleButton" title="現在の時刻に連動（クリックで切替）">🕒</button>
+    </div>
+    <div id="weatherToggle" style="position: fixed; top: 10px; right: 140px; z-index: 100;">
+        <button id="weatherToggleButton" title="天気を変更">☀️</button>
+        <div id="weatherMenu" style="display: none; position: absolute; top: 30px; right: 0; background-color: rgba(0, 0, 0, 0.7); border-radius: 5px; padding: 5px;">
+            <button class="weatherOption active" data-weather="sunny" title="晴れ">☀️</button>
+            <button class="weatherOption" data-weather="cloudy" title="曇り">☁️</button>
+            <button class="weatherOption" data-weather="rain" title="雨">🌧</button>
+            <button class="weatherOption" data-weather="snow" title="雪">❄️</button>
+        </div>
     </div>
     <div id="minimap-container">
         <canvas id="minimap" width="150" height="120"></canvas>
@@ -154,11 +190,20 @@
 
         // 時間システムの追加
         let gameTime = 5.0; // 朝5時からスタート
-        const timeSpeed = 0.01; // 時間の進む速度
+        let timeSpeed = 0.01; // 時間の進み速度 (0.01 = 現実の100倍速)
+        let isNight = false;
         let isNightMode = false;
-        
-        // 時間モード切替フラグ
-        let useRealTime = true; // デフォルトは現在時刻に連動
+        let useRealTime = true; // デフォルトは現在時刻モード
+
+        // 天気システムの追加
+        let currentWeather = 'sunny'; // デフォルトは晴れ
+        let rainParticles;
+        let snowParticles;
+        let cloudParticles; // 雲パーティクル追加
+        let isRaining = false;
+        let isSnowing = false;
+        let isCloudy = false; // 曇りフラグ追加
+        let currentFrameTime = Date.now(); // グローバル変数として定義
         
         // ヘッドライト用のグローバル変数
         let leftHeadlightLight;
@@ -1233,12 +1278,15 @@
             requestAnimationFrame(animate);
             
             // フレーム間のデルタタイムを計算
-            const currentFrameTime = Date.now();
+            currentFrameTime = Date.now(); // グローバル変数を更新
             const deltaTime = (currentFrameTime - lastFrameTime) / 16.67; // 60fpsを基準にした値
             lastFrameTime = currentFrameTime;
             
             // 時間の更新と昼夜サイクルの適用
             updateDayNightCycle();
+            
+            // 天気の更新
+            updateWeather(deltaTime);
             
             // 速度を更新（カーブに応じて）
             updateSpeed();
@@ -1940,6 +1988,16 @@
                 button.addEventListener('click', () => {
                     cameraMode = parseInt(button.getAttribute('data-view'));
                     updateButtonActiveState();
+                    
+                    // 視点切り替え時に現在の天気に応じて環境を更新
+                    if (currentWeather === 'rain') {
+                        updateEnvironmentForRain();
+                    } else if (currentWeather === 'snow') {
+                        updateEnvironmentForSnow();
+                    } else {
+                        // 晴れの場合は霧をなくす
+                        scene.fog = null;
+                    }
                 });
             });
             
@@ -1971,14 +2029,50 @@
             // ミニマップの初期化
             initMinimap();
             
+            // 天気トグルボタンのイベントリスナー
+            document.getElementById('weatherToggleButton').addEventListener('click', function() {
+                const weatherMenu = document.getElementById('weatherMenu');
+                if (weatherMenu.style.display === 'none') {
+                    weatherMenu.style.display = 'block';
+                } else {
+                    weatherMenu.style.display = 'none';
+                }
+            });
+            
+            // 天気オプションボタンのイベントリスナー
+            document.querySelectorAll('.weatherOption').forEach(button => {
+                button.addEventListener('click', function() {
+                    const selectedWeather = this.getAttribute('data-weather');
+                    
+                    // 以前の天気をリセット
+                    document.querySelectorAll('.weatherOption').forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+                    
+                    // 選択された天気をアクティブに
+                    this.classList.add('active');
+                    
+                    // 天気を変更
+                    changeWeather(selectedWeather);
+                    
+                    // メニューを閉じる
+                    document.getElementById('weatherMenu').style.display = 'none';
+                });
+            });
+            
             // アニメーションスタート
             log("アニメーション開始");
             animate();
+            
+            // 天気システムの初期化
+            initWeatherSystem();
         }
 
         // ページ読み込み完了時に初期化を実行
         window.onload = init;
 
+        // DOMContentLoadedイベントリスナーを削除（重複初期化防止のため）
+        
         // ミニマップの初期化と描画
         function initMinimap() {
             const canvas = document.getElementById('minimap');
@@ -2131,13 +2225,490 @@
             }
         });
 
-        document.addEventListener('DOMContentLoaded', function() {
-            // 初期化完了後の処理
-            log("DOMContentLoaded イベント発火");
+        // DOMContentLoadedイベントリスナーは削除（init関数に移動済み）
+
+        // ページ読み込み完了時に初期化を実行
+        window.onload = init;
+
+        // DOMContentLoadedイベントリスナーを削除（重複初期化防止のため）
+        
+        // ミニマップの初期化と描画
+        function initMinimap() {
+            const canvas = document.getElementById('minimap');
+            const ctx = canvas.getContext('2d');
             
-            // アニメーションの開始
-            animate();
-        });
+            // ミニマップの描画関数
+            function drawMinimap() {
+                // キャンバスをクリア
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // 背景色
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // コースの座標を取得し、ミニマップの座標に変換
+                const minimapPoints = [];
+                const margin = 10; // マージン
+                
+                // コースの範囲を計算
+                let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+                trackPoints.forEach(point => {
+                    minX = Math.min(minX, point[0]);
+                    maxX = Math.max(maxX, point[0]);
+                    minZ = Math.min(minZ, point[2]);
+                    maxZ = Math.max(maxZ, point[2]);
+                });
+                
+                // スケール係数を計算
+                const mapWidth = canvas.width - margin * 2;
+                const mapHeight = canvas.height - margin * 2;
+                const scaleX = mapWidth / (maxX - minX);
+                const scaleZ = mapHeight / (maxZ - minZ);
+                const scale = Math.min(scaleX, scaleZ);
+                
+                // コースのポイントをミニマップ座標に変換
+                trackPoints.forEach(point => {
+                    const x = margin + (point[0] - minX) * scale;
+                    const y = margin + (point[2] - minZ) * scale;
+                    minimapPoints.push([x, y]);
+                });
+                
+                // コースを描画（白い線）
+                ctx.beginPath();
+                ctx.moveTo(minimapPoints[0][0], minimapPoints[0][1]);
+                for (let i = 1; i < minimapPoints.length; i++) {
+                    ctx.lineTo(minimapPoints[i][0], minimapPoints[i][1]);
+                }
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // スタート地点をマーク
+                const startX = minimapPoints[0][0];
+                const startY = minimapPoints[0][1];
+                
+                // スタートラインを描画
+                ctx.beginPath();
+                const tangent = new THREE.Vector3(
+                    trackPoints[1][0] - trackPoints[0][0],
+                    0,
+                    trackPoints[1][2] - trackPoints[0][2]
+                ).normalize();
+                
+                // 垂直方向のベクトルを計算
+                const perpendicular = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+                
+                // スタートラインの両端の座標を計算
+                const lineLength = 8; // ラインの長さ
+                const startLine1X = startX + perpendicular.x * lineLength;
+                const startLine1Y = startY + perpendicular.z * lineLength;
+                const startLine2X = startX - perpendicular.x * lineLength;
+                const startLine2Y = startY - perpendicular.z * lineLength;
+                
+                // ラインを描画
+                ctx.moveTo(startLine1X, startLine1Y);
+                ctx.lineTo(startLine2X, startLine2Y);
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                
+                // チェッカーフラッグパターンを描画
+                const segments = 6;
+                const segmentLength = lineLength * 2 / segments;
+                
+                for (let i = 0; i < segments; i++) {
+                    if (i % 2 === 0) {
+                        const segX1 = startLine2X + perpendicular.x * segmentLength * i;
+                        const segY1 = startLine2Y + perpendicular.z * segmentLength * i;
+                        const segX2 = segX1 + perpendicular.x * segmentLength;
+                        const segY2 = segY1 + perpendicular.z * segmentLength;
+                        
+                        ctx.fillStyle = 'black';
+                        
+                        // 矩形を描画
+                        ctx.beginPath();
+                        ctx.moveTo(segX1, segY1);
+                        ctx.lineTo(segX2, segY2);
+                        ctx.lineTo(segX2 + tangent.x * 3, segY2 + tangent.z * 3);
+                        ctx.lineTo(segX1 + tangent.x * 3, segY1 + tangent.z * 3);
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+                }
+                
+                // 車の位置をミニマップ上で表示（赤い点）
+                if (typeof carPosition !== 'undefined' && typeof carPath !== 'undefined') {
+                    const point = carPath.getPointAt(carPosition);
+                    const x = margin + (point.x - minX) * scale;
+                    const y = margin + (point.z - minZ) * scale;
+                    
+                    // 車の向きを計算
+                    const tangent = carPath.getTangentAt(carPosition).normalize();
+                    const angle = Math.atan2(tangent.z, tangent.x) + Math.PI/2;
+                    
+                    // 車を三角形で描画
+                    ctx.save();
+                    ctx.translate(x, y);
+                    ctx.rotate(angle);
+                    ctx.beginPath();
+                    ctx.moveTo(0, -5);  // 先端
+                    ctx.lineTo(-3, 3);  // 左下
+                    ctx.lineTo(3, 3);   // 右下
+                    ctx.closePath();
+                    ctx.fillStyle = 'red';
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+            
+            // ミニマップを定期的に更新
+            setInterval(drawMinimap, 50);
+        }
+
+        // キーボードイベントを設定
+        function setupKeyboardControls() {
+            // ... existing code ...
+        }
+
+        
+        // 天気システムの初期化
+        function initWeatherSystem() {
+            // 雪のパーティクルシステム
+            const snowGeometry = new THREE.BufferGeometry();
+            const snowCount = 15000;
+            const snowPositions = new Float32Array(snowCount * 3);
+            const snowSizes = new Float32Array(snowCount);
+            
+            for (let i = 0; i < snowCount * 3; i += 3) {
+                snowPositions[i] = Math.random() * 2000 - 1000; // x: -1000 to 1000
+                snowPositions[i+1] = Math.random() * 1000; // y: 0 to 1000
+                snowPositions[i+2] = Math.random() * 2000 - 1000; // z: -1000 to 1000
+                snowSizes[i/3] = 3.0;
+            }
+            
+            snowGeometry.setAttribute('position', new THREE.BufferAttribute(snowPositions, 3));
+            snowGeometry.setAttribute('size', new THREE.BufferAttribute(snowSizes, 1));
+            
+            const snowMaterial = new THREE.PointsMaterial({
+                color: 0xffffff,
+                size: 2.0,
+                transparent: true,
+                opacity: 0.8,
+                sizeAttenuation: true
+            });
+            
+            snowParticles = new THREE.Points(snowGeometry, snowMaterial);
+            snowParticles.visible = false;
+            scene.add(snowParticles);
+            
+            // 雲のパーティクルシステム追加
+            const cloudGeometry = new THREE.BufferGeometry();
+            const cloudCount = 500; // 雲は雪より少なく
+            const cloudPositions = new Float32Array(cloudCount * 3);
+            const cloudSizes = new Float32Array(cloudCount);
+            
+            for (let i = 0; i < cloudCount * 3; i += 3) {
+                cloudPositions[i] = Math.random() * 3000 - 1500; // x: -1500 to 1500 (広範囲に配置)
+                cloudPositions[i+1] = 300 + Math.random() * 500; // y: 300 to 800 (高い位置に配置)
+                cloudPositions[i+2] = Math.random() * 3000 - 1500; // z: -1500 to 1500
+                cloudSizes[i/3] = 20.0 + Math.random() * 30.0; // 雲は大きめに
+            }
+            
+            cloudGeometry.setAttribute('position', new THREE.BufferAttribute(cloudPositions, 3));
+            cloudGeometry.setAttribute('size', new THREE.BufferAttribute(cloudSizes, 1));
+            
+            // 雲のテクスチャを使用
+            const cloudTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/sprites/cloud10.png');
+            
+            const cloudMaterial = new THREE.PointsMaterial({
+                color: 0xcccccc,
+                size: 30.0,
+                transparent: true,
+                opacity: 0.7,
+                map: cloudTexture,
+                sizeAttenuation: true,
+                depthWrite: false // 半透明のため、深度書き込みをオフ
+            });
+            
+            cloudParticles = new THREE.Points(cloudGeometry, cloudMaterial);
+            cloudParticles.visible = false;
+            scene.add(cloudParticles);
+            
+            // 雨粒を縦長の形状に変更（インスタンシングを使用）
+            // 雨粒の基本形状（細長い直方体）
+            const rainDropGeometry = new THREE.BoxGeometry(0.1, 1.0, 0.1);
+            const rainMaterial = new THREE.MeshBasicMaterial({
+                color: 0x8899aa,
+                transparent: true, 
+                opacity: 0.6
+            });
+            
+            // インスタンス化されたメッシュを作成
+            const rainCount = 15000;
+            rainParticles = new THREE.InstancedMesh(rainDropGeometry, rainMaterial, rainCount);
+            rainParticles.instanceMatrix.setUsage(THREE.DynamicDrawUsage); // 位置を動的に更新
+            rainParticles.visible = false;
+            
+            // 雨粒のインスタンスごとの初期位置とスケールを設定
+            const matrix = new THREE.Matrix4();
+            const position = new THREE.Vector3();
+            const rotation = new THREE.Euler();
+            const quaternion = new THREE.Quaternion();
+            const scale = new THREE.Vector3(1, 1, 1);
+            
+            for (let i = 0; i < rainCount; i++) {
+                position.x = Math.random() * 2000 - 1000;
+                position.y = Math.random() * 1000;
+                position.z = Math.random() * 2000 - 1000;
+                
+                // 若干ランダムな角度を付ける（雨が斜めに降っているように）
+                rotation.x = 0;
+                rotation.z = 0;
+                rotation.y = Math.random() * Math.PI;
+                quaternion.setFromEuler(rotation);
+                
+                matrix.compose(position, quaternion, scale);
+                rainParticles.setMatrixAt(i, matrix);
+            }
+            
+            rainParticles.instanceMatrix.needsUpdate = true;
+            scene.add(rainParticles);
+        }
+        
+        // 天気を変更する関数
+        function changeWeather(weather) {
+            currentWeather = weather;
+            
+            // 天気ボタンのアイコンを更新
+            const weatherButton = document.getElementById('weatherToggleButton');
+            
+            switch(weather) {
+                case 'sunny':
+                    weatherButton.textContent = '☀️';
+                    weatherButton.title = '晴れ (クリックで変更)';
+                    isRaining = false;
+                    isSnowing = false;
+                    isCloudy = false;
+                    if (rainParticles) rainParticles.visible = false;
+                    if (snowParticles) snowParticles.visible = false;
+                    if (cloudParticles) cloudParticles.visible = false;
+                    
+                    // 晴れの場合は霧をなくす
+                    scene.fog = null;
+                    break;
+                case 'cloudy':
+                    weatherButton.textContent = '☁️';
+                    weatherButton.title = '曇り (クリックで変更)';
+                    isRaining = false;
+                    isSnowing = false;
+                    isCloudy = true;
+                    if (rainParticles) rainParticles.visible = false;
+                    if (snowParticles) snowParticles.visible = false;
+                    if (cloudParticles) cloudParticles.visible = true;
+                    
+                    // 曇りの場合は霧を追加
+                    updateEnvironmentForCloudy();
+                    break;
+                case 'rain':
+                    weatherButton.textContent = '🌧';
+                    weatherButton.title = '雨 (クリックで変更)';
+                    isRaining = true;
+                    isSnowing = false;
+                    isCloudy = true; // 雨の時は曇りも有効
+                    if (rainParticles) rainParticles.visible = true;
+                    if (snowParticles) snowParticles.visible = false;
+                    if (cloudParticles) cloudParticles.visible = true;
+                    
+                    // 雨の場合は地面を濡れた感じに
+                    updateEnvironmentForRain();
+                    break;
+                case 'snow':
+                    weatherButton.textContent = '❄️';
+                    weatherButton.title = '雪 (クリックで変更)';
+                    isRaining = false;
+                    isSnowing = true;
+                    isCloudy = true; // 雪の時は曇りも有効
+                    if (rainParticles) rainParticles.visible = false;
+                    if (snowParticles) snowParticles.visible = true;
+                    if (cloudParticles) cloudParticles.visible = true;
+                    
+                    // 雪の場合は地面を白くする
+                    updateEnvironmentForSnow();
+                    break;
+            }
+        }
+        
+        // 曇りの環境更新
+        function updateEnvironmentForCloudy() {
+            // カメラモードに応じて霧の濃度を調整
+            if (cameraMode === 0) { // 俯瞰視点の場合
+                // 俯瞰視点では霧を薄く設定してコースが見えるようにする
+                scene.fog = new THREE.FogExp2(0xaaaaaa, 0.0008);
+            } else {
+                // その他の視点では通常の霧の濃度
+                scene.fog = new THREE.FogExp2(0xaaaaaa, 0.003);
+            }
+        }
+        
+        // 雨の環境更新
+        function updateEnvironmentForRain() {
+            // カメラモードに応じて霧の濃度を調整
+            if (cameraMode === 0) { // 俯瞰視点の場合
+                // 俯瞰視点では霧を薄く設定してコースが見えるようにする
+                scene.fog = new THREE.FogExp2(0x555555, 0.001);
+            } else {
+                // その他の視点では通常の霧の濃度
+                scene.fog = new THREE.FogExp2(0x555555, 0.007);
+            }
+        }
+        
+        // 雪の環境更新
+        function updateEnvironmentForSnow() {
+            // カメラモードに応じて霧の濃度を調整
+            if (cameraMode === 0) { // 俯瞰視点の場合
+                // 俯瞰視点では霧を薄く設定してコースが見えるようにする
+                scene.fog = new THREE.FogExp2(0xaaaaaa, 0.0005);
+            } else {
+                // その他の視点では通常の霧の濃度
+                scene.fog = new THREE.FogExp2(0xaaaaaa, 0.005);
+            }
+        }
+
+        // 天気の更新
+        function updateWeather(deltaTime) {
+            if (isCloudy && cloudParticles) {
+                // 雲のパーティクル更新
+                const cloudPositions = cloudParticles.geometry.attributes.position.array;
+                const cloudCount = cloudPositions.length / 3;
+                
+                // カメラモードに応じて雲の表示を調整
+                if (cameraMode === 0) { // 俯瞰視点の場合
+                    // 俯瞰視点では少し透明度を上げて薄く見せる
+                    cloudParticles.material.opacity = 0.4;
+                    // より広範囲に配置
+                    cloudParticles.scale.set(3, 1, 3);
+                } else {
+                    // 通常視点では標準の表示
+                    cloudParticles.material.opacity = 0.7;
+                    cloudParticles.scale.set(1, 1, 1);
+                }
+                
+                for (let i = 0; i < cloudCount * 3; i += 3) {
+                    // X,Z座標をゆっくり動かす（雲が動く感じ）
+                    cloudPositions[i] += Math.sin(currentFrameTime * 0.0001 + i * 0.01) * 0.3 * deltaTime;
+                    cloudPositions[i+2] += Math.cos(currentFrameTime * 0.00015 + i * 0.01) * 0.3 * deltaTime;
+                    
+                    // 遠くに行きすぎたら反対側に配置
+                    if (cloudPositions[i] > 1500) cloudPositions[i] = -1500;
+                    if (cloudPositions[i] < -1500) cloudPositions[i] = 1500;
+                    if (cloudPositions[i+2] > 1500) cloudPositions[i+2] = -1500;
+                    if (cloudPositions[i+2] < -1500) cloudPositions[i+2] = 1500;
+                }
+                
+                // カメラを中心に雲を配置
+                cloudParticles.position.x = camera.position.x;
+                cloudParticles.position.z = camera.position.z;
+                
+                cloudParticles.geometry.attributes.position.needsUpdate = true;
+            }
+        
+            if (isRaining && rainParticles) {
+                // 雨粒を更新（インスタンス化されたメッシュ版）
+                const rainMatrix = new THREE.Matrix4();
+                const rainPosition = new THREE.Vector3();
+                const rainRotation = new THREE.Euler();
+                const rainQuaternion = new THREE.Quaternion();
+                const rainScale = new THREE.Vector3();
+                
+                // カメラモードに応じて雨の表示を調整
+                if (cameraMode === 0) { // 俯瞰視点の場合
+                    // 俯瞰視点では透明度を上げて薄く見せる
+                    rainParticles.material.opacity = 0.3;
+                    // 広範囲に配置するため大きなスケール
+                    rainParticles.scale.set(3, 1, 3);
+                } else {
+                    // 通常視点では標準の表示
+                    rainParticles.material.opacity = 0.6;
+                    rainParticles.scale.set(1, 1, 1);
+                }
+                
+                // カメラを中心に雨を配置
+                rainParticles.position.x = camera.position.x;
+                rainParticles.position.z = camera.position.z;
+                
+                // 各雨粒のインスタンスを更新
+                for (let i = 0; i < rainParticles.count; i++) {
+                    rainParticles.getMatrixAt(i, rainMatrix);
+                    // 行列から位置、回転、スケールを抽出
+                    rainMatrix.decompose(rainPosition, rainQuaternion, rainScale);
+                    
+                    // Y座標を下に移動（雨が降る）
+                    rainPosition.y -= 10 * deltaTime;
+                    
+                    // 地面に到達したら上に戻す
+                    if (rainPosition.y < 0) {
+                        rainPosition.y = 1000;
+                        // X,Z座標もランダムに配置し直す
+                        rainPosition.x = Math.random() * 2000 - 1000;
+                        rainPosition.z = Math.random() * 2000 - 1000;
+                    }
+                    
+                    // 回転は維持
+                    // スケールも維持
+                    
+                    // 新しい位置で行列を更新
+                    rainMatrix.compose(rainPosition, rainQuaternion, rainScale);
+                    rainParticles.setMatrixAt(i, rainMatrix);
+                }
+                
+                rainParticles.instanceMatrix.needsUpdate = true;
+            }
+            
+            if (isSnowing && snowParticles) {
+                // 雪のパーティクル更新
+                const snowPositions = snowParticles.geometry.attributes.position.array;
+                const snowCount = snowPositions.length / 3;
+                
+                // カメラモードに応じて雪の表示を調整
+                if (cameraMode === 0) { // 俯瞰視点の場合
+                    // 俯瞰視点では少し透明度を上げて薄く見せる
+                    snowParticles.material.opacity = 0.4;
+                    // パーティクルのサイズを小さく
+                    snowParticles.material.size = 1.0;
+                    
+                    // より広範囲に配置
+                    snowParticles.scale.set(3, 1, 3);
+                } else {
+                    // 通常視点では標準の表示
+                    snowParticles.material.opacity = 0.8;
+                    snowParticles.material.size = 2.0;
+                    snowParticles.scale.set(1, 1, 1);
+                }
+                
+                for (let i = 0; i < snowCount * 3; i += 3) {
+                    // Y座標を下に移動（雪が降る、雨より遅い）
+                    snowPositions[i+1] -= 2 * deltaTime;
+                    
+                    // X,Z座標も少し揺らす（雪が舞う感じ）
+                    snowPositions[i] += Math.sin(currentFrameTime * 0.001 + i * 0.1) * 0.2 * deltaTime;
+                    snowPositions[i+2] += Math.cos(currentFrameTime * 0.0015 + i * 0.1) * 0.2 * deltaTime;
+                    
+                    // 地面に到達したら上に戻す
+                    if (snowPositions[i+1] < 0) {
+                        snowPositions[i+1] = 1000;
+                        // X,Z座標もランダムに配置し直す
+                        snowPositions[i] = Math.random() * 2000 - 1000;
+                        snowPositions[i+2] = Math.random() * 2000 - 1000;
+                    }
+                }
+                
+                // カメラを中心に雪を配置
+                snowParticles.position.x = camera.position.x;
+                snowParticles.position.z = camera.position.z;
+                
+                snowParticles.geometry.attributes.position.needsUpdate = true;
+            }
+        }
     </script>
 </body>
 </html> 

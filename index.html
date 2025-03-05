@@ -194,6 +194,9 @@
         let isNight = false;
         let isNightMode = false;
         let useRealTime = true; // デフォルトは現在時刻モード
+        let lastCameraChangeTime = Date.now(); // 最後にカメラが変更された時刻
+        let cameraChangeInterval = 30000; // カメラ変更の間隔（ミリ秒）
+        let availableCameraModes = [0, 1, 2, 3, 4]; // 利用可能なカメラモード
 
         // 天気システムの追加
         let currentWeather = 'sunny'; // デフォルトは晴れ
@@ -2213,7 +2216,38 @@
 
         // キーボードイベントを設定
         function setupKeyboardControls() {
-            // ... existing code ...
+            document.addEventListener('keydown', function(event) {
+                switch(event.key) {
+                    case '1':
+                        cameraMode = 0; // 俯瞰
+                        updateCameraButtonState();
+                        break;
+                    case '2':
+                        cameraMode = 1; // 追従
+                        updateCameraButtonState();
+                        break;
+                    case '3':
+                        cameraMode = 2; // 車載
+                        updateCameraButtonState();
+                        break;
+                    case '4':
+                        cameraMode = 3; // 斜め上
+                        updateCameraButtonState();
+                        break;
+                    case '5':
+                        cameraMode = 4; // 前方
+                        updateCameraButtonState();
+                        break;
+                }
+            });
+
+            // 視点切り替えボタンのイベントリスナー
+            document.querySelectorAll('.viewButton').forEach(button => {
+                button.addEventListener('click', function() {
+                    cameraMode = parseInt(this.getAttribute('data-view'));
+                    updateCameraButtonState();
+                });
+            });
         }
 
         // 時間モード切替ボタンのイベントリスナー
@@ -2225,19 +2259,28 @@
                 this.textContent = '🕒';
                 this.title = '現在の時刻に連動（クリックで切替）';
                 
-                // 現実時間モードに戻ったら天気の自動変更をリセット
+                // 現実時間モードに戻ったら天気とカメラの自動変更をリセット
                 lastWeatherChangeTime = Date.now();
                 weatherChangeInterval = 30000;
+                lastCameraChangeTime = Date.now();
+                cameraChangeInterval = 30000;
             } else {
                 this.textContent = '⏩';
                 this.title = 'ゲーム内時間モード（クリックで切替）';
                 
-                // 早送りモードに入ったら即座に天気を変更
+                // 早送りモードに入ったら即座に天気とカメラを変更
                 const availableChoices = availableWeathers.filter(w => w !== currentWeather);
                 const nextWeather = availableChoices[Math.floor(Math.random() * availableChoices.length)];
                 changeWeather(nextWeather);
                 lastWeatherChangeTime = Date.now();
                 weatherChangeInterval = 20000 + Math.random() * 20000;
+
+                const availableViews = availableCameraModes.filter(mode => mode !== cameraMode);
+                const nextCameraMode = availableViews[Math.floor(Math.random() * availableViews.length)];
+                cameraMode = nextCameraMode;
+                updateCameraButtonState();
+                lastCameraChangeTime = Date.now();
+                cameraChangeInterval = 10000 + Math.random() * 10000;
             }
         });
 
@@ -2634,24 +2677,30 @@
 
         // 天気の更新
         function updateWeather(deltaTime) {
-            // 早送りモード時の自動天気変更
+            // 早送りモード時の自動天気変更とカメラ切り替え
             if (!useRealTime) {
                 const currentTime = Date.now();
+                
+                // 天気の自動変更
                 if (currentTime - lastWeatherChangeTime > weatherChangeInterval) {
-                    // 現在の天気を除外した選択肢から次の天気をランダムに選択
                     const availableChoices = availableWeathers.filter(w => w !== currentWeather);
                     const nextWeather = availableChoices[Math.floor(Math.random() * availableChoices.length)];
-                    
-                    // 天気を変更
                     changeWeather(nextWeather);
-                    
-                    // 天気変更時刻を更新
                     lastWeatherChangeTime = currentTime;
-                    
-                    // 次回の天気変更までの間隔をランダムに設定（20秒から40秒の間）
                     weatherChangeInterval = 20000 + Math.random() * 20000;
-                    
                     console.log("天気自動変更: " + nextWeather);
+                }
+                
+                // カメラの自動切り替え
+                if (currentTime - lastCameraChangeTime > cameraChangeInterval) {
+                    const availableViews = availableCameraModes.filter(mode => mode !== cameraMode);
+                    const nextCameraMode = availableViews[Math.floor(Math.random() * availableViews.length)];
+                    cameraMode = nextCameraMode;
+                    updateCameraButtonState();
+                    
+                    lastCameraChangeTime = currentTime;
+                    cameraChangeInterval = 10000 + Math.random() * 10000;
+                    console.log("カメラ自動切り替え: " + nextCameraMode);
                 }
             }
             
@@ -2789,6 +2838,19 @@
                 snowParticles.geometry.attributes.position.needsUpdate = true;
             }
         }
+
+        // カメラモードボタンの表示を更新する関数
+        function updateCameraButtonState() {
+            document.querySelectorAll('.viewButton').forEach(button => {
+                const viewMode = parseInt(button.getAttribute('data-view'));
+                if (viewMode === cameraMode) {
+                    button.classList.add('active');
+                } else {
+                    button.classList.remove('active');
+                }
+            });
+        }
     </script>
 </body>
+</html> 
 </html> 

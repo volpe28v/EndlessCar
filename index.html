@@ -78,7 +78,6 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
 </head>
 <body>
-    <div id="info">エンドレスカー - ロンドン市街地コース</div>
     <div id="viewButtons">
         <button class="viewButton active" data-view="0" title="俯瞰視点 (1)">俯瞰</button>
         <button class="viewButton" data-view="1" title="追従視点 (2)">追従</button>
@@ -905,38 +904,6 @@
             }
         });
         
-        // 情報表示を更新
-        function updateInfo() {
-            const info = document.getElementById('info');
-            const cameraModeText = ['俯瞰', '追従', '車載', '斜め上視点', '車前方'][cameraMode];
-            
-            // 時間の表示を整形
-            const hours = Math.floor(gameTime);
-            const minutes = Math.floor((gameTime % 1) * 60);
-            const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-            
-            // 時間帯のテキスト
-            let timeOfDay;
-            if (gameTime >= 5 && gameTime < 10) {
-                timeOfDay = "朝";
-            } else if (gameTime >= 10 && gameTime < 17) {
-                timeOfDay = "昼";
-            } else if (gameTime >= 17 && gameTime < 19) {
-                timeOfDay = "夕方";
-            } else {
-                timeOfDay = "夜";
-            }
-            
-            // 速度をkm/hに変換
-            const speedKmph = Math.round(carSpeed * 180); // 係数を200から180に下げて最高速度を180km/hに調整
-            
-            info.innerHTML = `エンドレスカー - ロンドン市街地コース<br>
-            時間: ${timeString} (${timeOfDay})<br>
-            速度: ${speedKmph} km/h<br>
-            カメラ: ${cameraModeText}<br>
-            「1,2,3,4,5」キーでカメラ切替`;
-        }
-        
         // 多点サンプリングで曲率を計算（より安定した値を得るため）
         function calculateCurvature(t, samplePoints = 15, sampleDistance = 0.005) {
             const angles = [];
@@ -1518,18 +1485,6 @@
             };
             const cornerColor = cornerStateColor[window.cornerState] || 'white';
             
-            // 既存の情報表示に追加（スタイルを適用）
-            const infoElement = document.getElementById('info');
-            const originalContent = infoElement.innerHTML;
-            
-            // <br>タグで分割し、最初の4行のみを保持
-            const lines = originalContent.split('<br>');
-            const mainInfo = lines.slice(0, 4).join('<br>');
-            
-            // 新しいコーナー情報を追加
-            infoElement.innerHTML = `${mainInfo}<br>
-            <span style="color:${cornerColor}">${cornerEmoji} ${window.cornerState.toUpperCase()}: ${Math.abs(pathOffset).toFixed(1)}</span>`;
-            
             // ---------- 回転計算の残りの部分 ----------
             
             // 5. 回転行列を作成（3つの直交ベクトルから）
@@ -1658,9 +1613,6 @@
             // カメラの位置を更新
             updateCamera();
             
-            // 情報表示を更新
-            updateInfo();
-            
             // 画面描画
             renderer.render(scene, camera);
         }
@@ -1745,16 +1697,6 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
         
-        // アニメーションスタート
-        // log("アニメーション開始");
-        // animate();
-        
-        // 初期情報表示の更新
-        // updateInfo();
-        
-        // 環境オブジェクトを配置
-        // placeEnvironmentObjects();
-
         // キーボードイベントの処理
         document.addEventListener('keydown', (event) => {
             // カメラモード切り替え
@@ -1802,9 +1744,6 @@
 
         // 初期化関数
         function init() {
-            // 初期情報表示の更新
-            updateInfo();
-            
             // 環境オブジェクトを配置
             placeEnvironmentObjects();
             

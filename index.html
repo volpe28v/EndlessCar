@@ -2493,8 +2493,8 @@
                     if (snowParticles) snowParticles.visible = false;
                     if (cloudParticles) cloudParticles.visible = false;
                     
-                    // 晴れの場合は霧をなくす
-                    scene.fog = null;
+                    // 晴れの環境に更新
+                    updateEnvironmentForSunny();
                     break;
                 case 'cloudy':
                     weatherButton.textContent = '☁️';
@@ -2560,6 +2560,12 @@
                 // その他の視点では通常の霧の濃度
                 scene.fog = new THREE.FogExp2(0x555555, 0.007);
             }
+            
+            // 地面を濡れた感じに（より濃い緑色に）
+            floor.material.color.setHex(0x1c4d1c); // 濃い緑色
+            floor.material.roughness = 0.4; // 滑らかさを増す（反射を増やす）
+            floor.material.metalness = 0.3; // 少し金属感を増す（光沢を増やす）
+            floor.material.needsUpdate = true;
         }
         
         // 雪の環境更新
@@ -2572,6 +2578,42 @@
                 // その他の視点では通常の霧の濃度
                 scene.fog = new THREE.FogExp2(0xaaaaaa, 0.005);
             }
+            
+            // 地面を雪で覆われたように白くする
+            floor.material.color.setHex(0xf0f0f0); // 白色（雪）
+            floor.material.roughness = 0.9; // 粗さを増す（雪の質感）
+            floor.material.metalness = 0.0; // 金属感をなくす
+            floor.material.needsUpdate = true;
+        }
+        
+        // 晴れの環境更新
+        function updateEnvironmentForSunny() {
+            // 霧をなくす
+            scene.fog = null;
+            
+            // 通常の芝生の色に戻す
+            floor.material.color.setHex(0x336633); // 標準的な緑色
+            floor.material.roughness = 0.8;
+            floor.material.metalness = 0.2;
+            floor.material.needsUpdate = true;
+        }
+        
+        // 曇りの環境更新
+        function updateEnvironmentForCloudy() {
+            // カメラモードに応じて霧の濃度を調整
+            if (cameraMode === 0) { // 俯瞰視点の場合
+                // 俯瞰視点では霧を薄く設定してコースが見えるようにする
+                scene.fog = new THREE.FogExp2(0xaaaaaa, 0.0008);
+            } else {
+                // その他の視点では通常の霧の濃度
+                scene.fog = new THREE.FogExp2(0xaaaaaa, 0.003);
+            }
+            
+            // 曇り時の芝生の色（少し暗めの緑）
+            floor.material.color.setHex(0x2a552a); // 少し暗い緑色
+            floor.material.roughness = 0.8;
+            floor.material.metalness = 0.2;
+            floor.material.needsUpdate = true;
         }
 
         // 天気の更新

@@ -13,7 +13,7 @@
         #info {
             position: absolute;
             top: 10px;
-            left: 10px;
+            left: 170px;
             color: white;
             background-color: rgba(0, 0, 0, 0.5);
             padding: 10px;
@@ -113,9 +113,8 @@
         /* スマートフォン向け調整 */
         @media (max-width: 480px) {
             #info {
-                max-width: 60%;
+                left: 120px;
                 font-size: 12px;
-                padding: 6px;
             }
             .viewButton {
                 padding: 3px 4px;
@@ -129,7 +128,7 @@
             
             #minimap-container {
                 width: 100px;
-                height: 100px;
+                height: 80px;
                 right: 55px;
             }
             
@@ -202,7 +201,7 @@
     <div id="minimap-container">
         <canvas id="minimap" width="150" height="120"></canvas>
     </div>
-    <div id="info" style="position: absolute; top: 10px; left: 170px; color: white; background-color: rgba(0, 0, 0, 0.5); padding: 10px; border-radius: 5px; font-size: 14px; z-index: 10;">
+    <div id="info">
         <div id="timeWeatherInfo" style="font-family: 'Helvetica', sans-serif;">
             <button id="timeToggleButton" title="現在の時刻に連動（クリックで切替）">🕒</button>
             <span id="currentTime">--:--</span>

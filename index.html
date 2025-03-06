@@ -144,6 +144,26 @@
             background-color: rgba(100, 100, 100, 0.7);
             border-color: #888;
         }
+        
+        #timeWeatherInfo {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        #timeToggleButton {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            padding: 0;
+            margin: 0 5px;
+        }
+        
+        #timeToggleButton:hover {
+            opacity: 0.8;
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
 </head>
@@ -154,9 +174,6 @@
         <button class="viewButton" data-view="2" title="車載視点 (3)">車載</button>
         <button class="viewButton active" data-view="3" title="斜め上視点 (4)">斜め</button>
         <button class="viewButton" data-view="4" title="前方視点 (5)">前方</button>
-    </div>
-    <div id="timeToggle" style="position: fixed; top: 10px; right: 80px; z-index: 100;">
-        <button id="timeToggleButton" title="現在の時刻に連動（クリックで切替）">🕒</button>
     </div>
     <div id="weatherToggle" style="position: fixed; top: 10px; right: 140px; z-index: 100;">
         <button id="weatherToggleButton" title="天気を変更">☀️</button>
@@ -172,6 +189,7 @@
     </div>
     <div id="info" style="position: absolute; top: 10px; left: 170px; color: white; background-color: rgba(0, 0, 0, 0.5); padding: 10px; border-radius: 5px; font-size: 14px; z-index: 10;">
         <div id="timeWeatherInfo" style="font-family: 'Helvetica', sans-serif;">
+            <button id="timeToggleButton" title="現在の時刻に連動（クリックで切替）">🕒</button>
             <span id="currentTime">--:--</span>
             <span style="margin: 0 5px;">|</span>
             <span id="currentWeatherText">-</span>

@@ -1904,11 +1904,14 @@
         function updateCamera() {
             switch (cameraMode) {
                 case 0: // 俯瞰
-                    camera.position.set(3 * 50 * 2.0, 350, 9 * 50 * 2.0); // より高い位置からの俯瞰視点（コース拡大と高低差に対応）
+                    // 車の真上からの追従視点
+                    const topOffset = new THREE.Vector3(0, 100, 0); // 高さ100の真上
+                    const targetTopCameraPos = new THREE.Vector3().addVectors(car.position, topOffset);
+                    camera.position.lerp(targetTopCameraPos, 0.1); // スムーズな追従
                     camera.lookAt(car.position);
                     
-                    // 標準の視野角に戻す
-                    camera.fov = 60;
+                    // 視野角を広めに設定して見やすく
+                    camera.fov = 70;
                     camera.updateProjectionMatrix();
                     break;
                     

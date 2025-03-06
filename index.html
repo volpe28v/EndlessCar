@@ -2495,6 +2495,9 @@
             // 雪のパーティクルシステムを作成
             createSnowParticles();
             
+            // 雨のパーティクルシステムを作成
+            createRainParticles();
+            
             // 雲のパーティクルシステム追加
             const cloudGeometry = new THREE.BufferGeometry();
             const cloudCount = 500; // 雲は雪より少なく
@@ -2528,46 +2531,6 @@
             cloudParticles.visible = false;
             scene.add(cloudParticles);
             
-            // 雨粒を縦長の形状に変更（インスタンシングを使用）
-            // 雨粒の基本形状（細長い直方体）
-            const rainDropGeometry = new THREE.BoxGeometry(0.1, 2.0, 0.1); // 雨粒を長くする
-            const rainMaterial = new THREE.MeshBasicMaterial({
-                color: 0xaabbcc, // 色を少し明るく
-                transparent: true, 
-                opacity: 0.7 // 不透明度を上げる
-            });
-            
-            // インスタンス化されたメッシュを作成
-            const rainCount = 30000; // 雨粒の数を2倍に
-            rainParticles = new THREE.InstancedMesh(rainDropGeometry, rainMaterial, rainCount);
-            rainParticles.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-            rainParticles.visible = false;
-            
-            // 雨粒のインスタンスごとの初期位置とスケールを設定
-            const matrix = new THREE.Matrix4();
-            const position = new THREE.Vector3();
-            const rotation = new THREE.Euler();
-            const quaternion = new THREE.Quaternion();
-            const scale = new THREE.Vector3(1, 1, 1);
-            
-            for (let i = 0; i < rainCount; i++) {
-                position.x = Math.random() * 2000 - 1000;
-                position.y = Math.random() * 1000;
-                position.z = Math.random() * 2000 - 1000;
-                
-                // 雨が斜めに降るように角度を調整
-                rotation.x = -Math.PI * 0.1; // 少し前に傾ける
-                rotation.z = 0;
-                rotation.y = Math.random() * Math.PI * 0.1 - Math.PI * 0.05; // 左右のブレを少なくする
-                quaternion.setFromEuler(rotation);
-                
-                matrix.compose(position, quaternion, scale);
-                rainParticles.setMatrixAt(i, matrix);
-            }
-            
-            rainParticles.instanceMatrix.needsUpdate = true;
-            scene.add(rainParticles);
-            
             // 初期天気の設定
             if (useRealTime) {
                 // 現在地点の天気を取得して反映
@@ -2593,10 +2556,9 @@
                     if (rainParticles) rainParticles.visible = false;
                     if (snowParticles) snowParticles.visible = false;
                     if (cloudParticles) cloudParticles.visible = false;
-                    
-                    // 晴れの環境に更新
                     updateEnvironmentForSunny();
                     break;
+                    
                 case 'cloudy':
                     isRaining = false;
                     isSnowing = false;
@@ -2604,10 +2566,9 @@
                     if (rainParticles) rainParticles.visible = false;
                     if (snowParticles) snowParticles.visible = false;
                     if (cloudParticles) cloudParticles.visible = true;
-                    
-                    // 曇りの場合は霧を追加
                     updateEnvironmentForCloudy();
                     break;
+                    
                 case 'rain':
                     isRaining = true;
                     isSnowing = false;
@@ -2615,10 +2576,9 @@
                     if (rainParticles) rainParticles.visible = true;
                     if (snowParticles) snowParticles.visible = false;
                     if (cloudParticles) cloudParticles.visible = true;
-                    
-                    // 雨の場合は地面を濡れた感じに
                     updateEnvironmentForRain();
                     break;
+                    
                 case 'snow':
                     isRaining = false;
                     isSnowing = true;
@@ -2626,8 +2586,6 @@
                     if (rainParticles) rainParticles.visible = false;
                     if (snowParticles) snowParticles.visible = true;
                     if (cloudParticles) cloudParticles.visible = true;
-                    
-                    // 雪の場合は地面を白くする
                     updateEnvironmentForSnow();
                     break;
             }
@@ -2718,7 +2676,6 @@
                     changeWeather(nextWeather);
                     lastWeatherChangeTime = currentTime;
                     weatherChangeInterval = 20000 + Math.random() * 20000;
-                    console.log("天気自動変更: " + nextWeather);
                 }
                 
                 // カメラの自動切り替え
@@ -2730,101 +2687,67 @@
                     
                     lastCameraChangeTime = currentTime;
                     cameraChangeInterval = 10000 + Math.random() * 5000;
-                    console.log("カメラ自動切り替え: " + nextCameraMode);
                 }
             }
             
-            // 既存の天気更新処理
+            // 雲のアニメーション
             if (isCloudy && cloudParticles) {
-                // 雲のパーティクル更新
-                const cloudPositions = cloudParticles.geometry.attributes.position.array;
-                const cloudCount = cloudPositions.length / 3;
-                
-                // カメラモードに応じて雲の表示を調整
-                if (cameraMode === 0) { // 俯瞰視点の場合
-                    // 俯瞰視点では少し透明度を上げて薄く見せる
-                    cloudParticles.material.opacity = 0.4;
-                    // より広範囲に配置
-                    cloudParticles.scale.set(3, 1, 3);
-                } else {
-                    // 通常視点では標準の表示
-                    cloudParticles.material.opacity = 0.7;
-                    cloudParticles.scale.set(1, 1, 1);
-                }
-                
-                for (let i = 0; i < cloudCount * 3; i += 3) {
-                    // X,Z座標をゆっくり動かす（雲が動く感じ）
-                    cloudPositions[i] += Math.sin(currentFrameTime * 0.0001 + i * 0.01) * 0.3 * deltaTime;
-                    cloudPositions[i+2] += Math.cos(currentFrameTime * 0.00015 + i * 0.01) * 0.3 * deltaTime;
-                    
-                    // 遠くに行きすぎたら反対側に配置
-                    if (cloudPositions[i] > 1500) cloudPositions[i] = -1500;
-                    if (cloudPositions[i] < -1500) cloudPositions[i] = 1500;
-                    if (cloudPositions[i+2] > 1500) cloudPositions[i+2] = -1500;
-                    if (cloudPositions[i+2] < -1500) cloudPositions[i+2] = 1500;
-                }
-                
-                // カメラを中心に雲を配置
+                cloudParticles.visible = true;
                 cloudParticles.position.x = camera.position.x;
                 cloudParticles.position.z = camera.position.z;
-                
-                cloudParticles.geometry.attributes.position.needsUpdate = true;
+            } else if (cloudParticles) {
+                cloudParticles.visible = false;
             }
-        
+            
+            // 雨のアニメーション
             if (isRaining && rainParticles) {
-                // 雨粒を更新（インスタンス化されたメッシュ版）
-                const rainMatrix = new THREE.Matrix4();
-                const rainPosition = new THREE.Vector3();
-                const rainRotation = new THREE.Euler();
-                const rainQuaternion = new THREE.Quaternion();
-                const rainScale = new THREE.Vector3();
+                const positions = rainParticles.userData.positions;
+                const speeds = rainParticles.userData.speeds;
+                const swayFactors = rainParticles.userData.swayFactors;
+                const phases = rainParticles.userData.phases;
+                const time = Date.now() * 0.001;
                 
-                // カメラモードに応じて雨の表示を調整
-                if (cameraMode === 0) { // 俯瞰視点の場合
-                    // 俯瞰視点では透明度を上げて薄く見せる
-                    rainParticles.material.opacity = 0.3;
-                    // 広範囲に配置するため大きなスケール
-                    rainParticles.scale.set(3, 1, 3);
-                } else {
-                    // 通常視点では標準の表示
-                    rainParticles.material.opacity = 0.6;
-                    rainParticles.scale.set(1, 1, 1);
+                for (let i = 0; i < positions.length; i += 6) {
+                    const index = i / 6;
+                    
+                    positions[i + 1] -= speeds[index] * deltaTime;
+                    positions[i + 4] -= speeds[index] * deltaTime;
+                    
+                    const swayAmount = swayFactors[index];
+                    const phase = phases[index];
+                    const swayX = Math.sin(time + phase) * swayAmount * 0.1 * deltaTime;
+                    const swayZ = Math.cos(time * 0.8 + phase) * swayAmount * 0.1 * deltaTime;
+                    
+                    positions[i] += swayX;
+                    positions[i + 2] += swayZ;
+                    positions[i + 3] += swayX;
+                    positions[i + 5] += swayZ;
+                    
+                    if (positions[i + 4] < 0) {
+                        const x = Math.random() * 2000 - 1000;
+                        const y = 1000;
+                        const z = Math.random() * 2000 - 1000;
+                        
+                        positions[i] = x;
+                        positions[i + 1] = y;
+                        positions[i + 2] = z;
+                        
+                        positions[i + 3] = x;
+                        positions[i + 4] = y - 10;
+                        positions[i + 5] = z;
+                    }
                 }
                 
-                // カメラを中心に雨を配置
                 rainParticles.position.x = camera.position.x;
                 rainParticles.position.z = camera.position.z;
                 
-                // 各雨粒のインスタンスを更新
-                for (let i = 0; i < rainParticles.count; i++) {
-                    rainParticles.getMatrixAt(i, rainMatrix);
-                    // 行列から位置、回転、スケールを抽出
-                    rainMatrix.decompose(rainPosition, rainQuaternion, rainScale);
-                    
-                    // Y座標を下に移動（雨が降る）
-                    rainPosition.y -= 10 * deltaTime;
-                    
-                    // 地面に到達したら上に戻す
-                    if (rainPosition.y < 0) {
-                        rainPosition.y = 1000;
-                        // X,Z座標もランダムに配置し直す
-                        rainPosition.x = Math.random() * 2000 - 1000;
-                        rainPosition.z = Math.random() * 2000 - 1000;
-                    }
-                    
-                    // 回転は維持
-                    // スケールも維持
-                    
-                    // 新しい位置で行列を更新
-                    rainMatrix.compose(rainPosition, rainQuaternion, rainScale);
-                    rainParticles.setMatrixAt(i, rainMatrix);
-                }
-                
-                rainParticles.instanceMatrix.needsUpdate = true;
+                rainParticles.geometry.attributes.position.needsUpdate = true;
+            } else if (rainParticles) {
+                rainParticles.visible = false;
             }
             
+            // 雪のアニメーション
             if (isSnowing && snowParticles) {
-                // 雪のパーティクル更新
                 const positions = snowParticles.userData.positions;
                 const speeds = snowParticles.userData.speeds;
                 const swayFactors = snowParticles.userData.swayFactors;
@@ -2856,6 +2779,8 @@
                 snowParticles.position.z = camera.position.z;
                 
                 snowParticles.geometry.attributes.position.needsUpdate = true;
+            } else if (snowParticles) {
+                snowParticles.visible = false;
             }
         }
 
@@ -3017,6 +2942,62 @@
         let currentTemperature = null;
         let currentWindSpeed = null;
 
+        // 雨のパーティクルシステムを作成
+        function createRainParticles() {
+            const rainGeometry = new THREE.BufferGeometry();
+            const rainCount = 30000;
+            
+            // 雨粒の位置配列を作成（各雨粒の開始点と終点）
+            const rainPositions = new Float32Array(rainCount * 6); // 2点（開始点と終点）で1つの線を表現
+            const rainSpeeds = new Float32Array(rainCount);
+            const rainSwayFactors = new Float32Array(rainCount);
+            const rainPhases = new Float32Array(rainCount);
+            
+            for (let i = 0; i < rainCount; i++) {
+                const baseIndex = i * 6;
+                const x = Math.random() * 2000 - 1000;
+                const y = Math.random() * 1000;
+                const z = Math.random() * 2000 - 1000;
+                
+                // 線の開始点
+                rainPositions[baseIndex] = x;
+                rainPositions[baseIndex + 1] = y;
+                rainPositions[baseIndex + 2] = z;
+                
+                // 線の終点（開始点より10単位下）
+                rainPositions[baseIndex + 3] = x;
+                rainPositions[baseIndex + 4] = y - 10;
+                rainPositions[baseIndex + 5] = z;
+                
+                // 個別の雨粒のパラメータを設定
+                rainSpeeds[i] = 20.0 + Math.random() * 10.0;
+                rainSwayFactors[i] = 0.1 + Math.random() * 0.2;
+                rainPhases[i] = Math.random() * Math.PI * 2;
+            }
+            
+            rainGeometry.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
+            
+            const rainMaterial = new THREE.LineBasicMaterial({
+                color: 0x99ccff,
+                opacity: 0.4,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+            
+            rainParticles = new THREE.LineSegments(rainGeometry, rainMaterial);
+            rainParticles.visible = false;
+            scene.add(rainParticles);
+            
+            // アニメーション用のデータをパーティクルシステムに保存
+            rainParticles.userData = {
+                positions: rainPositions,
+                speeds: rainSpeeds,
+                swayFactors: rainSwayFactors,
+                phases: rainPhases
+            };
+        }
+
         // 雪のパーティクルシステムを作成
         function createSnowParticles() {
             const snowGeometry = new THREE.BufferGeometry();
@@ -3062,48 +3043,6 @@
                 swayFactors: snowSwayFactors,
                 phases: snowPhases
             };
-        }
-
-        // updateWeather関数内の雪のアニメーション部分を修正
-        function updateWeather(deltaTime) {
-            // ... existing code ...
-            
-            // 雪のアニメーション
-            if (isSnowing && snowParticles) {
-                const positions = snowParticles.userData.positions;
-                const speeds = snowParticles.userData.speeds;
-                const swayFactors = snowParticles.userData.swayFactors;
-                const phases = snowParticles.userData.phases;
-                const time = Date.now() * 0.001; // 秒単位の時間
-                
-                for (let i = 0; i < positions.length; i += 3) {
-                    const index = i / 3;
-                    
-                    // Y座標（落下）の更新
-                    positions[i + 1] -= speeds[index] * deltaTime;
-                    
-                    // X座標とZ座標の揺れを更新（サインカーブを使用）
-                    const swayAmount = swayFactors[index];
-                    const phase = phases[index];
-                    positions[i] += Math.sin(time + phase) * swayAmount * 0.1 * deltaTime;
-                    positions[i + 2] += Math.cos(time * 0.8 + phase) * swayAmount * 0.1 * deltaTime;
-                    
-                    // 地面に到達したら上に戻す
-                    if (positions[i + 1] < 0) {
-                        positions[i] = Math.random() * 2000 - 1000;     // X
-                        positions[i + 1] = 1000;                        // Y
-                        positions[i + 2] = Math.random() * 2000 - 1000; // Z
-                    }
-                }
-                
-                // カメラを中心に雪を配置
-                snowParticles.position.x = camera.position.x;
-                snowParticles.position.z = camera.position.z;
-                
-                snowParticles.geometry.attributes.position.needsUpdate = true;
-            }
-            
-            // ... rest of the existing code ...
         }
     </script>
 </body>

@@ -2593,11 +2593,11 @@
             }
         }
         
-        // 天気を変更する関数を修正
-        function changeWeather(weather, isFromCurrentLocation = false) {
+        // 天気を変更する関数
+        function changeWeather(weather, isFromCurrentLocation = false, temperature = null, windSpeed = null) {
             currentWeather = weather;
-            updateWeatherDisplay(weather, isFromCurrentLocation);
-            updateWeatherButtonState(weather); // 天気ボタンのアクティブ状態を更新
+            updateWeatherDisplay(weather, isFromCurrentLocation, temperature, windSpeed);
+            updateWeatherButtonState(weather);
             
             switch(weather) {
                 case 'sunny':
@@ -2919,47 +2919,38 @@
                 }
                 
                 const data = await response.json();
-                log('現在の天気情報を取得しました: ' + data.weather[0].main);
+                
+                // 気温と風速を取得
+                const temperature = data.main.temp;
+                const windSpeed = data.wind.speed;
+                
+                // 気温と風速を保存
+                currentTemperature = temperature;
+                currentWindSpeed = windSpeed;
+                
+                log(`気温: ${temperature}℃, 風速: ${windSpeed}m/s`);
                 
                 // 天気コードに基づいて天気を設定
                 const weatherCode = data.weather[0].id;
                 let gameWeather = 'sunny'; // デフォルト
                 
                 // 天気コードに基づいて天気を判定
-                // 雪 (Snow): 600-622
                 if (weatherCode >= 600 && weatherCode < 623) {
                     gameWeather = 'snow';
-                }
-                // 雨 (Rain): 500-531, 雷雨 (Thunderstorm): 200-232
-                else if ((weatherCode >= 500 && weatherCode < 532) || (weatherCode >= 200 && weatherCode < 233)) {
+                } else if ((weatherCode >= 500 && weatherCode < 532) || (weatherCode >= 200 && weatherCode < 233)) {
                     gameWeather = 'rain';
-                }
-                // 曇り (Clouds): 801-804
-                else if (weatherCode >= 801 && weatherCode < 805) {
+                } else if (weatherCode >= 801 && weatherCode < 805) {
                     gameWeather = 'cloudy';
-                }
-                // 晴れ (Clear): 800
-                else if (weatherCode === 800) {
+                } else if (weatherCode === 800) {
                     gameWeather = 'sunny';
-                }
-                // その他の天気（霧、霞など）は曇りとして扱う
-                else {
+                } else {
                     gameWeather = 'cloudy';
                 }
                 
                 log(`天気を変更します: ${gameWeather}`);
                 
-                // 天気を変更（現在地からの取得フラグをtrueに設定）
-                changeWeather(gameWeather, true);
-                
-                // 天気メニューのアクティブ状態を更新
-                document.querySelectorAll('.weatherOption').forEach(button => {
-                    if (button.getAttribute('data-weather') === gameWeather) {
-                        button.classList.add('active');
-                    } else {
-                        button.classList.remove('active');
-                    }
-                });
+                // 天気を変更（気温と風速も渡す）
+                changeWeather(gameWeather, true, temperature, windSpeed);
                 
                 return gameWeather;
             } catch (error) {
@@ -2992,14 +2983,12 @@
         }
 
         // 天気表示を更新する関数
-        function updateWeatherDisplay(weather, isFromCurrentLocation = false) {
+        function updateWeatherDisplay(weather, isFromCurrentLocation = false, temperature = null, windSpeed = null) {
             const weatherDisplay = document.getElementById('currentWeatherText');
-            const divider = document.querySelector('#timeWeatherInfo span[style*="margin"]');
             
             // 早送りモードまたは現在地からの天気でない場合は非表示
             if (!useRealTime || !isFromCurrentLocation) {
                 weatherDisplay.textContent = '-';
-                divider.style.display = 'inline';
                 return;
             }
             
@@ -3009,8 +2998,12 @@
                 'rain': '🌧️',
                 'snow': '❄️'
             };
-            weatherDisplay.textContent = weatherMap[weather] || '-';
-            divider.style.display = 'inline';
+            
+            let displayText = weatherMap[weather] || '-';
+            displayText += ` ${Math.round(temperature)}℃`;
+            displayText += ` ${Math.round(windSpeed)}m/s `;
+            
+            weatherDisplay.textContent = displayText;
         }
 
         // 天気ボタンのイベントリスナーを修正
@@ -3043,6 +3036,10 @@
                 }
             });
         }
+
+        // グローバル変数に気温と風速を追加
+        let currentTemperature = null;
+        let currentWindSpeed = null;
     </script>
 </body>
 </html> 

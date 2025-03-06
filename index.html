@@ -2537,17 +2537,17 @@
             
             // 雨粒を縦長の形状に変更（インスタンシングを使用）
             // 雨粒の基本形状（細長い直方体）
-            const rainDropGeometry = new THREE.BoxGeometry(0.1, 1.0, 0.1);
+            const rainDropGeometry = new THREE.BoxGeometry(0.1, 2.0, 0.1); // 雨粒を長くする
             const rainMaterial = new THREE.MeshBasicMaterial({
-                color: 0x8899aa,
+                color: 0xaabbcc, // 色を少し明るく
                 transparent: true, 
-                opacity: 0.6
+                opacity: 0.7 // 不透明度を上げる
             });
             
             // インスタンス化されたメッシュを作成
-            const rainCount = 15000;
+            const rainCount = 30000; // 雨粒の数を2倍に
             rainParticles = new THREE.InstancedMesh(rainDropGeometry, rainMaterial, rainCount);
-            rainParticles.instanceMatrix.setUsage(THREE.DynamicDrawUsage); // 位置を動的に更新
+            rainParticles.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
             rainParticles.visible = false;
             
             // 雨粒のインスタンスごとの初期位置とスケールを設定
@@ -2562,10 +2562,10 @@
                 position.y = Math.random() * 1000;
                 position.z = Math.random() * 2000 - 1000;
                 
-                // 若干ランダムな角度を付ける（雨が斜めに降っているように）
-                rotation.x = 0;
+                // 雨が斜めに降るように角度を調整
+                rotation.x = -Math.PI * 0.1; // 少し前に傾ける
                 rotation.z = 0;
-                rotation.y = Math.random() * Math.PI;
+                rotation.y = Math.random() * Math.PI * 0.1 - Math.PI * 0.05; // 左右のブレを少なくする
                 quaternion.setFromEuler(rotation);
                 
                 matrix.compose(position, quaternion, scale);
@@ -2682,8 +2682,8 @@
             
             // 地面を濡れた感じに
             floor.material.color.setHex(0x1c4d1c);
-            floor.material.roughness = 0.4;
-            floor.material.metalness = 0.3;
+            floor.material.roughness = 0.2; // より反射するように
+            floor.material.metalness = 0.5; // より金属感を増やして反射を強める
             floor.material.needsUpdate = true;
         }
         

@@ -27,12 +27,34 @@
             top: 10px;
             right: 10px;
             display: flex;
-            flex-direction: column; /* 縦に並べる */
+            flex-direction: column;
             gap: 5px;
             z-index: 100;
-            flex-wrap: nowrap; /* 折り返しなし */
+            flex-wrap: nowrap;
             justify-content: flex-start;
-            max-width: 60px; /* ボタンの幅に合わせて調整 */
+            max-width: 60px;
+        }
+        
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        
+        .button-separator {
+            width: 100%;
+            height: 1px;
+            background-color: rgba(255, 255, 255, 0.3);
+            margin: 5px 0;
+        }
+        
+        .weather-button {
+            font-size: 16px !important;
+            padding: 2px 6px !important;
+        }
+        
+        .weather-button.active {
+            background-color: rgba(100, 100, 255, 0.7);
         }
         
         /* ミニマップ用のスタイル */
@@ -117,32 +139,11 @@
                 top: 160px; /* 視点ボタンの下に配置 */
             }
             
-            /* スマホ向け天気ボタン位置調整 */
+            /* スマホ向け天気ボタン位置調整を削除 */
             #weatherToggle {
                 right: 55px;
                 top: 210px; /* 時間モードボタンの下に配置 */
             }
-        }
-        
-        #weatherToggleButton, .weatherOption {
-            background-color: rgba(0, 0, 0, 0.5);
-            color: white;
-            border: 1px solid #444;
-            border-radius: 4px;
-            padding: 4px 8px;
-            font-size: 16px;
-            cursor: pointer;
-            outline: none;
-            transition: background-color 0.3s;
-        }
-        
-        #weatherToggleButton:hover, .weatherOption:hover {
-            background-color: rgba(50, 50, 50, 0.7);
-        }
-        
-        .weatherOption.active {
-            background-color: rgba(100, 100, 100, 0.7);
-            border-color: #888;
         }
         
         #timeWeatherInfo {
@@ -164,24 +165,38 @@
         #timeToggleButton:hover {
             opacity: 0.8;
         }
+        
+        /* 天気ボタン用のスタイル追加 */
+        .weather-button {
+            font-size: 16px !important;
+            padding: 2px 6px !important;
+        }
+        
+        /* セパレーター用のスタイル */
+        .button-separator {
+            width: 100%;
+            height: 1px;
+            background-color: rgba(255, 255, 255, 0.3);
+            margin: 5px 0;
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
 </head>
 <body>
     <div id="viewButtons">
-        <button class="viewButton" data-view="0" title="俯瞰視点 (1)">俯瞰</button>
-        <button class="viewButton" data-view="1" title="追従視点 (2)">追従</button>
-        <button class="viewButton" data-view="2" title="車載視点 (3)">車載</button>
-        <button class="viewButton active" data-view="3" title="斜め上視点 (4)">斜め</button>
-        <button class="viewButton" data-view="4" title="前方視点 (5)">前方</button>
-    </div>
-    <div id="weatherToggle" style="position: fixed; top: 10px; right: 140px; z-index: 100;">
-        <button id="weatherToggleButton" title="天気を変更">☀️</button>
-        <div id="weatherMenu" style="display: none; position: absolute; top: 30px; right: 0; background-color: rgba(0, 0, 0, 0.7); border-radius: 5px; padding: 5px;">
-            <button class="weatherOption active" data-weather="sunny" title="晴れ">☀️</button>
-            <button class="weatherOption" data-weather="cloudy" title="曇り">☁️</button>
-            <button class="weatherOption" data-weather="rain" title="雨">🌧</button>
-            <button class="weatherOption" data-weather="snow" title="雪">❄️</button>
+        <div class="button-group view-buttons">
+            <button class="viewButton" data-view="0" title="俯瞰視点 (1)">俯瞰</button>
+            <button class="viewButton" data-view="1" title="追従視点 (2)">追従</button>
+            <button class="viewButton" data-view="2" title="車載視点 (3)">車載</button>
+            <button class="viewButton active" data-view="3" title="斜め上視点 (4)">斜め</button>
+            <button class="viewButton" data-view="4" title="前方視点 (5)">前方</button>
+        </div>
+        <div class="button-separator"></div>
+        <div class="button-group weather-buttons">
+            <button class="viewButton weather-button" data-weather="sunny" title="晴れ">☀️</button>
+            <button class="viewButton weather-button" data-weather="cloudy" title="曇り">☁️</button>
+            <button class="viewButton weather-button" data-weather="rain" title="雨">🌧️</button>
+            <button class="viewButton weather-button" data-weather="snow" title="雪">❄️</button>
         </div>
     </div>
     <div id="minimap-container">
@@ -2067,32 +2082,18 @@
 
         // 視点切り替えボタンの設定
         function setupViewButtons() {
-            const buttons = document.querySelectorAll('.viewButton');
-            buttons.forEach(button => {
+            document.querySelectorAll('.view-buttons .viewButton').forEach(button => {
                 button.addEventListener('click', () => {
                     cameraMode = parseInt(button.getAttribute('data-view'));
                     updateButtonActiveState();
-                    
-                    // 視点切り替え時に現在の天気に応じて環境を更新
-                    if (currentWeather === 'rain') {
-                        updateEnvironmentForRain();
-                    } else if (currentWeather === 'snow') {
-                        updateEnvironmentForSnow();
-                    } else {
-                        // 晴れの場合は霧をなくす
-                        scene.fog = null;
-                    }
                 });
             });
-            
-            // 初期表示時にボタンのアクティブ状態を更新
-            updateButtonActiveState();
         }
 
         // ボタンのアクティブ状態を更新
         function updateButtonActiveState() {
-            const buttons = document.querySelectorAll('.viewButton');
-            buttons.forEach(button => {
+            // 視点ボタンの状態を更新（.view-buttons内のボタンのみ）
+            document.querySelectorAll('.view-buttons .viewButton').forEach(button => {
                 const viewMode = parseInt(button.getAttribute('data-view'));
                 if (viewMode === cameraMode) {
                     button.classList.add('active');
@@ -2110,39 +2111,14 @@
             // 視点切り替えボタンの設定
             setupViewButtons();
             
+            // 天気ボタンの設定
+            setupWeatherButtons();
+            
+            // 初期天気のボタンをアクティブに
+            updateWeatherButtonState(currentWeather);
+            
             // ミニマップの初期化
             initMinimap();
-            
-            // 天気トグルボタンのイベントリスナー
-            document.getElementById('weatherToggleButton').addEventListener('click', function() {
-                const weatherMenu = document.getElementById('weatherMenu');
-                if (weatherMenu.style.display === 'none') {
-                    weatherMenu.style.display = 'block';
-                } else {
-                    weatherMenu.style.display = 'none';
-                }
-            });
-            
-            // 天気オプションボタンのイベントリスナー
-            document.querySelectorAll('.weatherOption').forEach(button => {
-                button.addEventListener('click', function() {
-                    const selectedWeather = this.getAttribute('data-weather');
-                    
-                    // 以前の天気をリセット
-                    document.querySelectorAll('.weatherOption').forEach(btn => {
-                        btn.classList.remove('active');
-                    });
-                    
-                    // 選択された天気をアクティブに
-                    this.classList.add('active');
-                    
-                    // 天気を変更（手動変更なのでisFromCurrentLocation = false）
-                    changeWeather(selectedWeather, false);
-                    
-                    // メニューを閉じる
-                    document.getElementById('weatherMenu').style.display = 'none';
-                });
-            });
             
             // アニメーションスタート
             log("アニメーション開始");
@@ -2318,7 +2294,7 @@
             });
 
             // 視点切り替えボタンのイベントリスナー
-            document.querySelectorAll('.viewButton').forEach(button => {
+            document.querySelectorAll('.view-buttons .viewButton').forEach(button => {
                 button.addEventListener('click', function() {
                     cameraMode = parseInt(this.getAttribute('data-view'));
                     updateCameraButtonState();
@@ -2618,18 +2594,14 @@
             }
         }
         
-        // 天気を変更する関数
+        // 天気を変更する関数を修正
         function changeWeather(weather, isFromCurrentLocation = false) {
             currentWeather = weather;
-            updateWeatherDisplay(weather, isFromCurrentLocation); // 天気表示を更新
-            
-            // 天気ボタンのアイコンを更新
-            const weatherButton = document.getElementById('weatherToggleButton');
+            updateWeatherDisplay(weather, isFromCurrentLocation);
+            updateWeatherButtonState(weather); // 天気ボタンのアクティブ状態を更新
             
             switch(weather) {
                 case 'sunny':
-                    weatherButton.textContent = '☀️';
-                    weatherButton.title = '晴れ (クリックで変更)';
                     isRaining = false;
                     isSnowing = false;
                     isCloudy = false;
@@ -2641,8 +2613,6 @@
                     updateEnvironmentForSunny();
                     break;
                 case 'cloudy':
-                    weatherButton.textContent = '☁️';
-                    weatherButton.title = '曇り (クリックで変更)';
                     isRaining = false;
                     isSnowing = false;
                     isCloudy = true;
@@ -2654,11 +2624,9 @@
                     updateEnvironmentForCloudy();
                     break;
                 case 'rain':
-                    weatherButton.textContent = '🌧️';
-                    weatherButton.title = '雨 (クリックで変更)';
                     isRaining = true;
                     isSnowing = false;
-                    isCloudy = true; // 雨の時は曇りも有効
+                    isCloudy = true;
                     if (rainParticles) rainParticles.visible = true;
                     if (snowParticles) snowParticles.visible = false;
                     if (cloudParticles) cloudParticles.visible = true;
@@ -2667,11 +2635,9 @@
                     updateEnvironmentForRain();
                     break;
                 case 'snow':
-                    weatherButton.textContent = '❄️';
-                    weatherButton.title = '雪 (クリックで変更)';
                     isRaining = false;
                     isSnowing = true;
-                    isCloudy = true; // 雪の時は曇りも有効
+                    isCloudy = true;
                     if (rainParticles) rainParticles.visible = false;
                     if (snowParticles) snowParticles.visible = true;
                     if (cloudParticles) cloudParticles.visible = true;
@@ -2920,7 +2886,7 @@
 
         // カメラモードボタンの表示を更新する関数
         function updateCameraButtonState() {
-            document.querySelectorAll('.viewButton').forEach(button => {
+            document.querySelectorAll('.view-buttons .viewButton').forEach(button => {
                 const viewMode = parseInt(button.getAttribute('data-view'));
                 if (viewMode === cameraMode) {
                     button.classList.add('active');
@@ -3046,6 +3012,37 @@
             };
             weatherDisplay.textContent = weatherMap[weather] || '-';
             divider.style.display = 'inline';
+        }
+
+        // 天気ボタンのイベントリスナーを修正
+        function setupWeatherButtons() {
+            document.querySelectorAll('.weather-button').forEach(button => {
+                button.addEventListener('click', function() {
+                    const selectedWeather = this.getAttribute('data-weather');
+                    
+                    // 以前の天気をリセット
+                    document.querySelectorAll('.weather-button').forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+                    
+                    // 選択された天気をアクティブに
+                    this.classList.add('active');
+                    
+                    // 天気を変更（手動変更なのでisFromCurrentLocation = false）
+                    changeWeather(selectedWeather, false);
+                });
+            });
+        }
+
+        // 天気ボタンのアクティブ状態を更新する関数
+        function updateWeatherButtonState(weather) {
+            document.querySelectorAll('.weather-button').forEach(button => {
+                if (button.getAttribute('data-weather') === weather) {
+                    button.classList.add('active');
+                } else {
+                    button.classList.remove('active');
+                }
+            });
         }
     </script>
 </body>

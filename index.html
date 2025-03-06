@@ -218,6 +218,9 @@
         let leftHeadlightLight;
         let rightHeadlightLight;
         
+        // グローバル変数として天気の色の影響を保持
+        let weatherSkyColor = new THREE.Color(0x87CEEB); // デフォルトは晴れの空の色
+
         // 時間帯に応じた空の色と光の設定
         function updateDayNightCycle() {
             // 時間モードに応じて時間を更新
@@ -231,51 +234,60 @@
             }
             
             // 時間帯に応じた空の色の設定
-            let skyColor;
+            let timeSkyColor;
             let lightIntensity;
             let ambientIntensity;
-            let isNight = false; // 夜間かどうかのフラグ
+            let isNight = false;
             
             if (gameTime >= 5 && gameTime < 7) {
                 // 朝焼け（5時～7時）
-                const t = (gameTime - 5) / 2; // 0～1の範囲に正規化
-                skyColor = new THREE.Color(0xff9966).lerp(new THREE.Color(0x87CEEB), t);
+                const t = (gameTime - 5) / 2;
+                timeSkyColor = new THREE.Color(0xff9966).lerp(new THREE.Color(0x87CEEB), t);
                 lightIntensity = 0.5 + t * 0.5;
                 ambientIntensity = 0.3 + t * 0.3;
             } else if (gameTime >= 7 && gameTime < 17) {
                 // 昼間（7時～17時）
-                skyColor = new THREE.Color(0x87CEEB);
+                timeSkyColor = new THREE.Color(0x87CEEB);
                 lightIntensity = 1.0;
                 ambientIntensity = 0.6;
             } else if (gameTime >= 17 && gameTime < 19) {
                 // 夕焼け（17時～19時）
-                const t = (gameTime - 17) / 2; // 0～1の範囲に正規化
-                skyColor = new THREE.Color(0x87CEEB).lerp(new THREE.Color(0xff7733), t);
+                const t = (gameTime - 17) / 2;
+                timeSkyColor = new THREE.Color(0x87CEEB).lerp(new THREE.Color(0xff7733), t);
                 lightIntensity = 1.0 - t * 0.5;
                 ambientIntensity = 0.6 - t * 0.3;
             } else if (gameTime >= 19 && gameTime < 21) {
                 // 日没後（19時～21時）
-                const t = (gameTime - 19) / 2; // 0～1の範囲に正規化
-                skyColor = new THREE.Color(0xff7733).lerp(new THREE.Color(0x111133), t);
+                const t = (gameTime - 19) / 2;
+                timeSkyColor = new THREE.Color(0xff7733).lerp(new THREE.Color(0x111133), t);
                 lightIntensity = 0.5 - t * 0.4;
                 ambientIntensity = 0.3 - t * 0.2;
-                isNight = true; // 夜間に設定
+                isNight = true;
             } else {
                 // 夜間（21時～5時）
                 if (gameTime >= 21) {
-                    skyColor = new THREE.Color(0x111133);
+                    timeSkyColor = new THREE.Color(0x111133);
                 } else {
                     // 夜明け前（0時～5時）
-                    const t = gameTime / 5; // 0～1の範囲に正規化
-                    skyColor = new THREE.Color(0x111133).lerp(new THREE.Color(0xff9966), t);
+                    const t = gameTime / 5;
+                    timeSkyColor = new THREE.Color(0x111133).lerp(new THREE.Color(0xff9966), t);
                 }
                 lightIntensity = 0.1;
                 ambientIntensity = 0.1;
-                isNight = true; // 夜間に設定
+                isNight = true;
+            }
+            
+            // 時間帯の色と天気の色を合成
+            let finalColor;
+            if (currentWeather === 'sunny') {
+                finalColor = timeSkyColor;
+            } else {
+                // 天気による色の影響を強める（0.7は天気の影響度）
+                finalColor = timeSkyColor.clone().lerp(weatherSkyColor, 0.7);
             }
             
             // 空の色を設定
-            renderer.setClearColor(skyColor.getHex());
+            renderer.setClearColor(finalColor.getHex());
             
             // 光源の強度を設定
             directionalLight.intensity = lightIntensity;
@@ -2641,47 +2653,56 @@
         function updateEnvironmentForCloudy() {
             // カメラモードに応じて霧の濃度を調整
             if (cameraMode === 0) { // 俯瞰視点の場合
-                // 俯瞰視点では霧を薄く設定してコースが見えるようにする
                 scene.fog = new THREE.FogExp2(0xaaaaaa, 0.0008);
             } else {
-                // その他の視点では通常の霧の濃度
                 scene.fog = new THREE.FogExp2(0xaaaaaa, 0.003);
             }
+            
+            // 曇りの空の色を設定（グレーがかった色）
+            weatherSkyColor = new THREE.Color(0x8c8c8c);
+            
+            // 曇り時の芝生の色
+            floor.material.color.setHex(0x2a552a);
+            floor.material.roughness = 0.8;
+            floor.material.metalness = 0.2;
+            floor.material.needsUpdate = true;
         }
         
         // 雨の環境更新
         function updateEnvironmentForRain() {
             // カメラモードに応じて霧の濃度を調整
-            if (cameraMode === 0) { // 俯瞰視点の場合
-                // 俯瞰視点では霧を薄く設定してコースが見えるようにする
+            if (cameraMode === 0) {
                 scene.fog = new THREE.FogExp2(0x555555, 0.001);
             } else {
-                // その他の視点では通常の霧の濃度
                 scene.fog = new THREE.FogExp2(0x555555, 0.007);
             }
             
-            // 地面を濡れた感じに（より濃い緑色に）
-            floor.material.color.setHex(0x1c4d1c); // 濃い緑色
-            floor.material.roughness = 0.4; // 滑らかさを増す（反射を増やす）
-            floor.material.metalness = 0.3; // 少し金属感を増す（光沢を増やす）
+            // 雨の空の色を設定（暗いグレー）
+            weatherSkyColor = new THREE.Color(0x4a4a4a);
+            
+            // 地面を濡れた感じに
+            floor.material.color.setHex(0x1c4d1c);
+            floor.material.roughness = 0.4;
+            floor.material.metalness = 0.3;
             floor.material.needsUpdate = true;
         }
         
         // 雪の環境更新
         function updateEnvironmentForSnow() {
             // カメラモードに応じて霧の濃度を調整
-            if (cameraMode === 0) { // 俯瞰視点の場合
-                // 俯瞰視点では霧を薄く設定してコースが見えるようにする
+            if (cameraMode === 0) {
                 scene.fog = new THREE.FogExp2(0xaaaaaa, 0.0005);
             } else {
-                // その他の視点では通常の霧の濃度
                 scene.fog = new THREE.FogExp2(0xaaaaaa, 0.005);
             }
             
-            // 地面を雪で覆われたように白くする
-            floor.material.color.setHex(0xf0f0f0); // 白色（雪）
-            floor.material.roughness = 0.9; // 粗さを増す（雪の質感）
-            floor.material.metalness = 0.0; // 金属感をなくす
+            // 雪の空の色を設定（明るいグレー）
+            weatherSkyColor = new THREE.Color(0xd8d8d8);
+            
+            // 地面を雪で覆われたように
+            floor.material.color.setHex(0xf0f0f0);
+            floor.material.roughness = 0.9;
+            floor.material.metalness = 0.0;
             floor.material.needsUpdate = true;
         }
         
@@ -2690,31 +2711,16 @@
             // 霧をなくす
             scene.fog = null;
             
+            // 晴れの空の色を設定（明るい青空）
+            weatherSkyColor = new THREE.Color(0x87CEEB);
+            
             // 通常の芝生の色に戻す
-            floor.material.color.setHex(0x336633); // 標準的な緑色
+            floor.material.color.setHex(0x336633);
             floor.material.roughness = 0.8;
             floor.material.metalness = 0.2;
             floor.material.needsUpdate = true;
         }
         
-        // 曇りの環境更新
-        function updateEnvironmentForCloudy() {
-            // カメラモードに応じて霧の濃度を調整
-            if (cameraMode === 0) { // 俯瞰視点の場合
-                // 俯瞰視点では霧を薄く設定してコースが見えるようにする
-                scene.fog = new THREE.FogExp2(0xaaaaaa, 0.0008);
-            } else {
-                // その他の視点では通常の霧の濃度
-                scene.fog = new THREE.FogExp2(0xaaaaaa, 0.003);
-            }
-            
-            // 曇り時の芝生の色（少し暗めの緑）
-            floor.material.color.setHex(0x2a552a); // 少し暗い緑色
-            floor.material.roughness = 0.8;
-            floor.material.metalness = 0.2;
-            floor.material.needsUpdate = true;
-        }
-
         // 天気の更新
         function updateWeather(deltaTime) {
             // 早送りモード時の自動天気変更とカメラ切り替え

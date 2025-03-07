@@ -31,11 +31,13 @@ export class Car {
       this.DECELERATION_RATE = 0.02 * this.specs.handling;
       
       // 追い抜き関連のパラメータ
-      this.overtakeDistance = 20.0;        // 前方の車を検知する距離（20.0から40.0に増加）
-      this.overtakeOffset = 4.0;           // 追い抜き時の横方向オフセット（車2台分）
+      this.overtakeDistance = 40.0;        // 前方の車を検知する距離
+      this.overtakeOffset = 6.0;           // 追い抜き時の横方向オフセット（車2台分）
       this.isOvertaking = false;           // 追い抜き中フラグ
       this.overtakeDirection = 0;          // 追い抜き方向（-1: 左, 1: 右）
       this.overtakeTarget = null;          // 追い抜き対象の車
+      this.overtakeProgress = 0;           // 追い越し進捗（0.0 〜 1.0）
+      this.overtakePhaseSpeed = 0.015;     // 追い越し進捗の更新速度
   }
   
   setOtherCars(otherCars) {
@@ -497,9 +499,9 @@ export class Car {
       point.add(lineDirection.multiplyScalar(finalLineOffset));
       
       // 追い抜き用の追加オフセットを計算
-      if (this.isOvertaking) {
+      if (this.isOvertaking || this.overtakeProgress > 0) {
           const overtakeVector = new THREE.Vector3(-flatTangent.z, 0, flatTangent.x).normalize();
-          point.add(overtakeVector.multiplyScalar(this.overtakeOffset * this.overtakeDirection));
+          point.add(overtakeVector.multiplyScalar(this.overtakeOffset * this.overtakeDirection * this.overtakeProgress));
       }
       
       // 車の高さは道路の高さに合わせる
@@ -678,11 +680,18 @@ export class Car {
               
               // 追い抜き対象より十分前に出た場合は追い抜き完了
               if (distance > this.overtakeDistance && relativePos.z < 0) {
-                  this.isOvertaking = false;
-                  this.overtakeTarget = null;
-                  this.overtakeDirection = 0;
+                  // 追い越し完了時は徐々に元のラインに戻る
+                  this.overtakeProgress = Math.max(0, this.overtakeProgress - this.overtakePhaseSpeed);
+                  if (this.overtakeProgress <= 0) {
+                      this.isOvertaking = false;
+                      this.overtakeTarget = null;
+                      this.overtakeDirection = 0;
+                  }
                   return;
               }
+              
+              // 追い越し中は進捗を更新
+              this.overtakeProgress = Math.min(1.0, this.overtakeProgress + this.overtakePhaseSpeed);
           }
           return;  // 追い抜き中は新たな追い抜き判定を行わない
       }
@@ -708,9 +717,10 @@ export class Car {
       }
       
       // 前方に車がいて、その車より速い場合に追い抜き開始
-      if (nearestCar && this.speed > nearestCar.speed * 1.1) {
+      if (nearestCar && this.speed > nearestCar.speed) {
           this.isOvertaking = true;
           this.overtakeTarget = nearestCar;
+          this.overtakeProgress = 0;  // 追い越し開始時は進捗を0に初期化
           
           // 追い抜き方向を決定（相対位置から左右どちらが空いているか判断）
           const rightVector = new THREE.Vector3(-myDirection.z, 0, myDirection.x);

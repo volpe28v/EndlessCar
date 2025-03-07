@@ -18,6 +18,11 @@ export class Car {
       this.lastRotation = new THREE.Quaternion();
       this.lastTiltAngle = 0;
       
+      // ヘッドライト関連
+      this.leftHeadlight = null;  // 左ヘッドライト
+      this.rightHeadlight = null; // 右ヘッドライト
+      this.headlightIntensity = 5.5; // ヘッドライトの強さ
+      
       // スペックを生成
       this.specs = this.generateRandomSpecs();
       
@@ -415,6 +420,8 @@ export class Car {
       this.wheels = result.wheels;
       this.wheelGroups = result.wheelGroups;
       this.upVector = result.upVector;
+      this.leftHeadlight = result.leftHeadlight;
+      this.rightHeadlight = result.rightHeadlight;
       
       // 初期位置と向き
       this.object.position.copy(this.carPath.getPointAt(this.position));
@@ -432,9 +439,12 @@ export class Car {
       scene.add(this.object);
   }
   
-  update(deltaTime) {
+  update(deltaTime, isNight = false) {
       // 追い抜き処理を実行（他の車の配列を使用）
       this.handleOvertaking(this.otherCars);
+      
+      // ヘッドライトの更新
+      this.updateHeadlights(isNight);
       
       // 速度を更新（カーブに応じて）
       this.updateSpeed();
@@ -669,6 +679,21 @@ export class Car {
     const curvatureData = this.calculateCurvature(upcomingPos);
     return curvatureData.angle;
 }
+
+  // ヘッドライトの制御
+  updateHeadlights(isNight) {
+      if (!this.leftHeadlight || !this.rightHeadlight) return;
+      
+      // 夜間のみヘッドライトを点灯
+      this.leftHeadlight.visible = isNight;
+      this.rightHeadlight.visible = isNight;
+      
+      if (isNight) {
+          // 夜間は通常の明るさ
+          this.leftHeadlight.intensity = this.headlightIntensity;
+          this.rightHeadlight.intensity = this.headlightIntensity;
+      }
+  }
 
   // シンプルな追い抜き処理
   handleOvertaking(cars) {

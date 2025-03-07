@@ -321,7 +321,7 @@
         }
         
         // 初期状態では3台の車を作成
-        createCars(10);
+        createCars(4);
         
         log("車の作成完了");
         
@@ -356,10 +356,6 @@
         let currentFrameTime = Date.now(); // グローバル変数として定義
         let weatherApiKey = '2416f36c5b6368d2de6d3016e34ae8f8'; // OpenWeatherMap APIキー
         
-        // ヘッドライト用のグローバル変数
-        let leftHeadlightLight;
-        let rightHeadlightLight;
-        
         // グローバル変数として天気の色の影響を保持
         let weatherSkyColor = new THREE.Color(0x87CEEB); // デフォルトは晴れの空の色
 
@@ -381,8 +377,8 @@
             let timeSkyColor;
             let lightIntensity;
             let ambientIntensity;
-            let isNight = false;
             
+            isNight = false;
             if (gameTime >= 5 && gameTime < 7) {
                 // 朝焼け（5時～7時）
                 const t = (gameTime - 5) / 2;
@@ -439,12 +435,6 @@
             
             // 夜間は街灯を明るく
             updateStreetLights(isNight);
-            
-            // 夜間はヘッドライトをオン、昼間はオフ
-            if (leftHeadlightLight && rightHeadlightLight) {
-                leftHeadlightLight.visible = isNight;
-                rightHeadlightLight.visible = isNight;
-            }
         }
         
         // 街灯の明るさを更新
@@ -953,7 +943,7 @@
             // 全ての車を更新
             for (let i = 0; i < cars.length; i++) {
                 const car = cars[i];
-                car.update(deltaTime);
+                car.update(deltaTime, isNight);
             }
 
             // カメラの位置を更新
@@ -1006,7 +996,7 @@
                     
                 case 2: // 車載
                     // 車の後ろから少し上の位置（Z軸を正に変更して車の後ろに）
-                    const fpvOffset = new THREE.Vector3(0, 2, -22); // 高さを少し上げる（起伏に対応）
+                    const fpvOffset = new THREE.Vector3(0, 3, -12); // 高さを少し上げる（起伏に対応）
                     // 車の向きに合わせてオフセットを回転
                     const rotatedFpvOffset = fpvOffset.clone().applyQuaternion(currentCar.object.quaternion);
                     

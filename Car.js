@@ -8,8 +8,8 @@ export class Car {
   constructor(carPath) {
       this.carPath = carPath;
       this.position = 0;  // パス上の位置（0から1）
-      this.speed = 0.3;   // 車の速度
-      this.targetSpeed = 0.3; // 目標速度
+      this.speed = 0.2;   // 車の速度
+      this.targetSpeed = 0.2; // 目標速度
       this.object = null; // 車の3Dオブジェクト
       this.wheels = [];    // タイヤオブジェクト
       this.wheelGroups = []; // タイヤグループ
@@ -25,8 +25,8 @@ export class Car {
       this.drivingStyle = this.generateDrivingStyle();
       
       // スペックに基づいて速度制限を設定
-      this.MIN_SPEED = 0.25 * this.specs.acceleration;
-      this.MAX_SPEED = 0.6 * this.specs.topSpeed;
+      this.MIN_SPEED = 0.15 * this.specs.acceleration;
+      this.MAX_SPEED = 0.4 * this.specs.topSpeed;
       this.ACCELERATION_RATE = 0.01 * this.specs.acceleration;
       this.DECELERATION_RATE = 0.02 * this.specs.handling;
       

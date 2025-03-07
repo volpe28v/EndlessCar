@@ -986,7 +986,7 @@
                     
                 case 1: // 追従
                     // 車の後ろから少し上の位置（Z軸を正に変更して車の後ろに）
-                    const followOffset = new THREE.Vector3(0, 12, 25); // 高さを少し上げる（起伏に対応）
+                    const followOffset = new THREE.Vector3(0, 10, 20); // 高さを少し上げる（起伏に対応）
                     // 車の向きに合わせてオフセットを回転
                     const rotatedOffset = followOffset.clone().applyQuaternion(currentCar.object.quaternion);
                     
@@ -1006,7 +1006,7 @@
                     
                 case 2: // 車載
                     // 車の後ろから少し上の位置（Z軸を正に変更して車の後ろに）
-                    const fpvOffset = new THREE.Vector3(0, 1, -21); // 高さを少し上げる（起伏に対応）
+                    const fpvOffset = new THREE.Vector3(0, 2, -22); // 高さを少し上げる（起伏に対応）
                     // 車の向きに合わせてオフセットを回転
                     const rotatedFpvOffset = fpvOffset.clone().applyQuaternion(currentCar.object.quaternion);
                     
@@ -1045,7 +1045,7 @@
                     
                 case 4: // 車前方から後方を見る視点
                     // 車の前方の位置（Z軸を負に変更して車の前方に）
-                    const frontOffset = new THREE.Vector3(0, 5, -30); // 車の前方、より離れた位置に変更
+                    const frontOffset = new THREE.Vector3(0, 5, -32); // 車の前方、より離れた位置に変更
                     // 車の向きに合わせてオフセットを回転
                     const rotatedFrontOffset = frontOffset.clone().applyQuaternion(currentCar.object.quaternion);
                     

@@ -31,8 +31,8 @@ export class Car {
       this.DECELERATION_RATE = 0.02 * this.specs.handling;
       
       // 追い抜き関連のパラメータ
-      this.overtakeDistance = 40.0;        // 前方の車を検知する距離
-      this.overtakeOffset = 6.0;           // 追い抜き時の横方向オフセット（車2台分）
+      this.overtakeDistance = 30.0;        // 前方の車を検知する距離
+      this.overtakeOffset = 5.0;           // 追い抜き時の横方向オフセット（車2台分）
       this.isOvertaking = false;           // 追い抜き中フラグ
       this.overtakeDirection = 0;          // 追い抜き方向（-1: 左, 1: 右）
       this.overtakeTarget = null;          // 追い抜き対象の車
@@ -291,17 +291,17 @@ export class Car {
       car.add(rightHeadlight);
       
       // ヘッドライトのスポットライト
-      const leftLight = new THREE.SpotLight(0xFFFFFF, 1.5, 50, Math.PI / 6, 0.3, 1);
-      leftLight.position.set(0.6, 2.0, -2.0);
+      const leftLight = new THREE.SpotLight(0xFFFFFF, 5.5, 50, Math.PI / 10, 0.3, 1);
+      leftLight.position.set(0.6, 6.0, -2.0);
       leftLight.target.position.set(0.3, 0.0, -20);
-      leftLight.visible = false;
+      leftLight.visible = true;
       car.add(leftLight);
       car.add(leftLight.target);
       
-      const rightLight = new THREE.SpotLight(0xFFFFFF, 1.5, 50, Math.PI / 6, 0.3, 1);
-      rightLight.position.set(-0.6, 2.0, -2.0);
+      const rightLight = new THREE.SpotLight(0xFFFFFF, 5.5, 50, Math.PI / 10, 0.3, 1);
+      rightLight.position.set(-0.6, 6.0, -2.0);
       rightLight.target.position.set(-0.3, 0.0, -20);
-      rightLight.visible = false;
+      rightLight.visible = true;
       car.add(rightLight);
       car.add(rightLight.target);
 

@@ -312,6 +312,10 @@
                 car.createObject(scene);
                 cars.push(car);
             }
+            for (let i = 0; i < count; i++) {
+                const car = cars[i];
+                car.setOtherCars(cars.filter(c => c !== car));  
+            }
             
             log(`${count}台の車を作成しました`);
         }

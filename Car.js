@@ -29,8 +29,19 @@ export class Car {
       this.MAX_SPEED = 0.6 * this.specs.topSpeed;
       this.ACCELERATION_RATE = 0.01 * this.specs.acceleration;
       this.DECELERATION_RATE = 0.02 * this.specs.handling;
+      
+      // 追い抜き関連のパラメータ
+      this.overtakeDistance = 20.0;        // 前方の車を検知する距離（20.0から40.0に増加）
+      this.overtakeOffset = 4.0;           // 追い抜き時の横方向オフセット（車2台分）
+      this.isOvertaking = false;           // 追い抜き中フラグ
+      this.overtakeDirection = 0;          // 追い抜き方向（-1: 左, 1: 右）
+      this.overtakeTarget = null;          // 追い抜き対象の車
   }
   
+  setOtherCars(otherCars) {
+    this.otherCars = otherCars;
+  }
+
   // ランダムなスペックを生成するメソッド
   generateRandomSpecs() {
       // 基本スペックの範囲を定義
@@ -420,6 +431,9 @@ export class Car {
   }
   
   update(deltaTime) {
+      // 追い抜き処理を実行（他の車の配列を使用）
+      this.handleOvertaking(this.otherCars);
+      
       // 速度を更新（カーブに応じて）
       this.updateSpeed();
       
@@ -434,29 +448,6 @@ export class Car {
       const tangent = this.carPath.getTangentAt(this.position).normalize();
       // XZ平面上の接線ベクトル（高さを無視）
       const flatTangent = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
-      
-      // 次のポイントと前のポイントを取得して傾斜を計算（上り下りの計算用）
-      const nextPos = (this.position + 0.01) % 1;
-      const prevPos = (this.position - 0.01 + 1) % 1;
-      const nextPoint = this.carPath.getPointAt(nextPos);
-      const prevPoint = this.carPath.getPointAt(prevPos);
-      
-      // 前後方向の傾斜角を計算（Y軸方向の変化から）
-      const forwardSlope = Math.atan2(nextPoint.y - point.y, 
-          Math.sqrt(Math.pow(nextPoint.x - point.x, 2) + Math.pow(nextPoint.z - point.z, 2)));
-      
-      // サンプリング範囲を拡大して、より正確な傾斜を取得
-      const farNextPos = (this.position + 0.02) % 1;
-      const farPrevPos = (this.position - 0.02 + 1) % 1;
-      const farNextPoint = this.carPath.getPointAt(farNextPos);
-      const farPrevPoint = this.carPath.getPointAt(farPrevPos);
-      
-      // 広い範囲での前後方向の傾斜角を計算
-      const farForwardSlope = Math.atan2(farNextPoint.y - farPrevPoint.y, 
-          Math.sqrt(Math.pow(farNextPoint.x - farPrevPoint.x, 2) + Math.pow(farNextPoint.z - farPrevPoint.z, 2)));
-      
-      // 近距離と遠距離の傾斜を組み合わせて、より安定した傾斜値を得る
-      const combinedSlope = (forwardSlope * 0.7 + farForwardSlope * 0.3);
       
       // 曲率を計算
       const curvatureData = this.calculateCurvature(this.position);
@@ -484,7 +475,7 @@ export class Car {
       const smoothedOffsetAmount = rawOffsetAmount * consistencyFactor;
       
       // カーブ進入時と出口でラインを調整
-      const transitionTiming = 0.05 + this.drivingStyle.lineTransitionTiming * 0.05; // 0.05〜0.1の範囲
+      const transitionTiming = 0.05 + this.drivingStyle.lineTransitionTiming * 0.05;
       const approachingCurve = this.predictUpcomingCurve(this.position, transitionTiming) > 0.1;
       const exitingCurve = curveAngle < 0.1 && this.calculateCurvature((this.position - transitionTiming + 1) % 1).angle > 0.1;
       
@@ -502,9 +493,14 @@ export class Car {
           finalLineOffset = smoothedOffsetAmount * (1 - exitFactor) + exitOffset * exitFactor;
       }
       
-      // オフセットを適用（グリップ性能も考慮）
-      const gripFactor = 0.8 + this.specs.grip * 0.4; // グリップが高いほどラインを攻められる
-      point.add(lineDirection.multiplyScalar(finalLineOffset * gripFactor));
+      // 通常のライン取りを適用
+      point.add(lineDirection.multiplyScalar(finalLineOffset));
+      
+      // 追い抜き用の追加オフセットを計算
+      if (this.isOvertaking) {
+          const overtakeVector = new THREE.Vector3(-flatTangent.z, 0, flatTangent.x).normalize();
+          point.add(overtakeVector.multiplyScalar(this.overtakeOffset * this.overtakeDirection));
+      }
       
       // 車の高さは道路の高さに合わせる
       const carHeight = point.y + 0.3;
@@ -540,7 +536,7 @@ export class Car {
       this.object.quaternion.copy(targetRotation);
       
       // 8. 上り下りの傾斜を反映
-      this.object.rotateX(combinedSlope * 1.5);
+      this.object.rotateX(this.lastTiltAngle * 1.5);
       
       // 9. カーブに応じた微小な横傾斜（Z軸回転）
       const maxTilt = 0.005;
@@ -671,4 +667,55 @@ export class Car {
     const curvatureData = this.calculateCurvature(upcomingPos);
     return curvatureData.angle;
 }
+
+  // シンプルな追い抜き処理
+  handleOvertaking(cars) {
+      if (this.isOvertaking) {
+          // 追い抜き中の場合、対象の車との相対位置をチェック
+          if (this.overtakeTarget) {
+              const relativePos = this.object.position.clone().sub(this.overtakeTarget.object.position);
+              const distance = relativePos.length();
+              
+              // 追い抜き対象より十分前に出た場合は追い抜き完了
+              if (distance > this.overtakeDistance && relativePos.z < 0) {
+                  this.isOvertaking = false;
+                  this.overtakeTarget = null;
+                  this.overtakeDirection = 0;
+                  return;
+              }
+          }
+          return;  // 追い抜き中は新たな追い抜き判定を行わない
+      }
+      
+      // 前方の車を検出
+      const myPosition = this.object.position.clone();
+      const myDirection = new THREE.Vector3();
+      this.object.getWorldDirection(myDirection);
+      
+      let nearestCar = null;
+      let minDistance = Infinity;
+      
+      // 最も近い前方の車を探す
+      for (const car of cars) {
+          const carPosition = car.object.position.clone();
+          const toOtherCar = carPosition.clone().sub(myPosition);
+          const distance = toOtherCar.length();
+          
+          if (distance < this.overtakeDistance && distance < minDistance) {
+              nearestCar = car;
+              minDistance = distance;
+          }
+      }
+      
+      // 前方に車がいて、その車より速い場合に追い抜き開始
+      if (nearestCar && this.speed > nearestCar.speed * 1.1) {
+          this.isOvertaking = true;
+          this.overtakeTarget = nearestCar;
+          
+          // 追い抜き方向を決定（相対位置から左右どちらが空いているか判断）
+          const rightVector = new THREE.Vector3(-myDirection.z, 0, myDirection.x);
+          const toTarget = nearestCar.object.position.clone().sub(myPosition);
+          this.overtakeDirection = Math.sign(rightVector.dot(toTarget));
+      }
+  }
 }

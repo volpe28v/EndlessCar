@@ -18,11 +18,88 @@ export class Car {
       this.lastRotation = new THREE.Quaternion();
       this.lastTiltAngle = 0;
       
-      // 速度の制限
-      this.MIN_SPEED = 0.25;  // 最低速度
-      this.MAX_SPEED = 0.6;   // 最高速度
-      this.ACCELERATION_RATE = 0.01;
-      this.DECELERATION_RATE = 0.02;
+      // スペックを生成
+      this.specs = this.generateRandomSpecs();
+      
+      // ラインどり特性を生成
+      this.drivingStyle = this.generateDrivingStyle();
+      
+      // スペックに基づいて速度制限を設定
+      this.MIN_SPEED = 0.25 * this.specs.acceleration;
+      this.MAX_SPEED = 0.6 * this.specs.topSpeed;
+      this.ACCELERATION_RATE = 0.01 * this.specs.acceleration;
+      this.DECELERATION_RATE = 0.02 * this.specs.handling;
+  }
+  
+  // ランダムなスペックを生成するメソッド
+  generateRandomSpecs() {
+      // 基本スペックの範囲を定義
+      const specRanges = {
+          topSpeed: { min: 0.8, max: 1.2 },      // 最高速度係数
+          acceleration: { min: 0.7, max: 1.3 },   // 加速性能係数
+          handling: { min: 0.8, max: 1.2 },       // ハンドリング性能係数
+          grip: { min: 0.8, max: 1.2 }           // グリップ性能係数
+      };
+
+      // ランダムな値を生成する関数
+      const randomInRange = (min, max) => min + Math.random() * (max - min);
+
+      // スペックを生成
+      const specs = {
+          topSpeed: randomInRange(specRanges.topSpeed.min, specRanges.topSpeed.max),
+          acceleration: randomInRange(specRanges.acceleration.min, specRanges.acceleration.max),
+          handling: randomInRange(specRanges.handling.min, specRanges.handling.max),
+          grip: randomInRange(specRanges.grip.min, specRanges.grip.max)
+      };
+
+      // スペック情報をログ出力
+      console.log('車のスペック生成:', {
+          topSpeed: Math.round(specs.topSpeed * 100),
+          acceleration: Math.round(specs.acceleration * 100),
+          handling: Math.round(specs.handling * 100),
+          grip: Math.round(specs.grip * 100)
+      });
+
+      return specs;
+  }
+  
+  // ラインどり特性を生成するメソッド
+  generateDrivingStyle() {
+      const style = {
+          // インコース寄りかアウトコース寄りか（0: インコース、1: アウトコース）
+          linePreference: Math.random(),
+          
+          // コーナー進入の積極性（0: 慎重、1: 積極的）
+          cornerEntryAggression: Math.random(),
+          
+          // コーナー立ち上がりの積極性（0: 慎重、1: 積極的）
+          cornerExitAggression: Math.random(),
+          
+          // ブレーキングの早さ（0: 早め、1: ギリギリ）
+          brakingTiming: Math.random(),
+
+          // 追加: ラインの切り替えタイミング（0: 早め、1: 遅め）
+          lineTransitionTiming: Math.random(),
+
+          // 追加: コーナー中のライン維持（0: 大きく振る、1: 一定を保つ）
+          lineConsistency: Math.random(),
+
+          // 追加: アウトインアウトの強さ（0: 控えめ、1: 大胆）
+          outInOutStrength: Math.random()
+      };
+
+      // スタイル情報をログ出力
+      console.log('ドライビングスタイル生成:', {
+          linePreference: Math.round(style.linePreference * 100),
+          cornerEntryAggression: Math.round(style.cornerEntryAggression * 100),
+          cornerExitAggression: Math.round(style.cornerExitAggression * 100),
+          brakingTiming: Math.round(style.brakingTiming * 100),
+          lineTransitionTiming: Math.round(style.lineTransitionTiming * 100),
+          lineConsistency: Math.round(style.lineConsistency * 100),
+          outInOutStrength: Math.round(style.outInOutStrength * 100)
+      });
+
+      return style;
   }
   
   createDetailedCar() {
@@ -386,6 +463,49 @@ export class Car {
       const curveAngle = curvatureData.angle;
       const curveTiltDirection = curvatureData.direction;
       
+      // ラインどりの計算
+      const baseLineOffset = 0.5; // 基本のオフセット距離（メートル）
+      const linePreference = this.drivingStyle.linePreference; // 0: インコース、1: アウトコース
+      
+      // 次のカーブの方向を予測
+      const nextCurveData = this.calculateCurvature((this.position + 0.05) % 1);
+      const nextCurveDirection = nextCurveData.direction;
+      
+      // カーブの強さに応じたオフセット量の調整
+      const outInOutStrength = this.drivingStyle.outInOutStrength;
+      const lineOffset = baseLineOffset * (0.8 + outInOutStrength * 0.4);
+      
+      // カーブに応じたラインオフセットを計算
+      const lineDirection = new THREE.Vector3().crossVectors(flatTangent, new THREE.Vector3(0, 1, 0)).normalize();
+      
+      // ラインの一貫性を考慮したオフセット量の計算
+      const consistencyFactor = 0.5 + this.drivingStyle.lineConsistency * 0.5;
+      const rawOffsetAmount = lineOffset * (linePreference * 2 - 1) * Math.min(1, curveAngle * 10);
+      const smoothedOffsetAmount = rawOffsetAmount * consistencyFactor;
+      
+      // カーブ進入時と出口でラインを調整
+      const transitionTiming = 0.05 + this.drivingStyle.lineTransitionTiming * 0.05; // 0.05〜0.1の範囲
+      const approachingCurve = this.predictUpcomingCurve(this.position, transitionTiming) > 0.1;
+      const exitingCurve = curveAngle < 0.1 && this.calculateCurvature((this.position - transitionTiming + 1) % 1).angle > 0.1;
+      
+      let finalLineOffset = smoothedOffsetAmount;
+      
+      if (approachingCurve) {
+          // カーブ進入時のライン取り
+          const transitionFactor = Math.min(1, curveAngle * (15 + this.drivingStyle.cornerEntryAggression * 10));
+          const entryOffset = lineOffset * nextCurveDirection * outInOutStrength;
+          finalLineOffset = entryOffset * (1 - transitionFactor) + smoothedOffsetAmount * transitionFactor;
+      } else if (exitingCurve) {
+          // カーブ出口でのライン取り
+          const exitFactor = Math.min(1, curveAngle * (10 + this.drivingStyle.cornerExitAggression * 10));
+          const exitOffset = -lineOffset * curveTiltDirection * outInOutStrength;
+          finalLineOffset = smoothedOffsetAmount * (1 - exitFactor) + exitOffset * exitFactor;
+      }
+      
+      // オフセットを適用（グリップ性能も考慮）
+      const gripFactor = 0.8 + this.specs.grip * 0.4; // グリップが高いほどラインを攻められる
+      point.add(lineDirection.multiplyScalar(finalLineOffset * gripFactor));
+      
       // 車の高さは道路の高さに合わせる
       const carHeight = point.y + 0.3;
       
@@ -474,15 +594,26 @@ export class Car {
       // 前方のカーブ強度を予測
       const upcomingCurvature = this.predictUpcomingCurve(this.position, 0.05);
       
-      // カーブ強度に基づいて目標速度を計算
+      // カーブ強度に基づいて目標速度を計算（グリップ性能とドライビングスタイルを考慮）
       const maxCurveAngle = 0.5;
-      const curvatureToSpeedRatio = 0.5;
-      const curvatureSpeedFactor = 1.0 - Math.min(1.0, Math.abs(upcomingCurvature) / maxCurveAngle) * curvatureToSpeedRatio;
-      this.targetSpeed = this.MAX_SPEED * curvatureSpeedFactor;
+      const curvatureToSpeedRatio = 0.5 * (1 / this.specs.grip);
       
-      // 速度を目標に近づける
+      // ドライビングスタイルに基づく補正
+      const cornerAggression = this.drivingStyle.cornerEntryAggression * 0.3; // 0〜0.3の補正
+      const brakingAdjustment = this.drivingStyle.brakingTiming * 0.2; // 0〜0.2の補正
+      
+      const curvatureSpeedFactor = 1.0 - 
+          Math.min(1.0, Math.abs(upcomingCurvature) / maxCurveAngle) * 
+          curvatureToSpeedRatio * 
+          (1.0 - cornerAggression); // コーナリングの積極性を反映
+      
+      this.targetSpeed = this.MAX_SPEED * (curvatureSpeedFactor + brakingAdjustment);
+      
+      // 速度を目標に近づける（加速性能とコーナー立ち上がりの積極性を考慮）
+      const accelerationBoost = this.drivingStyle.cornerExitAggression * 0.3; // 0〜0.3の補正
       if (this.speed < this.targetSpeed) {
-          this.speed = Math.min(this.targetSpeed, this.speed + this.ACCELERATION_RATE);
+          this.speed = Math.min(this.targetSpeed, 
+              this.speed + (this.ACCELERATION_RATE * (1 + accelerationBoost)));
       } else if (this.speed > this.targetSpeed) {
           this.speed = Math.max(this.targetSpeed, this.speed - this.DECELERATION_RATE);
       }

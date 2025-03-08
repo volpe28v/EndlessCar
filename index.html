@@ -178,6 +178,10 @@
             background-color: rgba(255, 255, 255, 0.3);
             margin: 5px 0;
         }
+        /* BGMコントロール用のスタイル */
+        #bgmControl {
+            display: none;
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
 </head>
@@ -807,6 +811,68 @@
         
         // 道路の可視化
         createRoadSurface();
+        
+        // 高層道路の柱を生成する関数
+        function createRoadPillars() {
+            const pillarGroup = new THREE.Group();
+            roadGroup.add(pillarGroup);
+            
+            // 柱の間隔（パスの割合）
+            const pillarSpacing = 0.04; // 約25本の柱
+            
+            // コース全体に柱を配置
+            let currentT = 0;
+            while (currentT < 1) {
+                const point = carPath.getPointAt(currentT);
+                const tangent = carPath.getTangentAt(currentT);
+                
+                // 地上からの高さが1以上の場合のみ柱を設置
+                if (point.y > 1) {
+                    // 道路の左右に柱を設置
+                    createSinglePillar(point, tangent, 1);  // 右側
+                    createSinglePillar(point, tangent, -1); // 左側
+                }
+                
+                currentT += pillarSpacing;
+            }
+            
+            // 1本の柱を生成する関数
+            function createSinglePillar(point, tangent, side) {
+                // 垂直方向ベクトル（外側方向）
+                const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+                
+                // 柱の位置（道路の外側）
+                const pillarPosition = new THREE.Vector3().addVectors(
+                    point,
+                    normal.clone().multiplyScalar(side * (roadWidth / 2 - 1))
+                );
+                
+                // 柱の高さを計算（地上から道路面まで）
+                const pillarHeight = point.y;
+                
+                // 柱のジオメトリとマテリアル
+                const pillarGeometry = new THREE.BoxGeometry(2, pillarHeight, 2);
+                const pillarMaterial = new THREE.MeshLambertMaterial({ 
+                    color: 0x888888,
+                    roughness: 0.7,
+                    metalness: 0.3
+                });
+                
+                const pillar = new THREE.Mesh(pillarGeometry, pillarMaterial);
+                
+                // 柱の位置を設定（Y座標は高さの半分）
+                pillar.position.set(
+                    pillarPosition.x,
+                    pillarHeight / 2,
+                    pillarPosition.z
+                );
+                
+                pillarGroup.add(pillar);
+            }
+        }
+        
+        // 高層道路の柱を生成
+        createRoadPillars();
         
         // ガードレールの作成
         createGuardrails();

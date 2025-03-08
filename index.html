@@ -194,10 +194,43 @@
         }
         /* BGMコントロール用のスタイル */
         #bgmControl {
-            display: none;
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 5px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            z-index: 100;
+        }
+        
+        #bgmControl button {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #bgmControl button:hover {
+            opacity: 0.8;
+        }
+        
+        #bgmVolume {
+            width: 80px;
+            margin: 0 5px;
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://unpkg.com/picoaudio/dist/browser/PicoAudio.min.js"></script>
 </head>
 <body>
     <div id="viewButtons">
@@ -215,6 +248,10 @@
             <button class="viewButton weather-button" data-weather="rain" title="雨">🌧️</button>
             <button class="viewButton weather-button" data-weather="snow" title="雪">❄️</button>
         </div>
+    </div>
+    <div id="bgmControl">
+        <input type="range" id="bgmVolume" min="0" max="100" value="10" title="音量">
+        <button id="muteBgm" title="ミュート">🔊</button>
     </div>
     <div id="minimap-container">
         <canvas id="minimap" width="150" height="100"></canvas>
@@ -1232,6 +1269,9 @@
                 currentCarIndex = (currentCarIndex + 1) % cars.length;
             });
             
+            // BGMの初期化
+            initBgm();
+            
             // アニメーションスタート
             log("アニメーション開始");
             animate();
@@ -1962,6 +2002,63 @@
         // 車の自動切り替え用の変数を初期化
         let lastCarChangeTime = Date.now();
         let carChangeInterval = 20000 + Math.random() * 10000; // 20-30秒のランダムな間隔
+
+
+        // BGMの初期化と制御
+        async function initBgm() {
+            // BGM関連の変数
+            let isBgmMuted = true; // 初期状態をミュートに変更
+            let bgmVolume = 0;
+
+            const bgms = ['RRR-01.mid', 'RR-01.mid', 'RR4-01.mid', 'RR4-02.mid'];
+            const picoAudio = new PicoAudio();
+            picoAudio.init();
+            picoAudio.setMasterVolume(0); // 初期音量を0に設定
+
+            async function playRandomBgm() {
+                const randomIndex = Math.floor(Math.random() * bgms.length);
+                const response = await fetch(`midi/${bgms[randomIndex]}`);
+                const arrayBuffer = await response.arrayBuffer();
+                const smfData = picoAudio.parseSMF(arrayBuffer);
+                picoAudio.setData(smfData);
+                picoAudio.play();
+                console.log(bgms[randomIndex]);
+            }
+
+            try {
+                // ミュートボタンの初期表示を設定
+                document.getElementById('muteBgm').textContent = '🔇';
+
+                // 音量スライダーのイベントリスナー
+                document.getElementById('bgmVolume').addEventListener('input', function() {
+                    bgmVolume = this.value / 100;
+                    if (!isBgmMuted) {
+                        picoAudio.setMasterVolume(bgmVolume);
+                    }
+                });
+
+                // ミュートボタンのイベントリスナー
+                document.getElementById('muteBgm').addEventListener('click', function() {
+                    isBgmMuted = !isBgmMuted;
+                    if (isBgmMuted) {
+                        picoAudio.setMasterVolume(0);
+                        this.textContent = '🔇';
+                    } else {
+                        picoAudio.setMasterVolume(bgmVolume);
+                        this.textContent = '🔊';
+                    }
+                });
+
+                // 再生終了時のループ処理
+                picoAudio.addEventListener('songEnd', () => {
+                    playRandomBgm();
+                });
+
+                await playRandomBgm();
+            } catch (error) {
+                console.error('BGMの初期化エラー:', error);
+            }
+        }
     </script>
 </body>
 </html> 

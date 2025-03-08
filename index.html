@@ -940,6 +940,16 @@
             // 天気の更新
             updateWeather(deltaTime);
 
+            // 早送りモード時の車の自動切り替え
+            if (!useRealTime && currentFrameTime - lastCarChangeTime > carChangeInterval) {
+                // 現在の車以外からランダムに選択
+                const availableCars = Array.from({length: cars.length}, (_, i) => i).filter(i => i !== currentCarIndex);
+                currentCarIndex = availableCars[Math.floor(Math.random() * availableCars.length)];
+                
+                lastCarChangeTime = currentFrameTime;
+                carChangeInterval = 20000 + Math.random() * 10000; // 20-30秒のランダムな間隔
+            }
+
             // 全ての車を更新
             for (let i = 0; i < cars.length; i++) {
                 const car = cars[i];
@@ -1831,6 +1841,10 @@
                 ctx.restore();
             }
         }
+
+        // 車の自動切り替え用の変数を初期化
+        let lastCarChangeTime = Date.now();
+        let carChangeInterval = 20000 + Math.random() * 10000; // 20-30秒のランダムな間隔
     </script>
 </body>
 </html> 

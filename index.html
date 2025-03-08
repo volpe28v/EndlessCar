@@ -137,35 +137,25 @@
             }
             #viewButtons {
                 gap: 2px;
-                max-width: 45px;
+                max-width: 45px; /* スマホ向けにさらに小さく */
             }
             
             #minimap-container {
                 width: 100px;
-                height: 100px;
-            }
-            
-            #minimap {
-                width: 100%;
                 height: 80px;
-            }
-            
-            #speed-display {
-                height: 20px;
-                line-height: 20px;
-                font-size: 11px;
+                right: 55px;
             }
             
             /* スマホ向け時間モードボタン位置調整 */
             #timeToggle {
                 right: 55px;
-                top: 160px;
+                top: 160px; /* 視点ボタンの下に配置 */
             }
             
             /* スマホ向け天気ボタン位置調整を削除 */
             #weatherToggle {
                 right: 55px;
-                top: 210px;
+                top: 210px; /* 時間モードボタンの下に配置 */
             }
         }
         
@@ -441,8 +431,8 @@
                     const t = gameTime / 5;
                     timeSkyColor = new THREE.Color(0x111133).lerp(new THREE.Color(0xff9966), t);
                 }
-                lightIntensity = 0.1;
-                ambientIntensity = 0.1;
+                lightIntensity = 0.25;  // 0.1から0.25に増加
+                ambientIntensity = 0.2;  // 0.1から0.2に増加
                 isNight = true;
             }
             

@@ -443,6 +443,8 @@ export class Car {
       // 追い抜き処理を実行（他の車の配列を使用）
       this.handleOvertaking(this.otherCars);
       
+      // ヘッドライトは処理が重いので一旦オフ
+      isNight = false;
       // ヘッドライトの更新
       this.updateHeadlights(isNight);
       

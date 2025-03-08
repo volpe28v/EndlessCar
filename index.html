@@ -1099,6 +1099,12 @@
             // 初期天気のボタンをアクティブに
             updateWeatherButtonState(currentWeather);
             
+            // ミニマップのクリックイベントを設定
+            document.getElementById('minimap-container').addEventListener('click', () => {
+                // タブキーと同じ動作：次の車に切り替え
+                currentCarIndex = (currentCarIndex + 1) % cars.length;
+            });
+            
             // アニメーションスタート
             log("アニメーション開始");
             animate();

@@ -36,7 +36,7 @@ export class Car {
       this.DECELERATION_RATE = 0.02 * this.specs.handling;
       
       // 追い抜き関連のパラメータ
-      this.overtakeDistance = 30.0;        // 前方の車を検知する距離
+      this.overtakeDistance = 40.0;        // 前方の車を検知する距離
       this.overtakeOffset = 5.0;           // 追い抜き時の横方向オフセット（車2台分）
       this.isOvertaking = false;           // 追い抜き中フラグ
       this.overtakeDirection = 0;          // 追い抜き方向（-1: 左, 1: 右）

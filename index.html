@@ -252,7 +252,7 @@
         </div>
     </div>
     <div id="bgmControl">
-        <input type="range" id="bgmVolume" min="0" max="100" value="10" title="音量">
+        <input type="range" id="bgmVolume" min="0" max="100" value="20" title="音量">
         <button id="muteBgm" title="ミュート">🔊</button>
     </div>
     <div id="minimap-container">
@@ -2005,26 +2005,30 @@
         let lastCarChangeTime = Date.now();
         let carChangeInterval = 20000 + Math.random() * 10000; // 20-30秒のランダムな間隔
 
-
         // BGMの初期化と制御
         async function initBgm() {
             // BGM関連の変数
             let isBgmMuted = true; // 初期状態をミュートに変更
-            let bgmVolume = 0;
+            let bgmVolume = 0.2;
 
             const bgms = ['RRR-01.mid', 'RR-01.mid', 'RR4-01.mid', 'RR4-02.mid'];
             const picoAudio = new PicoAudio();
             picoAudio.init();
-            picoAudio.setMasterVolume(0); // 初期音量を0に設定
+            picoAudio.setMasterVolume(0.2); // 初期音量を0に設定
 
             async function playRandomBgm() {
                 const randomIndex = Math.floor(Math.random() * bgms.length);
-                const response = await fetch(`midi/${bgms[randomIndex]}`);
-                const arrayBuffer = await response.arrayBuffer();
-                const smfData = picoAudio.parseSMF(arrayBuffer);
-                picoAudio.setData(smfData);
-                picoAudio.play();
-                console.log(bgms[randomIndex]);
+                const midiName = `midi/${bgms[randomIndex]}`;
+                console.log('fetching', midiName);
+                fetch(midiName)
+                .then(response => response.arrayBuffer())
+                .then(data => {
+                    console.log('fetched', midiName);
+                    const smfData = picoAudio.parseSMF(data);
+                    console.log('parsed', smfData);
+                    picoAudio.setData(smfData);
+                    picoAudio.play();
+                });
             }
 
             try {
@@ -2045,9 +2049,11 @@
                     if (isBgmMuted) {
                         picoAudio.setMasterVolume(0);
                         this.textContent = '🔇';
+                        picoAudio.stop();
                     } else {
                         picoAudio.setMasterVolume(bgmVolume);
                         this.textContent = '🔊';
+                        playRandomBgm();
                     }
                 });
 
@@ -2055,8 +2061,6 @@
                 picoAudio.addEventListener('songEnd', () => {
                     playRandomBgm();
                 });
-
-                await playRandomBgm();
             } catch (error) {
                 console.error('BGMの初期化エラー:', error);
             }

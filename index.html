@@ -62,7 +62,7 @@
             position: absolute;
             top: 10px;
             left: 10px;
-            width: 150px;
+            width: 130px;
             height: 120px;
             background-color: rgba(0, 0, 0, 0.5);
             border: 1px solid rgba(255, 255, 255, 0.5);
@@ -73,7 +73,6 @@
         }
         
         #minimap {
-            width: 100%;
             height: 100px;
         }
         
@@ -141,9 +140,12 @@
             }
             
             #minimap-container {
-                width: 100px;
-                height: 80px;
+                width: 104px;
+                height:100px;
                 right: 55px;
+            }
+            #minimap {
+                height: 80px;
             }
             
             /* スマホ向け時間モードボタン位置調整 */
@@ -254,7 +256,7 @@
         <button id="muteBgm" title="ミュート">🔊</button>
     </div>
     <div id="minimap-container">
-        <canvas id="minimap" width="150" height="100"></canvas>
+        <canvas id="minimap"></canvas>
         <div id="speed-display">0 km/h</div>
     </div>
     <div id="info">

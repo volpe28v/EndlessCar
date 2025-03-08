@@ -926,20 +926,30 @@
         let lastFrameTime = Date.now();
         
         // アニメーションループ
+        let frameCount = 0;
+
         function animate() {
             requestAnimationFrame(animate);
+            
+            const metrics = {};
+            const startTime = performance.now();
+            let lastCheck = startTime;
             
             // フレーム間のデルタタイムを計算
             currentFrameTime = Date.now();
             const deltaTime = (currentFrameTime - lastFrameTime) / 16.67;
             lastFrameTime = currentFrameTime;
             
-            // 時間の更新と昼夜サイクルの適用
+            // 昼夜サイクルの更新
             updateDayNightCycle();
+            metrics.dayNightCycle = performance.now() - lastCheck;
+            lastCheck = performance.now();
             
             // 天気の更新
             updateWeather(deltaTime);
-
+            metrics.weather = performance.now() - lastCheck;
+            lastCheck = performance.now();
+            
             // 早送りモード時の車の自動切り替え
             if (!useRealTime && currentFrameTime - lastCarChangeTime > carChangeInterval) {
                 // 現在の車以外からランダムに選択
@@ -949,21 +959,38 @@
                 lastCarChangeTime = currentFrameTime;
                 carChangeInterval = 20000 + Math.random() * 10000; // 20-30秒のランダムな間隔
             }
-
-            // 全ての車を更新
+            
+            // 車の更新
             for (let i = 0; i < cars.length; i++) {
                 const car = cars[i];
                 car.update(deltaTime, isNight);
             }
-
-            // カメラの位置を更新
+            metrics.carUpdates = performance.now() - lastCheck;
+            lastCheck = performance.now();
+            
+            // カメラの更新
             updateCamera();
-
-            // ミニマップを更新
+            metrics.camera = performance.now() - lastCheck;
+            lastCheck = performance.now();
+            
+            // ミニマップの更新
             updateMinimap();
+            metrics.minimap = performance.now() - lastCheck;
+            lastCheck = performance.now();
             
             // レンダリング
             renderer.render(scene, camera);
+            metrics.rendering = performance.now() - lastCheck;
+            
+            // 全体の実行時間
+            metrics.total = performance.now() - startTime;
+            
+            // 100フレームごとにメトリクスを出力
+            frameCount++;
+            if (frameCount % 100 === 0) {
+                console.log('Frame Performance Metrics:');
+                console.table(metrics);
+            }
         }
         
         // カメラの位置と向きを更新
@@ -1657,7 +1684,7 @@
         // 雨のパーティクルシステムを作成
         function createRainParticles() {
             const rainGeometry = new THREE.BufferGeometry();
-            const rainCount = 30000;
+            const rainCount = 7500; // 15000から7500に減らす
             
             // 雨粒の位置配列を作成（各雨粒の開始点と終点）
             const rainPositions = new Float32Array(rainCount * 6); // 2点（開始点と終点）で1つの線を表現
@@ -1713,7 +1740,7 @@
         // 雪のパーティクルシステムを作成
         function createSnowParticles() {
             const snowGeometry = new THREE.BufferGeometry();
-            const snowCount = 20000; // 雪片の数を調整
+            const snowCount = 5000; // 10000から5000に減らす
             
             // 雪片の位置配列を作成
             const snowPositions = new Float32Array(snowCount * 3);

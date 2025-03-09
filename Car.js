@@ -151,7 +151,10 @@ export class Car {
           lineConsistency: Math.random(),
 
           // 追加: アウトインアウトの強さ（0: 控えめ、1: 大胆）
-          outInOutStrength: Math.random()
+          outInOutStrength: Math.random(),
+
+          // 追加: ドリフトスタイルを持っているかどうか
+          useDrift: Math.random() > 0.5
       };
 
       // スタイル情報をログ出力
@@ -162,7 +165,8 @@ export class Car {
           brakingTiming: Math.round(style.brakingTiming * 100),
           lineTransitionTiming: Math.round(style.lineTransitionTiming * 100),
           lineConsistency: Math.round(style.lineConsistency * 100),
-          outInOutStrength: Math.round(style.outInOutStrength * 100)
+          outInOutStrength: Math.round(style.outInOutStrength * 100),
+          useDrift: style.useDrift
       });
 
       return style;
@@ -506,33 +510,42 @@ export class Car {
       // 速度範囲に基づくスケーリング係数を計算
       let speedScalingFactor;
       
-      // 速度に応じたスケーリング係数の決定
-      if (speedKmh <= 60) {
-          // 60km/h以下: ほぼドリフトなし
-          speedScalingFactor = 0.05; // 極めて小さなドリフト量
-      } else if (speedKmh <= 80) {
-          // 60-80km/h: 最小ドリフト（0.05から0.15へ線形補間）
-          speedScalingFactor = 0.05 + (speedKmh - 60) * (0.1 / 20);
-      } else if (speedKmh <= 100) {
-          // 80-100km/h: 小さめドリフト（0.15から0.25へ線形補間）
-          speedScalingFactor = 0.15 + (speedKmh - 80) * (0.1 / 20);
-      } else if (speedKmh <= 130) {
-          // 100-130km/h: 控えめなドリフト（0.25から0.6へ線形補間）
-          speedScalingFactor = 0.25 + (speedKmh - 100) * (0.35 / 30);
-      } else if (speedKmh <= 150) {
-          // 130-150km/h: 中くらいのドリフト（0.6から1.0へ線形補間）
-          speedScalingFactor = 0.6 + (speedKmh - 130) * (0.4 / 20);
-      } else if (speedKmh <= 180) {
-          // 150-180km/h: 大きいドリフト（1.0から1.8へ線形補間）
-          speedScalingFactor = 1.0 + (speedKmh - 150) * (0.8 / 30);
+      // この車がドリフトスタイルを持っているかどうかをチェック
+      const isDriftStyleCar = this.drivingStyle && this.drivingStyle.useDrift;
+      
+      if (!isDriftStyleCar) {
+          // ドリフトしない車はほぼドリフトなし
+          speedScalingFactor = 0.01; // 極小のドリフト効果
       } else {
-          // 180km/h超: より派手な最大ドリフト幅
-          speedScalingFactor = 1.8;
+          // 速度に応じたスケーリング係数の決定
+          if (speedKmh <= 60) {
+              // 60km/h以下: ほぼドリフトなし
+              speedScalingFactor = 0.01; // さらに小さく
+          } else if (speedKmh <= 80) {
+              // 60-80km/h: 最小ドリフト（0.01から0.08へ線形補間）
+              speedScalingFactor = 0.01 + (speedKmh - 60) * (0.07 / 20);
+          } else if (speedKmh <= 100) {
+              // 80-100km/h: 小さめドリフト（0.08から0.2へ線形補間）
+              speedScalingFactor = 0.08 + (speedKmh - 80) * (0.12 / 20);
+          } else if (speedKmh <= 130) {
+              // 100-130km/h: 控えめなドリフト（0.2から0.5へ線形補間）
+              speedScalingFactor = 0.2 + (speedKmh - 100) * (0.3 / 30);
+          } else if (speedKmh <= 150) {
+              // 130-150km/h: 中くらいのドリフト（0.5から1.0へ線形補間）
+              speedScalingFactor = 0.5 + (speedKmh - 130) * (0.5 / 20);
+          } else if (speedKmh <= 180) {
+              // 150-180km/h: 大きいドリフト（1.0から1.8へ線形補間）
+              speedScalingFactor = 1.0 + (speedKmh - 150) * (0.8 / 30);
+          } else {
+              // 180km/h超: より派手な最大ドリフト幅
+              speedScalingFactor = 1.8;
+          }
       }
       
       // デバッグ用: 60フレームごとに現在の速度とスケーリング係数をログ出力
       if (Math.random() < 0.016) { // 約60フレームに1回
-          console.log(`現在の速度: ${speedKmh.toFixed(1)}km/h, スケーリング係数: ${speedScalingFactor.toFixed(2)}`);
+          const driftStyle = isDriftStyleCar ? "ドリフト車" : "グリップ車";
+          console.log(`${driftStyle} - 現在の速度: ${speedKmh.toFixed(1)}km/h, スケーリング係数: ${speedScalingFactor.toFixed(2)}`);
       }
       
       // 位置を更新

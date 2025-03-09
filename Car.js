@@ -66,25 +66,25 @@ export class Car {
       
       if (speedKmh <= 60) {
           // 60km/h以下: ほぼドリフトなし
-          speedScalingFactor = 0.05; // 極めて小さなドリフト量
+          speedScalingFactor = 0.03; // 値を下げる (0.05→0.03)
       } else if (speedKmh <= 80) {
-          // 60-80km/h: 最小ドリフト（0.05から0.15へ線形補間）
-          speedScalingFactor = 0.05 + (speedKmh - 60) * (0.1 / 20);
+          // 60-80km/h: 最小ドリフト（0.03から0.1へ線形補間）- 値を下げる
+          speedScalingFactor = 0.03 + (speedKmh - 60) * (0.07 / 20);
       } else if (speedKmh <= 100) {
-          // 80-100km/h: 小さめドリフト（0.15から0.25へ線形補間）
-          speedScalingFactor = 0.15 + (speedKmh - 80) * (0.1 / 20);
+          // 80-100km/h: 小さめドリフト（0.1から0.2へ線形補間）- 値を下げる
+          speedScalingFactor = 0.1 + (speedKmh - 80) * (0.1 / 20);
       } else if (speedKmh <= 130) {
-          // 100-130km/h: 控えめなドリフト（0.25から0.6へ線形補間）
-          speedScalingFactor = 0.25 + (speedKmh - 100) * (0.35 / 30);
+          // 100-130km/h: 控えめなドリフト（0.2から0.4へ線形補間）- 値を下げる
+          speedScalingFactor = 0.2 + (speedKmh - 100) * (0.2 / 30);
       } else if (speedKmh <= 150) {
-          // 130-150km/h: 中くらいのドリフト（0.6から1.0へ線形補間）
-          speedScalingFactor = 0.6 + (speedKmh - 130) * (0.4 / 20);
+          // 130-150km/h: 中くらいのドリフト（0.4から0.7へ線形補間）- 値を下げる
+          speedScalingFactor = 0.4 + (speedKmh - 130) * (0.3 / 20);
       } else if (speedKmh <= 180) {
-          // 150-180km/h: 大きいドリフト（1.0から1.8へ線形補間）
-          speedScalingFactor = 1.0 + (speedKmh - 150) * (0.8 / 30);
+          // 150-180km/h: 大きいドリフト（0.7から1.3へ線形補間）- 値を下げる
+          speedScalingFactor = 0.7 + (speedKmh - 150) * (0.6 / 30);
       } else {
-          // 180km/h超: より派手な最大ドリフト幅
-          speedScalingFactor = 1.8;
+          // 180km/h超: 最大ドリフト幅
+          speedScalingFactor = 1.3; // 値を下げる (2.0→1.3)
       }
       
       // 速度（km/h）をログに表示
@@ -517,28 +517,28 @@ export class Car {
           // ドリフトしない車はほぼドリフトなし
           speedScalingFactor = 0.01; // 極小のドリフト効果
       } else {
-          // 速度に応じたスケーリング係数の決定
+          // 速度に応じたスケーリング係数の決定 - 全体的に値を上げる
           if (speedKmh <= 60) {
               // 60km/h以下: ほぼドリフトなし
-              speedScalingFactor = 0.01; // さらに小さく
+              speedScalingFactor = 0.05; // 値を上げる (0.03→0.05)
           } else if (speedKmh <= 80) {
-              // 60-80km/h: 最小ドリフト（0.01から0.08へ線形補間）
-              speedScalingFactor = 0.01 + (speedKmh - 60) * (0.07 / 20);
+              // 60-80km/h: 最小ドリフト（0.05から0.15へ線形補間）- 値を上げる
+              speedScalingFactor = 0.05 + (speedKmh - 60) * (0.1 / 20);
           } else if (speedKmh <= 100) {
-              // 80-100km/h: 小さめドリフト（0.08から0.2へ線形補間）
-              speedScalingFactor = 0.08 + (speedKmh - 80) * (0.12 / 20);
+              // 80-100km/h: 小さめドリフト（0.15から0.3へ線形補間）- 値を上げる
+              speedScalingFactor = 0.15 + (speedKmh - 80) * (0.15 / 20);
           } else if (speedKmh <= 130) {
-              // 100-130km/h: 控えめなドリフト（0.2から0.5へ線形補間）
-              speedScalingFactor = 0.2 + (speedKmh - 100) * (0.3 / 30);
+              // 100-130km/h: 控えめなドリフト（0.3から0.6へ線形補間）- 値を上げる
+              speedScalingFactor = 0.3 + (speedKmh - 100) * (0.3 / 30);
           } else if (speedKmh <= 150) {
-              // 130-150km/h: 中くらいのドリフト（0.5から1.0へ線形補間）
-              speedScalingFactor = 0.5 + (speedKmh - 130) * (0.5 / 20);
+              // 130-150km/h: 中くらいのドリフト（0.6から1.0へ線形補間）- 値を上げる
+              speedScalingFactor = 0.6 + (speedKmh - 130) * (0.4 / 20);
           } else if (speedKmh <= 180) {
-              // 150-180km/h: 大きいドリフト（1.0から1.8へ線形補間）
-              speedScalingFactor = 1.0 + (speedKmh - 150) * (0.8 / 30);
+              // 150-180km/h: 大きいドリフト（1.0から1.7へ線形補間）- 値を上げる
+              speedScalingFactor = 1.0 + (speedKmh - 150) * (0.7 / 30);
           } else {
-              // 180km/h超: より派手な最大ドリフト幅
-              speedScalingFactor = 1.8;
+              // 180km/h超: 最大ドリフト幅
+              speedScalingFactor = 1.7; // 値を上げる (1.3→1.7)
           }
       }
       
@@ -634,8 +634,8 @@ export class Car {
       const correctedUpVector = new THREE.Vector3().crossVectors(rightVector, forwardVector).normalize();
       
       // 急カーブ判定用の閾値設定
-      const mildCurveThreshold = 0.022; // 緩やかなカーブの閾値（ドリフト開始を早めるため下げる）
-      const sharpCurveThreshold = 0.04; // 急カーブの閾値
+      const mildCurveThreshold = 0.038; // 緩やかなカーブの閾値をさらに大幅に引き上げ（0.032→0.038）
+      const sharpCurveThreshold = 0.065; // 急カーブの閾値も大幅に引き上げ（0.055→0.065）
       
       // コーナーの進行度をより詳細に判定
       // 現在地点と前後の曲率を比較して、コーナーのどの位置にいるかを判定
@@ -644,92 +644,153 @@ export class Car {
       const futurePos = (this.position + 0.02) % 1;   // さらに先の位置（コーナー出口の予測用）
 
       // より先の複数のポイントでの曲率も取得（急カーブの早期検出用）
-      const farPoint1 = (this.position + 0.03) % 1;
-      const farPoint2 = (this.position + 0.05) % 1;
-      const farPoint3 = (this.position + 0.07) % 1;
+      // 検出距離を極限まで短くして現在のカーブだけに集中
+      const farPoint1 = (this.position + 0.003) % 1;   // 0.005→0.003にさらに短縮
+      const farPoint2 = (this.position + 0.005) % 1;   // 0.008→0.005にさらに短縮
+      const farPoint3 = (this.position + 0.007) % 1;   // 0.01→0.007にさらに短縮
+      const farPoint4 = (this.position + 0.009) % 1;   // 0.0125→0.009にさらに短縮
+      const farPoint5 = (this.position + 0.011) % 1;   // 0.015→0.011にさらに短縮
+      const farPoint6 = (this.position + 0.013) % 1;   // 0.0175→0.013にさらに短縮
+      
+      // より先の検出ポイントを追加 - 連続カーブの検出性能を向上
+      const farPoint7 = (this.position + 0.018) % 1;   // 新しい検出ポイント
+      const farPoint8 = (this.position + 0.023) % 1;   // 新しい検出ポイント
+      const farPoint9 = (this.position + 0.028) % 1;   // 新しい検出ポイント
       
       const prevCurve = this.calculateCurvature(prevPos).angle;
       const nextCurve = this.calculateCurvature(nextPos).angle;
       const futureCurve = this.calculateCurvature(futurePos).angle; // コーナー出口の予測
       
-      // 前方の曲率も計算
+      // 前方の曲率も計算（より詳細なサンプリング）
       const farCurve1 = this.calculateCurvature(farPoint1).angle;
       const farCurve2 = this.calculateCurvature(farPoint2).angle;
       const farCurve3 = this.calculateCurvature(farPoint3).angle;
+      const farCurve4 = this.calculateCurvature(farPoint4).angle;
+      const farCurve5 = this.calculateCurvature(farPoint5).angle;
+      const farCurve6 = this.calculateCurvature(farPoint6).angle;
       
-      // 将来の最大曲率を予測（前方に急カーブがあるかチェック）
-      const maxFutureCurvature = Math.max(farCurve1, farCurve2, farCurve3);
-      const hasSharpCurveAhead = maxFutureCurvature > sharpCurveThreshold * 0.9;
+      // 新しい検出ポイントの曲率も計算
+      const farCurve7 = this.calculateCurvature(farPoint7).angle;
+      const farCurve8 = this.calculateCurvature(farPoint8).angle;
+      const farCurve9 = this.calculateCurvature(farPoint9).angle;
       
-      // 将来の曲率変化率も計算
-      const futureCurvatureGradient = (farCurve3 - curveAngle) / 0.07;
-      const isApproachingSharpCurve = futureCurvatureGradient > 0.4 && maxFutureCurvature > mildCurveThreshold;
+      // 将来の最大曲率を予測（前方に急カーブがあるかチェック）- 検出距離を拡張
+      const maxFutureCurvature = Math.max(
+          farCurve1, farCurve2, farCurve3, farCurve4, farCurve5, farCurve6,
+          farCurve7, farCurve8, farCurve9 // 新しい検出ポイントを追加
+      );
+      const hasSharpCurveAhead = maxFutureCurvature > sharpCurveThreshold * 0.85; // 閾値を少し緩和 (0.9→0.85)
+      
+      // 将来の曲率変化率も計算 - より先の検出ポイントも考慮
+      const nearFutureCurvatureGradient = (farCurve6 - curveAngle) / 0.07; // 近い将来の変化率
+      const farFutureCurvatureGradient = (farCurve9 - curveAngle) / 0.028; // 遠い将来の変化率
+      // カーブ接近判定の条件を少し緩和
+      const isApproachingSharpCurve = (nearFutureCurvatureGradient > 0.65 || farFutureCurvatureGradient > 0.5) && 
+                                     maxFutureCurvature > mildCurveThreshold * 1.2; // 条件を緩和 (0.7/1.3→0.65/1.2)
       
       // 曲率変化率の計算
       const curvatureRateOfChange = (nextCurve - prevCurve) / 0.02; // 単位距離あたりの曲率変化
       const futureCurvatureChange = (futureCurve - curveAngle) / 0.02; // 先の曲率変化
       
-      // 急激な曲率の増加があるかどうか
-      const isRapidCurvatureIncrease = futureCurvatureGradient > 0.6;
+      // 急激な曲率の増加があるかどうか - 変数名を修正
+      const isRapidCurvatureIncrease = nearFutureCurvatureGradient > 0.9; // 閾値をさらに引き上げ（0.7→0.9）
       
       // コーナーの進行度を判定
       const isEnteringCorner = curveAngle > prevCurve; // 曲率が増加中（コーナー入り中）
       const isExitingCorner = curveAngle > nextCurve;  // 曲率が減少へ（コーナー頂点通過）
-      const isApproachingExit = futureCurvatureChange < -0.2; // コーナー出口に近づいている
+      // コーナー出口判定の精度を向上 - 条件を調整
+      const isApproachingExit = futureCurvatureChange < -0.15 && curveAngle > mildCurveThreshold * 0.6;
       const isAtCornerPeak = isEnteringCorner && isExitingCorner; // コーナーの頂点付近
       
       // コーナーの曲率ピークに近いかどうか
       const isNearCornerPeak = Math.abs(curvatureRateOfChange) < 0.5 && curveAngle > mildCurveThreshold;
       
+      // 直線区間かどうかの判定を追加 - 完全な直線区間を検出
+      // 判定条件をさらに大幅に緩和して、より多くのカーブを直線として扱う
+      const isInStraightLine = curveAngle < mildCurveThreshold * 0.75 && 
+                              maxFutureCurvature < mildCurveThreshold * 0.85 &&
+                              prevCurve < mildCurveThreshold * 0.8;
+      
       // コーナー出口の検出を強化（次のコーナーまでの直線区間を検出）
-      const isInStraightAfterCorner = curveAngle < mildCurveThreshold * 0.7 && prevCurve > mildCurveThreshold;
+      // 判定条件を極限まで緩和
+      const isInStraightAfterCorner = curveAngle < mildCurveThreshold * 1.1 && 
+                                    (prevCurve > mildCurveThreshold * 0.25 || 
+                                     this.currentDriftStrength > 0.04); // 現在のドリフト強度の閾値をさらに下げる
+                                     
+      // コーナー出口から完全な直線への移行段階を検出 - 条件を極限まで緩和
+      const isTransitioningToStraight = curveAngle < mildCurveThreshold * 0.9 && 
+                                       prevCurve > mildCurveThreshold * 0.1 && 
+                                       this.currentDriftStrength > 0.015;
+                                      
+      // 次のコーナー検出前に必ず現在のコーナーを曲がり切るための判定 - 条件を緩和
+      const hasFinishedCurrentCorner = (curveAngle < mildCurveThreshold * 0.5 && prevCurve > mildCurveThreshold * 0.6) || 
+                                      (curveAngle < mildCurveThreshold * 0.3 && prevCurve > mildCurveThreshold * 0.4) ||
+                                      isExitingCorner; // コーナー出口も完了と見なす
+      
+      // 現在カーブのドリフトが強い場合は次のドリフト検出を遅らせる - 条件緩和
+      const currentDriftIsStrong = this.currentDriftStrength > 0.2 && 
+                                (isInStraightAfterCorner || isExitingCorner || curveAngle > mildCurveThreshold * 0.4);
+
+      // 現在のドリフト方向を維持すべきかどうかを判定 - 極限まで緩和
+      const shouldMaintainCurrentDrift = (this.currentDriftStrength > 0.05 && 
+                                      (isInStraightAfterCorner || isTransitioningToStraight || isExitingCorner)) || 
+                                      (this.currentDriftStrength > 0.1 && !hasFinishedCurrentCorner) ||
+                                      currentDriftIsStrong;
       
       // 曲率に基づくドリフト強度を計算（0〜1の連続値）
       let targetDriftStrength = 0;
       
       // より厳密なドリフト開始条件
-      // 1. 曲率が閾値を超えているか、急カーブが近づいている
-      // 2. コーナーの入口〜ピーク付近であること
-      if (curveAngle > mildCurveThreshold || hasSharpCurveAhead || isApproachingSharpCurve) {
+      // カーブがより強いときのみドリフト開始 - 条件をさらに厳しく
+      if (curveAngle > mildCurveThreshold * 2.0 || // 通常カーブの閾値をさらに上げる (1.7→2.0)
+         (hasSharpCurveAhead && maxFutureCurvature > mildCurveThreshold * 2.2 && curveAngle > mildCurveThreshold * 1.6) || // 先読み条件もさらに厳しく (2.0/1.4→2.2/1.6)
+         (isApproachingSharpCurve && curveAngle > mildCurveThreshold * 1.7)) { // 接近時も厳しく (1.5→1.7)
+          
+          // コーナーの進入状態を詳細に判定
+          const entryPhase = curveAngle / Math.max(curveAngle, prevCurve);
+          
           // コーナー進入中はドリフト効果を調整
           let cornerProgressFactor = 0;
           
           if (isAtCornerPeak || isNearCornerPeak) {
-              // コーナーのピーク付近では最大効果
-              cornerProgressFactor = 1.0;
+              // コーナーのピーク付近でも効果を抑制
+              cornerProgressFactor = 0.8; // 最大効果を抑制（0.9→0.8）
           } else if (isExitingCorner) {
-              // コーナー出口では少し強め（0.8→0.9）に
-              cornerProgressFactor = 0.9;
+              // コーナー出口での効果も抑制
+              cornerProgressFactor = 0.7; // 効果を抑制（0.8→0.7）
           } else if (isEnteringCorner) {
-              // コーナー入り口でも効果を強める（早めにドリフト開始）
-              const entrySuppressionFactor = Math.min(1, Math.max(0, curvatureRateOfChange * 2)); // さらに抑制効果を弱める（3→2）
-              cornerProgressFactor = 0.6 - entrySuppressionFactor * 0.2; // 入口でもより効果を強める（0.5→0.6）
+              // コーナー入り口での効果をさらに大幅に抑制
+              const entrySuppressionFactor = Math.min(1, Math.max(0, curvatureRateOfChange * 7)); // 抑制効果をさらに強める（6→7）
+              // 進入度合いによって抑制度合いを変化させる - 入り口ほど強く抑制
+              const entryProgress = Math.min(1, entryPhase * 2); // 進入度合いを0~1で評価
+              cornerProgressFactor = 0.15 - entrySuppressionFactor * 0.6 + entryProgress * 0.25; // 入口での効果をさらに大幅に弱める（0.2→0.15, 0.5→0.6, 0.3→0.25）
           } else if (hasSharpCurveAhead || isApproachingSharpCurve) {
-              // 前方に急カーブがある場合は早めにドリフト効果を適用
-              const distanceAdjustment = isRapidCurvatureIncrease ? 0.7 : 0.5; // 曲率の増加が急激なら効果を強める
+              // 前方に急カーブがある場合のドリフト効果をさらに減らす
+              const distanceAdjustment = isRapidCurvatureIncrease ? 0.1 : 0.03; // 効果をさらに大幅に弱める（0.15→0.1、0.05→0.03）
               cornerProgressFactor = distanceAdjustment;
           }
           
           // 緩やかなカーブ以上の場合にドリフト効果を徐々に適用
           if (curveAngle <= sharpCurveThreshold) {
-              // 現在の曲率に基づくドリフト強度
-              const currentCurveDrift = (curveAngle - mildCurveThreshold) / (sharpCurveThreshold - mildCurveThreshold);
+              // 現在の曲率に基づくドリフト強度 - 開始閾値をさらに大幅に引き上げ
+              const currentCurveDrift = Math.max(0, (curveAngle - mildCurveThreshold * 1.8) / (sharpCurveThreshold - mildCurveThreshold));
               
               // 前方の曲率予測に基づくドリフト強度（急カーブが前方にある場合）
               let futureCurveDrift = 0;
               if (hasSharpCurveAhead) {
-                  // 前方の急カーブによるドリフト強度
-                  futureCurveDrift = (maxFutureCurvature - mildCurveThreshold) / (sharpCurveThreshold - mildCurveThreshold);
-                  // 距離に応じて減衰
-                  const distanceFactor = isRapidCurvatureIncrease ? 0.8 : 0.5; // 急激な曲率増加なら減衰を弱める
+                  // 前方の急カーブによるドリフト強度 - 開始閾値をさらに大幅に引き上げ
+                  futureCurveDrift = Math.max(0, (maxFutureCurvature - mildCurveThreshold * 2.0) / (sharpCurveThreshold - mildCurveThreshold));
+                  // 距離に応じて減衰をさらに大幅に強める
+                  const distanceFactor = isRapidCurvatureIncrease ? 0.15 : 0.03; // 減衰をさらに強める（0.2→0.15、0.05→0.03）
                   futureCurveDrift *= distanceFactor;
               }
               
               // 現在の曲率と前方予測の大きい方を採用
               targetDriftStrength = Math.max(currentCurveDrift, futureCurveDrift);
           } else {
-              // 急カーブ以上は最大強度
-              targetDriftStrength = 1.0;
+              // 急カーブ以上は最大強度 - ただし急カーブでも徐々に強度を上げる
+              const extremeCurveFactor = Math.min(1.0, (curveAngle - sharpCurveThreshold) / (sharpCurveThreshold * 0.6) + 0.4);
+              targetDriftStrength = extremeCurveFactor;
           }
           
           // 基本ドリフト強度を上げる
@@ -749,34 +810,56 @@ export class Car {
           if (this.speed < this.MAX_SPEED * 0.2) {
               targetDriftStrength = 0;
           }
-      } else if (isInStraightAfterCorner && this.currentDriftStrength > 0.2) {
+      } else if (isInStraightAfterCorner && this.currentDriftStrength > 0.04) { // 閾値をさらに下げる (0.06→0.04)
           // コーナーを出た直後の直線区間でもドリフト効果を持続
-          // 現在のドリフト強度を徐々に下げるが、急激には下げない
-          targetDriftStrength = this.currentDriftStrength * 0.95; // より緩やかに減衰（0.9→0.95）
+          // 現在のドリフト強度をより急速に下げる
+          targetDriftStrength = this.currentDriftStrength * 0.995; // 減衰率を強める（0.9995→0.995）
+      } else if (isTransitioningToStraight && this.currentDriftStrength > 0.015) { // 閾値をさらに下げる (0.02→0.015)
+          // 直線への移行中は早めに減衰させる
+          targetDriftStrength = this.currentDriftStrength * 0.998; // 減衰率を強める（0.9998→0.998）
+      } else if (isInStraightLine && this.currentDriftStrength > 0) {
+          // 直線区間ではドリフトを非常に急速に減衰させる
+          targetDriftStrength = this.currentDriftStrength * 0.93; // 減衰率をさらに強める（0.96→0.93）
       }
       
       // 現在のドリフト強度を目標値に徐々に近づける
-      // ドリフト開始時はより速く
-      const enterDriftSpeed = this.speed * 0.40; // ドリフト開始の補間速度を上げる（より早く開始）
+      // ドリフト開始時の速度を遅くする
+      const enterDriftSpeed = this.speed * 0.2; // ドリフト開始の補間速度をさらに下げる (0.25→0.2)（より遅く開始）
       
       // ドリフト終了時の補間速度を調整
       // 完全に終了する直前はさらに緩やかに
-      let exitDriftSpeed = 0.06; // 基本終了速度を下げる（0.08→0.06）
+      let exitDriftSpeed = 0.005; // 基本終了速度を上げる（0.002→0.005）- 通常の終了を早める
       
       // ドリフト強度が弱くなってきたら、さらに緩やかに終了
       if (targetDriftStrength === 0 && this.currentDriftStrength < 0.35) { // 閾値を上げる（0.25→0.35）
           // 弱いドリフトの終了時はより緩やかに
-          exitDriftSpeed = 0.04; // さらに遅く（0.05→0.04）
+          exitDriftSpeed = 0.002; // 少し早める（0.001→0.002）
           
           // さらに弱い場合は、さらに緩やかに
           if (this.currentDriftStrength < 0.2) { // 閾値を上げる（0.15→0.2）
-              exitDriftSpeed = 0.015; // 極めて緩やかに（0.025→0.015）
+              exitDriftSpeed = 0.001; // 少し早める（0.0005→0.001）
           }
       }
       
+      // 直線区間では終了速度を上げる
+      if (isInStraightLine && this.currentDriftStrength > 0) {
+          exitDriftSpeed *= 5.0; // 直線区間ではドリフト終了をより急激に早める（3.0→5.0）
+      }
+      
+      // 直線区間でのドリフト方向の急速な補正
+      if (isInStraightLine && this.currentDriftStrength < 0.3) {
+          // ドリフト方向を0に向けてより急速に戻す
+          this.lastDriftDirection *= 0.8; // 0.9→0.8
+      }
+      
       // コーナー出口付近ではさらに終了を遅くする
-      if (isApproachingExit && this.currentDriftStrength > 0.2) {
-          exitDriftSpeed *= 0.7; // コーナー出口ではさらに終了を遅く
+      if (isApproachingExit && this.currentDriftStrength > 0.08) { // 閾値をさらに下げる (0.1→0.08)
+          exitDriftSpeed *= 0.1; // コーナー出口ではさらに終了を遅く（0.15→0.1）
+      }
+      
+      // 直線区間移行中はさらに終了を遅くする
+      if (isTransitioningToStraight && this.currentDriftStrength > 0.015) { // 閾値をさらに下げる (0.02→0.015)
+          exitDriftSpeed *= 0.1; // 直線移行中の変化率を引き上げ（0.05→0.1）
       }
       
       // 目標値が現在値より大きい場合（ドリフトを強める方向）はenterDriftSpeedを使用
@@ -787,8 +870,8 @@ export class Car {
       this.currentDriftStrength += (targetDriftStrength - this.currentDriftStrength) * interpolationSpeed;
       
       // 小さい値の閾値処理 - 段階的な補間のため、急に0にしない
-      // 非常に小さな値のみ0にする
-      if (this.currentDriftStrength < 0.02) {
+      // 非常に小さな値のみ0にする - 閾値を引き上げてより早く終了
+      if (this.currentDriftStrength < 0.003) { // 閾値を引き上げる (0.001→0.003)
           this.currentDriftStrength = 0;
       }
       
@@ -804,43 +887,224 @@ export class Car {
           }
       }
       
-      // 目標ドリフト方向を更新
-      if (this.currentDriftStrength > 0.15) {
-          // ドリフト中は現在のカーブ方向を目標方向に設定
-          this.targetDriftDirection = curveTiltDirection;
+      // 複合カーブ検出のためのより詳細な分析
+      // 既存のnextCurveDataと区別するために別の変数名を使用
+      const nearCurveData = this.calculateCurvature(nextPos);
+      const farCurveData1 = this.calculateCurvature(farPoint1);
+      const farCurveData2 = this.calculateCurvature(farPoint2);
+      const farCurveData3 = this.calculateCurvature(farPoint3);
+      const farCurveData4 = this.calculateCurvature(farPoint4);
+      const farCurveData5 = this.calculateCurvature(farPoint5);
+      const farCurveData6 = this.calculateCurvature(farPoint6);
+      
+      // 現在のカーブと将来のカーブの方向をチェック
+      const currentDirection = curveTiltDirection;
+      const nearDirection = nearCurveData.direction;
+      const farDirection1 = farCurveData1.direction;
+      const farDirection2 = farCurveData2.direction;
+      const farDirection3 = farCurveData3.direction;
+      const farDirection4 = farCurveData4.direction;
+      const farDirection5 = farCurveData5.direction;
+      const farDirection6 = farCurveData6.direction;
+      
+      // 新しい検出ポイントの方向も取得
+      const farCurveData7 = this.calculateCurvature(farPoint7);
+      const farCurveData8 = this.calculateCurvature(farPoint8);
+      const farCurveData9 = this.calculateCurvature(farPoint9);
+      const farDirection7 = farCurveData7.direction;
+      const farDirection8 = farCurveData8.direction;
+      const farDirection9 = farCurveData9.direction;
+      
+      // カーブ方向が変化するポイントを検出
+      const directionChanges = [];
+      let lastDirection = currentDirection;
+      const directions = [
+          nearDirection, 
+          farDirection1, farDirection2, farDirection3, farDirection4, farDirection5, farDirection6,
+          farDirection7, farDirection8, farDirection9 // 新しい検出ポイントを追加
+      ];
+      const positions = [
+          nextPos, 
+          farPoint1, farPoint2, farPoint3, farPoint4, farPoint5, farPoint6,
+          farPoint7, farPoint8, farPoint9 // 新しい検出ポイントを追加
+      ];
+      const curves = [
+          nextCurve, 
+          farCurve1, farCurve2, farCurve3, farCurve4, farCurve5, farCurve6,
+          farCurve7, farCurve8, farCurve9 // 新しい検出ポイントを追加
+      ];
+      
+      // 方向変化を検出し、変化点とその位置、強度を記録
+      for (let i = 0; i < directions.length; i++) {
+          // 方向変化検出の閾値を引き上げて検出を抑制
+          if (directions[i] !== lastDirection && 
+              curves[i] > mildCurveThreshold * 0.6) { // 閾値を大幅に引き上げ (0.4→0.6)
+              
+              // カーブ強度に応じて優先度をつける
+              const priority = curves[i] / mildCurveThreshold;
+              
+              directionChanges.push({
+                  position: positions[i],
+                  direction: directions[i],
+                  strength: curves[i],
+                  distance: i < 6 ? i * 0.0005 + 0.003 : (i - 6) * 0.005 + 0.018, // 距離を調整
+                  priority: priority // 優先度を追加
+              });
+              lastDirection = directions[i];
+          }
+      }
+      
+      // 優先度の高い（＝強いカーブ）順にソート
+      directionChanges.sort((a, b) => b.priority - a.priority);
+      
+      // 複合カーブの種類を特定
+      let curvePattern = "simple"; // 単純カーブ（デフォルト）
+      let isCompoundCurve = false;
+      // デフォルトでは常に現在のカーブの方向を使用する
+      let immediateDirection = currentDirection;
+      
+      // 現在のカーブが十分強いかどうかをより厳格に判定
+      const currentCurveIsStrong = curveAngle > mildCurveThreshold * 0.7; // 条件を引き上げ (0.9→0.7)
+      
+      // 現在のドリフト中であるかの判定を分離
+      const isCurrentlyDrifting = this.currentDriftStrength > 0.15;
+      
+      // 現在のコーナーの進行度をより正確に判定 - より厳格な条件に
+      const isCurrentCornerComplete = hasFinishedCurrentCorner || 
+                                     (isExitingCorner && curveAngle < mildCurveThreshold * 0.8) || // 閾値を引き下げ (1.0→0.8)
+                                     curveAngle < mildCurveThreshold * 0.4; // 閾値を引き下げ (0.5→0.4)
+      
+      // 詳細なデバッグログを追加 - 重要な状態の変化を記録
+      if (Math.random() < 0.01) { // 約100フレームに1回
+          const cornerState = isEnteringCorner ? "入口" : isExitingCorner ? "出口" : "中間";
+          const completionState = isCurrentCornerComplete ? "完了" : "進行中";
+          console.log(`コーナー状態: ${cornerState}, ${completionState}, 曲率=${curveAngle.toFixed(4)}, ドリフト=${this.currentDriftStrength.toFixed(2)}`);
+      }
+      
+      // 複合カーブ検出の条件を大幅に厳しく - 本当に必要な場合のみ検出
+      if (directionChanges.length > 0 && 
+          (isCurrentCornerComplete || (this.currentDriftStrength < 0.05 && curveAngle < mildCurveThreshold * 0.25)) && // 閾値を引き下げ (0.07/0.35→0.05/0.25)
+          !shouldMaintainCurrentDrift) { 
+          
+          // デバッグログを追加
+          if (Math.random() < 0.005) { // 約200フレームに1回
+              console.log(`方向変化検出: 変化点数=${directionChanges.length}, 現在の曲率=${curveAngle.toFixed(4)}, 現在のドリフト強度=${this.currentDriftStrength.toFixed(4)}`);
+              // 詳細な条件の状態も出力
+              console.log(`条件詳細: currentCurveIsStrong=${currentCurveIsStrong}, isCurrentCornerComplete=${isCurrentCornerComplete}, shouldMaintainCurrentDrift=${shouldMaintainCurrentDrift}`);
+          }
+          
+          // 方向変化が検出された場合複合カーブ処理
+          isCompoundCurve = true;
+          
+          // 最も近い変化点までの距離が小さい場合、S字カーブの中間にいる可能性
+          const closestChange = directionChanges[0];
+          
+          // 現在のカーブの強さを優先判定に使用
+          const currentCurveStrength = curveAngle > mildCurveThreshold * 1.2 ? "strong" :
+                                      curveAngle > mildCurveThreshold * 0.6 ? "medium" : "weak";
+          
+          // 次のカーブとの距離に基づいて判定
+          // 距離条件を大幅に縮小 - かなり近いカーブのみ検出
+          if (closestChange.distance < 0.015 && // 検出距離を大幅に縮小 (0.025→0.015)
+              (currentCurveStrength === "weak" || 
+              (isCurrentCornerComplete && this.currentDriftStrength < 0.2))) { // 条件を引き下げ (0.3→0.2)
+              
+              // 現在のカーブが弱いまたは完了している場合のみ次のカーブを考慮
+              curvePattern = "S-curve-middle";
+              // 次のカーブの方向と現在のカーブを比較 - 条件を厳しく
+              if (closestChange.strength > curveAngle * 1.4) { // 条件を厳しく (1.15→1.4)
+                  // 次のカーブが現在の1.4倍以上強い場合、次のカーブの方向を採用
+                  immediateDirection = closestChange.direction;
+              }
+          } else if (closestChange.distance < 0.023 && // 検出距離を大幅に縮小 (0.037→0.023)
+                    (currentCurveStrength === "weak" || 
+                    (isCurrentCornerComplete && this.currentDriftStrength < 0.15))) { // 条件を引き下げ (0.2→0.15)
+                     
+              // 近い場所で方向変化かつ現在のカーブが弱いまたは完了している場合
+              curvePattern = "S-curve-approaching";
+              
+              // 次のカーブと現在のカーブの強さを比較 - 条件を厳しく
+              if (closestChange.strength > curveAngle * 1.5) { // 条件を厳しく (1.2→1.5)
+                  // 次のカーブが現在の1.5倍以上強い場合、次のカーブの方向を考慮
+                  immediateDirection = closestChange.direction;
+              }
+          } else {
+              // その他の場合は常に現在のカーブを優先 - 現在のカーブ重視を強調
+              curvePattern = "prioritize-current";
+              immediateDirection = currentDirection;
+          }
+      } else {
+          // 方向変化がない場合、または現在のカーブが完了していない場合は単純カーブ処理
+          curvePattern = currentCurveIsStrong ? "strong-current" : "simple";
+          immediateDirection = currentDirection;
+          
+          // デバッグログを追加
+          if (Math.random() < 0.002) { // 約500フレームに1回
+              console.log(`複合カーブ検出スキップ: currentCurveIsStrong=${currentCurveIsStrong}, isCurrentCornerComplete=${isCurrentCornerComplete}, shouldMaintainCurrentDrift=${shouldMaintainCurrentDrift}, curveAngle=${curveAngle.toFixed(4)}, currentDriftStrength=${this.currentDriftStrength.toFixed(4)}`);
+          }
+      }
+      
+      // デバッグ用: カーブパターンを表示 - 出力頻度を上げる
+      if (Math.random() < 0.01) { // 約100フレームに1回 (0.008→0.01)
+          const currentStrength = curveAngle.toFixed(3);
+          console.log(`カーブパターン: ${curvePattern}, 現在の強さ: ${currentStrength}, 方向変化数: ${directionChanges.length}, 採用方向: ${immediateDirection}`);
+      }
+      
+      // 目標ドリフト方向を更新 - 閾値を下げてより早く方向を反映
+      if (this.currentDriftStrength > 0.08) { // 閾値を下げる (0.15→0.08)
+          // 複合カーブパターンに基づいて方向を決定
+          this.targetDriftDirection = immediateDirection;
       } else {
           // ドリフトしていないときは方向をリセット
-          // ただし急にリセットするのではなく、lastDriftDirectionを通じて緩やかに0に近づける
           this.targetDriftDirection = 0;
       }
       
       // ドリフト方向をスムーズに補間
-      // 急な方向変化を防ぐ
-      const directionChangeSpeed = 0.05; // 方向転換の速度（小さいほど緩やか）
+      // 急な方向変化を防ぐ - 方向転換速度を元に戻す
+      const directionChangeSpeed = 0.05; // 方向転換の速度を元に戻す (0.03→0.05)
       
       // 方向転換が必要な場合（現在と目標の方向が異なる場合）
       if (this.lastDriftDirection !== this.targetDriftDirection) {
           // 方向をスムーズに変化させる
           // 現在0なら目標方向へ、そうでなければ0を経由して変化
           if (Math.abs(this.lastDriftDirection) < 0.1) {
-              // ほぼ0なら直接目標方向へ
-              this.lastDriftDirection += (this.targetDriftDirection - this.lastDriftDirection) * directionChangeSpeed;
-          } else if (Math.sign(this.lastDriftDirection) !== Math.sign(this.targetDriftDirection)) {
-              // 符号が異なる場合（左右反転）は、一旦0に向けて変化
-              this.lastDriftDirection += (0 - this.lastDriftDirection) * directionChangeSpeed * 1.5;
+              // ほぼ0なら直接目標方向へ - 元の速度に戻す
+              this.lastDriftDirection += (this.targetDriftDirection - this.lastDriftDirection) * directionChangeSpeed; // 速度を元に戻す (0.8→1.0)
+          } else if (Math.sign(this.lastDriftDirection) !== Math.sign(this.targetDriftDirection) && 
+                    Math.abs(this.targetDriftDirection) > 0.1) { // 方向が明確に異なる場合のみ処理
               
-              // ほぼ0になったら、目標方向に変え始める
-              if (Math.abs(this.lastDriftDirection) < 0.1) {
-                  this.lastDriftDirection = this.targetDriftDirection * 0.1;
+              // コーナー間の移行タイミングに加算処理 - 値を元に戻す
+              const transitionDelay = curvePattern.includes("S-curve") ? 0.8 : 0.6; // 速度を元に戻す (0.5/0.4→0.8/0.6)
+              
+              // 符号が異なる場合（左右反転）は、一旦0に向けて変化
+              // 現在のコーナーでのドリフトが完了していない場合は変化を遅らせる - だが完全に止めない
+              if (isCurrentCornerComplete) {
+                  // 現在のコーナーが完了している場合は通常の速度で変化
+                  this.lastDriftDirection += (0 - this.lastDriftDirection) * directionChangeSpeed * transitionDelay;
+                  
+                  // 方向転換開始のデバッグログ
+                  if (Math.random() < 0.1 && Math.abs(this.lastDriftDirection) > 0.5) {
+                      console.log(`方向転換開始: 現在の方向=${this.lastDriftDirection.toFixed(2)}, 目標=${this.targetDriftDirection}, パターン=${curvePattern}`);
+                  }
+              } else {
+                  // 現在のコーナーがまだ完了していない場合は変化を遅くする - ただし停止はしない
+                  this.lastDriftDirection += (0 - this.lastDriftDirection) * directionChangeSpeed * 0.3; // 速度を元に戻す (0.2→0.3)
+                  
+                  // 方向転換遅延のデバッグログ
+                  if (Math.random() < 0.05 && Math.abs(this.lastDriftDirection) > 0.5) {
+                      console.log(`方向転換遅延中: コーナー未完了, 現在の方向=${this.lastDriftDirection.toFixed(2)}`);
+                  }
+              }
+              
+              // ほぼ0になったら、目標方向に変え始める - 値を元に戻す
+              if (Math.abs(this.lastDriftDirection) < 0.2) { // 閾値を元に戻す (0.15→0.2)
+                  this.lastDriftDirection = this.targetDriftDirection * 0.2; // 初期値を元に戻す (0.1→0.2)
               }
           } else {
-              // 同じ符号の場合は直接目標値へ
-              this.lastDriftDirection += (this.targetDriftDirection - this.lastDriftDirection) * directionChangeSpeed;
+              // 同じ符号の場合は直接目標値へ - 元の速度に戻す
+              this.lastDriftDirection += (this.targetDriftDirection - this.lastDriftDirection) * directionChangeSpeed; // 速度を元に戻す (0.9→1.0)
           }
       }
-      
-      // 最終的なドリフト方向（スムーズに補間された値）
-      const driftDirection = this.lastDriftDirection;
       
       // 調整された進行方向ベクトル（ドリフト時に使用）
       let adjustedForwardVector = forwardVector.clone();
@@ -851,23 +1115,41 @@ export class Car {
           const sideVector = new THREE.Vector3(-forwardVector.z, 0, forwardVector.x).normalize();
           
           // 目標ドリフト角度を計算 - ドリフト方向にスムーズ補間値を使用
-          // 速度に応じてドリフト角度をスケーリング - より強調
-          const baseMaxDriftAngle = 0.65; // 基本最大ドリフト角度
-          // 速度スケーリングを大幅に強調（元の値よりも大きな差）
-          const maxDriftAngle = baseMaxDriftAngle * speedScalingFactor; // 速度範囲に基づくスケーリング
+          // 速度に応じてドリフト角度をスケーリング - 値を上げる
+          const baseMaxDriftAngle = 0.65; // 基本最大ドリフト角度を上げる (0.55→0.65)
           
-          const targetDriftAngle = this.currentDriftStrength * maxDriftAngle * driftDirection;
+          // 次のコーナーへの移行中は若干ドリフト角度を制限
+          let transitionFactor = 1.0;
+          if (curvePattern.includes("S-curve") && Math.sign(this.lastDriftAngle) !== Math.sign(this.lastDriftDirection)) {
+              // S字カーブ中で方向転換中の場合、角度を少し制限
+              transitionFactor = 0.85; // 値を上げる (0.8→0.85)
+          }
+          
+          // 方向転換中の場合は若干強調して切り替えを促進
+          if (Math.sign(this.lastDriftDirection) !== Math.sign(this.targetDriftDirection) && 
+              Math.abs(this.targetDriftDirection) > 0.1) {
+              // 方向転換中は若干強調 - 値を下げる
+              transitionFactor = 1.0; // 値を下げる (1.2→1.0)
+          }
+          
+          // 速度スケーリングを大幅に強調（元の値よりも大きな差）
+          const targetDriftAngle = this.currentDriftStrength * baseMaxDriftAngle * speedScalingFactor * this.lastDriftDirection * transitionFactor;
+          
+          // デバッグ: ドリフト角度の変化を監視
+          if (Math.random() < 0.01 && Math.abs(this.lastDriftAngle - targetDriftAngle) > 0.3) {
+              console.log(`ドリフト角度変化: 現在=${this.lastDriftAngle.toFixed(2)}, 目標=${targetDriftAngle.toFixed(2)}, パターン=${curvePattern}`);
+          }
           
           // 前回のドリフト角度から目標角度へ徐々に補間 - 速度に応じて変化速度を調整
-          const angleInterpolationBase = 0.12; // 基本補間速度をわずかに上げる（0.1→0.12）
+          const angleInterpolationBase = 0.15; // 基本補間速度を元に戻す (0.1→0.15)
           // 方向転換時はより緩やかに、同じ方向の強度変化時は素早く
-          const angleInterpolationFactor = Math.abs(this.lastDriftAngle - targetDriftAngle) > 0.1 ? 
-                                          angleInterpolationBase * 0.5 : angleInterpolationBase;
+          const angleInterpolationFactor = Math.abs(this.lastDriftAngle - targetDriftAngle) > 0.2 ? 
+                                          angleInterpolationBase * 0.6 : angleInterpolationBase; // 方向転換時の補間速度を元に戻す (0.5→0.6)
           
           this.lastDriftAngle += (targetDriftAngle - this.lastDriftAngle) * angleInterpolationFactor;
           
           // 角度に基づいて側方向ベクトルを調整 - 強調
-          const sideMultiplier = Math.sin(this.lastDriftAngle) * 1.2; // サイドベクトルを強調（1.0→1.2）
+          const sideMultiplier = Math.sin(this.lastDriftAngle) * 1.1; // サイドベクトルを強調 (0.9→1.1)
           sideVector.multiplyScalar(sideMultiplier);
           
           // 進行方向ベクトルを角度に基づいて調整
@@ -904,25 +1186,25 @@ export class Car {
       // 8. 上り下りの傾斜を反映
       this.object.rotateX(this.lastTiltAngle * 1.5);
       
-      // 9. カーブに応じた横傾斜（Z軸回転）- ドリフト時は強調
-      // 速度に応じて傾き量をスケーリング - より強調
-      const baseTilt = this.currentDriftStrength > 0.1 ? 0.02 : 0.01; // 通常の最大傾き
-      const driftTiltBoost = this.currentDriftStrength * 0.05; // ドリフト時の追加傾き
+      // 9. カーブに応じた横傾斜（Z軸回転）- ドリフト時の傾きを強調
+      // 速度に応じて傾き量をスケーリング - 強調
+      const baseTilt = this.currentDriftStrength > 0.1 ? 0.03 : 0.013; // 通常の最大傾きを上げる (0.025/0.01→0.03/0.013)
+      const driftTiltBoost = this.currentDriftStrength * 0.07; // ドリフト時の追加傾きを上げる (0.05→0.07)
       
-      // 速度に応じて傾きをスケーリング - より強い差
-      const tiltSpeedScale = Math.max(0.6, speedScalingFactor * 0.8); // 傾きスケールは控えめに
+      // 速度に応じて傾きをスケーリング - 強調
+      const tiltSpeedScale = Math.max(0.65, speedScalingFactor * 0.85); // 傾きスケールを上げる (0.6/0.8→0.65/0.85)
       const maxTilt = (baseTilt + driftTiltBoost) * tiltSpeedScale;
       
-      // 傾斜係数も強調と速度スケーリング - より強調
-      const baseTiltMultiplier = 0.03 + this.currentDriftStrength * 0.07; // 基本傾き係数
-      const tiltMultiplier = baseTiltMultiplier * speedScalingFactor; // 速度に応じたスケーリングを強化
+      // 傾斜係数も強調
+      const baseTiltMultiplier = 0.035 + this.currentDriftStrength * 0.09; // 基本傾き係数を上げる (0.03/0.07→0.035/0.09)
+      const tiltMultiplier = baseTiltMultiplier * speedScalingFactor * 1.1; // 速度に応じたスケーリングを上げる (1.0→1.1)
       
       // 傾斜係数を計算
       const tiltFactor = Math.min(maxTilt, curveAngle * this.speed * tiltMultiplier);
       
-      // ドリフト時は傾きをさらに大きく
-      const finalTiltFactor = tiltFactor * (1.0 + this.currentDriftStrength * 0.8 * speedScalingFactor);
-      this.object.rotateZ(-finalTiltFactor * curveTiltDirection);
+      // ドリフト時の傾きも強調
+      const finalTiltFactor = tiltFactor * (1.0 + this.currentDriftStrength * speedScalingFactor * 1.0); // 係数を上げる (0.8→1.0)
+      this.object.rotateZ(-finalTiltFactor * curveTiltDirection * 1.1); // 傾きを強調 (1.0→1.1)
       
       // 車の位置を設定
       this.object.position.set(point.x, carHeight, point.z);
@@ -949,9 +1231,11 @@ export class Car {
           const isFrontWheel = (i < 2);
           
           if (isFrontWheel) {
-              if (this.currentDriftStrength > 0.1) {
-                  // ドリフト時は前輪にカウンターステア（逆ステア）を適用 - より強調
-                  const counterSteerStrength = 1.2; // カウンターステアを強調（1.0→1.2）
+              if (this.currentDriftStrength > 0.08) { // 閾値を下げる (0.1→0.08)
+                  // ドリフト時は前輪にカウンターステア（逆ステア）を適用 - 控えめに
+                  const counterSteerBase = 1.2; // カウンターステア基本係数を下げる (1.5→1.2)
+                  // ドリフト強度に応じて可変のカウンターステア - 控えめに
+                  const counterSteerStrength = counterSteerBase + this.currentDriftStrength * 0.3; // 係数を下げる (0.5→0.3)
                   wheelGroup.rotation.y = -clampedSteeringAngle * counterSteerStrength;
               } else {
                   // 通常のステアリング
@@ -962,9 +1246,9 @@ export class Car {
               wheelGroup.rotation.y = 0;
               
               // ドリフト時は後輪の位置も若干調整（車体の傾きに合わせる）
-              if (this.currentDriftStrength > 0.2) {
-                  // 後輪の横方向オフセット - ドリフト時に若干強調
-                  const rearOffset = this.currentDriftStrength * 0.2 * driftDirection;
+              if (this.currentDriftStrength > 0.15) { // 閾値を下げる (0.2→0.15)
+                  // 後輪の横方向オフセット - 控えめに
+                  const rearOffset = this.currentDriftStrength * 0.18 * this.lastDriftDirection; // 調整値を下げる (0.25→0.18)
                   const baseWheelX = isLeftSide ? -1.1 : 1.1;
                   wheelGroup.position.x = baseWheelX + (isLeftSide ? -rearOffset : rearOffset);
               } else {
@@ -973,10 +1257,10 @@ export class Car {
               }
           }
           
-          // タイヤの基本高さとオフセット - ドリフト時は強調
+          // タイヤの基本高さとオフセット - 控えめに
           const wheelBaseHeight = 0.5;
-          // ドリフト時は傾きを強調
-          const tiltOffsetMultiplier = 0.2 + this.currentDriftStrength * 0.3; // 傾き強調（0.2→0.2+0.3）
+          // ドリフト時は傾きを控えめに
+          const tiltOffsetMultiplier = 0.2 + this.currentDriftStrength * 0.25; // 傾き強調を下げる (0.25/0.4→0.2/0.25)
           const wheelTiltOffset = isLeftSide ? 
               -finalTiltFactor * curveTiltDirection * tiltOffsetMultiplier : 
               finalTiltFactor * curveTiltDirection * tiltOffsetMultiplier;

@@ -22,6 +22,9 @@ export class Car {
       this.lastDriftDirection = 0; // 前回のドリフト方向（スムーズな方向転換用）
       this.targetDriftDirection = 0; // 目標とするドリフト方向
       
+      // 速度と表示用速度（km/h）の変換係数
+      this.SPEED_TO_KMH = 450; // 内部速度を km/h に変換する係数
+      
       // ヘッドライト関連
       this.leftHeadlight = null;  // 左ヘッドライト
       this.rightHeadlight = null; // 右ヘッドライト
@@ -47,6 +50,47 @@ export class Car {
       this.overtakeTarget = null;          // 追い抜き対象の車
       this.overtakeProgress = 0;           // 追い越し進捗（0.0 〜 1.0）
       this.overtakePhaseSpeed = 0.015;     // 追い越し進捗の更新速度
+      
+      // 速度係数の計算（0〜1の範囲で正規化）
+      // 速度（km/h）に基づいた係数を計算
+      const speedKmh = this.speed * this.SPEED_TO_KMH; // 内部速度を km/h に変換
+      
+      // 速度範囲の定義
+      const slowSpeedMin = 100; // 低速範囲の下限 (km/h)
+      const slowSpeedMax = 130; // 低速範囲の上限 (km/h)
+      const fastSpeedMin = 150; // 高速範囲の下限 (km/h)
+      const fastSpeedMax = 180; // 高速範囲の上限 (km/h)
+      
+      // 速度に応じたドリフトスケーリング係数 
+      let speedScalingFactor;
+      
+      if (speedKmh <= 60) {
+          // 60km/h以下: ほぼドリフトなし
+          speedScalingFactor = 0.05; // 極めて小さなドリフト量
+      } else if (speedKmh <= 80) {
+          // 60-80km/h: 最小ドリフト（0.05から0.15へ線形補間）
+          speedScalingFactor = 0.05 + (speedKmh - 60) * (0.1 / 20);
+      } else if (speedKmh <= 100) {
+          // 80-100km/h: 小さめドリフト（0.15から0.25へ線形補間）
+          speedScalingFactor = 0.15 + (speedKmh - 80) * (0.1 / 20);
+      } else if (speedKmh <= 130) {
+          // 100-130km/h: 控えめなドリフト（0.25から0.6へ線形補間）
+          speedScalingFactor = 0.25 + (speedKmh - 100) * (0.35 / 30);
+      } else if (speedKmh <= 150) {
+          // 130-150km/h: 中くらいのドリフト（0.6から1.0へ線形補間）
+          speedScalingFactor = 0.6 + (speedKmh - 130) * (0.4 / 20);
+      } else if (speedKmh <= 180) {
+          // 150-180km/h: 大きいドリフト（1.0から1.8へ線形補間）
+          speedScalingFactor = 1.0 + (speedKmh - 150) * (0.8 / 30);
+      } else {
+          // 180km/h超: より派手な最大ドリフト幅
+          speedScalingFactor = 1.8;
+      }
+      
+      // 速度（km/h）をログに表示
+      if (this.logCounter === 0) {
+          console.log('現在の速度: ' + speedKmh.toFixed(1) + ' km/h, スケール: ' + speedScalingFactor.toFixed(2));
+      }
   }
   
   setOtherCars(otherCars) {
@@ -455,6 +499,42 @@ export class Car {
       // 速度を更新（カーブに応じて）
       this.updateSpeed();
       
+      // 速度をkm/h単位に変換
+      const SPEED_TO_KMH = 450; // 内部速度からkm/hへの変換係数
+      const speedKmh = this.speed * SPEED_TO_KMH;
+      
+      // 速度範囲に基づくスケーリング係数を計算
+      let speedScalingFactor;
+      
+      // 速度に応じたスケーリング係数の決定
+      if (speedKmh <= 60) {
+          // 60km/h以下: ほぼドリフトなし
+          speedScalingFactor = 0.05; // 極めて小さなドリフト量
+      } else if (speedKmh <= 80) {
+          // 60-80km/h: 最小ドリフト（0.05から0.15へ線形補間）
+          speedScalingFactor = 0.05 + (speedKmh - 60) * (0.1 / 20);
+      } else if (speedKmh <= 100) {
+          // 80-100km/h: 小さめドリフト（0.15から0.25へ線形補間）
+          speedScalingFactor = 0.15 + (speedKmh - 80) * (0.1 / 20);
+      } else if (speedKmh <= 130) {
+          // 100-130km/h: 控えめなドリフト（0.25から0.6へ線形補間）
+          speedScalingFactor = 0.25 + (speedKmh - 100) * (0.35 / 30);
+      } else if (speedKmh <= 150) {
+          // 130-150km/h: 中くらいのドリフト（0.6から1.0へ線形補間）
+          speedScalingFactor = 0.6 + (speedKmh - 130) * (0.4 / 20);
+      } else if (speedKmh <= 180) {
+          // 150-180km/h: 大きいドリフト（1.0から1.8へ線形補間）
+          speedScalingFactor = 1.0 + (speedKmh - 150) * (0.8 / 30);
+      } else {
+          // 180km/h超: より派手な最大ドリフト幅
+          speedScalingFactor = 1.8;
+      }
+      
+      // デバッグ用: 60フレームごとに現在の速度とスケーリング係数をログ出力
+      if (Math.random() < 0.016) { // 約60フレームに1回
+          console.log(`現在の速度: ${speedKmh.toFixed(1)}km/h, スケーリング係数: ${speedScalingFactor.toFixed(2)}`);
+      }
+      
       // 位置を更新
       this.position += this.speed * 0.001;
       if (this.position >= 1) this.position -= 1;
@@ -758,7 +838,11 @@ export class Car {
           const sideVector = new THREE.Vector3(-forwardVector.z, 0, forwardVector.x).normalize();
           
           // 目標ドリフト角度を計算 - ドリフト方向にスムーズ補間値を使用
-          const maxDriftAngle = 0.65; // 最大ドリフト角度を大幅に増加（0.4→0.65）
+          // 速度に応じてドリフト角度をスケーリング - より強調
+          const baseMaxDriftAngle = 0.65; // 基本最大ドリフト角度
+          // 速度スケーリングを大幅に強調（元の値よりも大きな差）
+          const maxDriftAngle = baseMaxDriftAngle * speedScalingFactor; // 速度範囲に基づくスケーリング
+          
           const targetDriftAngle = this.currentDriftStrength * maxDriftAngle * driftDirection;
           
           // 前回のドリフト角度から目標角度へ徐々に補間 - 速度に応じて変化速度を調整
@@ -808,16 +892,23 @@ export class Car {
       this.object.rotateX(this.lastTiltAngle * 1.5);
       
       // 9. カーブに応じた横傾斜（Z軸回転）- ドリフト時は強調
+      // 速度に応じて傾き量をスケーリング - より強調
       const baseTilt = this.currentDriftStrength > 0.1 ? 0.02 : 0.01; // 通常の最大傾き
       const driftTiltBoost = this.currentDriftStrength * 0.05; // ドリフト時の追加傾き
-      const maxTilt = baseTilt + driftTiltBoost;
       
-      // 傾斜係数も強調
-      const tiltMultiplier = 0.03 + this.currentDriftStrength * 0.07; // 係数を大きく（0.03→0.07）
+      // 速度に応じて傾きをスケーリング - より強い差
+      const tiltSpeedScale = Math.max(0.6, speedScalingFactor * 0.8); // 傾きスケールは控えめに
+      const maxTilt = (baseTilt + driftTiltBoost) * tiltSpeedScale;
+      
+      // 傾斜係数も強調と速度スケーリング - より強調
+      const baseTiltMultiplier = 0.03 + this.currentDriftStrength * 0.07; // 基本傾き係数
+      const tiltMultiplier = baseTiltMultiplier * speedScalingFactor; // 速度に応じたスケーリングを強化
+      
+      // 傾斜係数を計算
       const tiltFactor = Math.min(maxTilt, curveAngle * this.speed * tiltMultiplier);
       
       // ドリフト時は傾きをさらに大きく
-      const finalTiltFactor = tiltFactor * (1.0 + this.currentDriftStrength * 0.8); // 追加の傾き
+      const finalTiltFactor = tiltFactor * (1.0 + this.currentDriftStrength * 0.8 * speedScalingFactor);
       this.object.rotateZ(-finalTiltFactor * curveTiltDirection);
       
       // 車の位置を設定

@@ -655,64 +655,166 @@
             return line;
         }
         
-        // 縁石を作成（コーナー部分）
+        // 縁石を作成（コース全体の両側に沿って）
         function createCurbstones() {
-            // コーナーの位置（パスの割合）
-            const cornerPositions = [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.85];
+            // 縁石の間隔（パスの割合）- 滑らかな見た目のために密に配置
+            const curbSpacing = 0.001; // 0.003から0.001へ変更してセグメント数を3倍に増加
             
-            for (let i = 0; i < cornerPositions.length; i++) {
-                const t = cornerPositions[i];
-                const cornerLength = 0.05; // コーナーの長さ（パスの割合）
+            // 縁石用のグループを作成
+            const curbGroup = new THREE.Group();
+            roadGroup.add(curbGroup);
+            
+            // 道路の両側に縁石を設置
+            createSideCurb(1);  // 右側
+            createSideCurb(-1); // 左側
+            
+            // 特定の側（右側または左側）に縁石を作成する関数
+            function createSideCurb(side) {
+                // 縁石の頂点とインデックスを収集
+                const curbVertices = [];
+                const curbIndices = [];
+                const curbNormals = [];
                 
-                for (let j = 0; j < 10; j++) {
-                    const segmentT = t + (j * cornerLength / 10);
-                    const point = carPath.getPointAt(segmentT);
-                    const tangent = carPath.getTangentAt(segmentT);
-                    
-                    // 次のポイントと前のポイントを取得して傾斜を計算
-                    const nextT = (segmentT + 0.005) % 1;
-                    const prevT = (segmentT - 0.005 + 1) % 1;
-                    const nextPoint = carPath.getPointAt(nextT);
-                    const prevPoint = carPath.getPointAt(prevT);
+                let vertexIndex = 0;
+                let currentT = 0;
+                
+                // 縁石の頂点データを生成
+                while (currentT < 1) {
+                    const point = carPath.getPointAt(currentT);
+                    const tangent = carPath.getTangentAt(currentT);
                     
                     // 垂直方向ベクトル（外側方向）
                     const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
                     
-                    // 縁石の位置（道路の外側）
-                    const curbPosition = new THREE.Vector3().addVectors(
+                    // 次のポイントと前のポイントを取得して傾斜を計算
+                    const nextT = (currentT + 0.005) % 1;
+                    const prevT = (currentT - 0.005 + 1) % 1;
+                    const nextPoint = carPath.getPointAt(nextT);
+                    const prevPoint = carPath.getPointAt(prevT);
+                    
+                    // 縁石の基本位置（道路のエッジ、side=1で右側、side=-1で左側）
+                    const edgePosition = new THREE.Vector3().addVectors(
                         point,
-                        normal.clone().multiplyScalar(roadWidth / 2)
+                        normal.clone().multiplyScalar(side * (roadWidth / 2))
                     );
                     
-                    // 前後方向の傾斜角を計算（Y軸方向の変化から）
-                    const slopeDistance = Math.sqrt(
-                        Math.pow(nextPoint.x - prevPoint.x, 2) + 
-                        Math.pow(nextPoint.z - prevPoint.z, 2));
-                    const slope = Math.atan2(nextPoint.y - prevPoint.y, slopeDistance);
-                    
-                    // 赤白の縁石（交互）
-                    const color = j % 2 === 0 ? 0xff0000 : 0xffffff;
-                    
-                    const curbGeometry = new THREE.BoxGeometry(1, 0.3, 1);
-                    const curbMaterial = new THREE.MeshLambertMaterial({ color: color });
-                    const curb = new THREE.Mesh(curbGeometry, curbMaterial);
-                    
-                    // 縁石の位置を道路の高さに合わせる
-                    curb.position.copy(curbPosition);
-                    curb.position.y = point.y + 0.1; // 道路面より少し浮かせる
-                    
-                    // 進行方向を向くように回転
-                    const lookAtPos = new THREE.Vector3().addVectors(
-                        curbPosition,
-                        tangent
+                    // 縁石の外側位置
+                    const outerPosition = new THREE.Vector3().addVectors(
+                        point,
+                        normal.clone().multiplyScalar(side * (roadWidth / 2 + 0.2)) // 0.3から0.2へ変更して幅を狭く
                     );
-                    curb.lookAt(lookAtPos);
                     
-                    // 上下の傾斜に合わせて追加の回転
-                    curb.rotateX(slope);
+                    // 頂点を追加（縁石の4つの角）
+                    // 1. 道路側の下部
+                    curbVertices.push(
+                        edgePosition.x, 
+                        point.y, 
+                        edgePosition.z
+                    );
                     
-                    roadGroup.add(curb);
+                    // 2. 道路側の上部
+                    curbVertices.push(
+                        edgePosition.x, 
+                        point.y + 0.12, // 高さを少し低くして0.15から0.12へ
+                        edgePosition.z
+                    );
+                    
+                    // 3. 外側の上部
+                    curbVertices.push(
+                        outerPosition.x, 
+                        point.y + 0.12, // 高さを少し低くして0.15から0.12へ
+                        outerPosition.z
+                    );
+                    
+                    // 4. 外側の下部
+                    curbVertices.push(
+                        outerPosition.x, 
+                        point.y, 
+                        outerPosition.z
+                    );
+                    
+                    // 法線ベクトルを追加（縁石の各頂点の法線）
+                    const upVector = new THREE.Vector3(0, 1, 0);
+                    const sideNormal = normal.clone().multiplyScalar(side);
+                    
+                    // 下部の道路側は下向き法線
+                    curbNormals.push(0, -1, 0);
+                    
+                    // 道路側の上部は内側向き法線
+                    curbNormals.push(-sideNormal.x, 0, -sideNormal.z);
+                    
+                    // 外側の上部は上向き法線
+                    curbNormals.push(0, 1, 0);
+                    
+                    // 外側の下部は外側向き法線
+                    curbNormals.push(sideNormal.x, 0, sideNormal.z);
+                    
+                    // インデックスを追加（縁石の面を定義）
+                    if (vertexIndex > 0) {
+                        const baseIdx = vertexIndex * 4;
+                        const prevBaseIdx = (vertexIndex - 1) * 4;
+                        
+                        // 上面（四角形）
+                        curbIndices.push(
+                            prevBaseIdx + 1, baseIdx + 1, prevBaseIdx + 2,
+                            prevBaseIdx + 2, baseIdx + 1, baseIdx + 2
+                        );
+                        
+                        // 外側面（四角形）
+                        curbIndices.push(
+                            prevBaseIdx + 2, baseIdx + 2, prevBaseIdx + 3,
+                            prevBaseIdx + 3, baseIdx + 2, baseIdx + 3
+                        );
+                        
+                        // 内側面（四角形）
+                        curbIndices.push(
+                            prevBaseIdx, baseIdx, prevBaseIdx + 1,
+                            prevBaseIdx + 1, baseIdx, baseIdx + 1
+                        );
+                    }
+                    
+                    vertexIndex++;
+                    currentT += curbSpacing;
                 }
+                
+                // 最後の縁石を最初の縁石に接続（ループを閉じる）
+                const lastBaseIdx = (vertexIndex - 1) * 4;
+                
+                // 上面の接続
+                curbIndices.push(
+                    lastBaseIdx + 1, 1, lastBaseIdx + 2,
+                    lastBaseIdx + 2, 1, 2
+                );
+                
+                // 外側面の接続
+                curbIndices.push(
+                    lastBaseIdx + 2, 2, lastBaseIdx + 3,
+                    lastBaseIdx + 3, 2, 3
+                );
+                
+                // 内側面の接続
+                curbIndices.push(
+                    lastBaseIdx, 0, lastBaseIdx + 1,
+                    lastBaseIdx + 1, 0, 1
+                );
+                
+                // 縁石のジオメトリを作成
+                const curbGeometry = new THREE.BufferGeometry();
+                curbGeometry.setAttribute('position', new THREE.Float32BufferAttribute(curbVertices, 3));
+                curbGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(curbNormals, 3));
+                curbGeometry.setIndex(curbIndices);
+                
+                // コンクリート風の材質
+                const curbMaterial = new THREE.MeshStandardMaterial({
+                    color: 0xE8E8E8, // 少し明るい色に変更
+                    roughness: 0.9,  // より粗い質感に
+                    metalness: 0.05, // わずかな光沢を追加
+                    flatShading: false // スムーズシェーディング
+                });
+                
+                // 縁石メッシュを作成
+                const curbMesh = new THREE.Mesh(curbGeometry, curbMaterial);
+                curbGroup.add(curbMesh);
             }
         }
         
@@ -931,7 +1033,7 @@
         createRoadPillars();
         
         // ガードレールの作成
-        createGuardrails();
+        createCurbstones();
         
         log("道路の作成完了");
         

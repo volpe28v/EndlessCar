@@ -86,11 +86,6 @@ export class Car {
           // 180km/h超: 最大ドリフト幅
           speedScalingFactor = 1.3; // 値を下げる (2.0→1.3)
       }
-      
-      // 速度（km/h）をログに表示
-      if (this.logCounter === 0) {
-          console.log('現在の速度: ' + speedKmh.toFixed(1) + ' km/h, スケール: ' + speedScalingFactor.toFixed(2));
-      }
   }
   
   setOtherCars(otherCars) {
@@ -117,14 +112,6 @@ export class Car {
           handling: randomInRange(specRanges.handling.min, specRanges.handling.max),
           grip: randomInRange(specRanges.grip.min, specRanges.grip.max)
       };
-
-      // スペック情報をログ出力
-      console.log('車のスペック生成:', {
-          topSpeed: Math.round(specs.topSpeed * 100),
-          acceleration: Math.round(specs.acceleration * 100),
-          handling: Math.round(specs.handling * 100),
-          grip: Math.round(specs.grip * 100)
-      });
 
       return specs;
   }
@@ -156,18 +143,6 @@ export class Car {
           // 追加: ドリフトスタイルを持っているかどうか（50%→70%）
           useDrift: Math.random() > 0.3 // 0.5から0.3に変更して、70%の確率でドリフトカーになるようにします
       };
-
-      // スタイル情報をログ出力
-      console.log('ドライビングスタイル生成:', {
-          linePreference: Math.round(style.linePreference * 100),
-          cornerEntryAggression: Math.round(style.cornerEntryAggression * 100),
-          cornerExitAggression: Math.round(style.cornerExitAggression * 100),
-          brakingTiming: Math.round(style.brakingTiming * 100),
-          lineTransitionTiming: Math.round(style.lineTransitionTiming * 100),
-          lineConsistency: Math.round(style.lineConsistency * 100),
-          outInOutStrength: Math.round(style.outInOutStrength * 100),
-          useDrift: style.useDrift
-      });
 
       return style;
   }
@@ -540,12 +515,6 @@ export class Car {
               // 180km/h超: 最大ドリフト幅
               speedScalingFactor = 1.7; // 値を上げる (1.3→1.7)
           }
-      }
-      
-      // デバッグ用: 60フレームごとに現在の速度とスケーリング係数をログ出力
-      if (Math.random() < 0.016) { // 約60フレームに1回
-          const driftStyle = isDriftStyleCar ? "ドリフト車" : "グリップ車";
-          console.log(`${driftStyle} - 現在の速度: ${speedKmh.toFixed(1)}km/h, スケーリング係数: ${speedScalingFactor.toFixed(2)}`);
       }
       
       // 位置を更新
@@ -974,24 +943,10 @@ export class Car {
                                      (isExitingCorner && curveAngle < mildCurveThreshold * 0.8) || // 閾値を引き下げ (1.0→0.8)
                                      curveAngle < mildCurveThreshold * 0.4; // 閾値を引き下げ (0.5→0.4)
       
-      // 詳細なデバッグログを追加 - 重要な状態の変化を記録
-      if (Math.random() < 0.01) { // 約100フレームに1回
-          const cornerState = isEnteringCorner ? "入口" : isExitingCorner ? "出口" : "中間";
-          const completionState = isCurrentCornerComplete ? "完了" : "進行中";
-          console.log(`コーナー状態: ${cornerState}, ${completionState}, 曲率=${curveAngle.toFixed(4)}, ドリフト=${this.currentDriftStrength.toFixed(2)}`);
-      }
-      
       // 複合カーブ検出の条件を大幅に厳しく - 本当に必要な場合のみ検出
       if (directionChanges.length > 0 && 
           (isCurrentCornerComplete || (this.currentDriftStrength < 0.05 && curveAngle < mildCurveThreshold * 0.25)) && // 閾値を引き下げ (0.07/0.35→0.05/0.25)
           !shouldMaintainCurrentDrift) { 
-          
-          // デバッグログを追加
-          if (Math.random() < 0.005) { // 約200フレームに1回
-              console.log(`方向変化検出: 変化点数=${directionChanges.length}, 現在の曲率=${curveAngle.toFixed(4)}, 現在のドリフト強度=${this.currentDriftStrength.toFixed(4)}`);
-              // 詳細な条件の状態も出力
-              console.log(`条件詳細: currentCurveIsStrong=${currentCurveIsStrong}, isCurrentCornerComplete=${isCurrentCornerComplete}, shouldMaintainCurrentDrift=${shouldMaintainCurrentDrift}`);
-          }
           
           // 方向変化が検出された場合複合カーブ処理
           isCompoundCurve = true;
@@ -1037,17 +992,6 @@ export class Car {
           // 方向変化がない場合、または現在のカーブが完了していない場合は単純カーブ処理
           curvePattern = currentCurveIsStrong ? "strong-current" : "simple";
           immediateDirection = currentDirection;
-          
-          // デバッグログを追加
-          if (Math.random() < 0.002) { // 約500フレームに1回
-              console.log(`複合カーブ検出スキップ: currentCurveIsStrong=${currentCurveIsStrong}, isCurrentCornerComplete=${isCurrentCornerComplete}, shouldMaintainCurrentDrift=${shouldMaintainCurrentDrift}, curveAngle=${curveAngle.toFixed(4)}, currentDriftStrength=${this.currentDriftStrength.toFixed(4)}`);
-          }
-      }
-      
-      // デバッグ用: カーブパターンを表示 - 出力頻度を上げる
-      if (Math.random() < 0.01) { // 約100フレームに1回 (0.008→0.01)
-          const currentStrength = curveAngle.toFixed(3);
-          console.log(`カーブパターン: ${curvePattern}, 現在の強さ: ${currentStrength}, 方向変化数: ${directionChanges.length}, 採用方向: ${immediateDirection}`);
       }
       
       // 目標ドリフト方向を更新 - 閾値を下げてより早く方向を反映
@@ -1081,19 +1025,9 @@ export class Car {
               if (isCurrentCornerComplete) {
                   // 現在のコーナーが完了している場合は通常の速度で変化
                   this.lastDriftDirection += (0 - this.lastDriftDirection) * directionChangeSpeed * transitionDelay;
-                  
-                  // 方向転換開始のデバッグログ
-                  if (Math.random() < 0.1 && Math.abs(this.lastDriftDirection) > 0.5) {
-                      console.log(`方向転換開始: 現在の方向=${this.lastDriftDirection.toFixed(2)}, 目標=${this.targetDriftDirection}, パターン=${curvePattern}`);
-                  }
               } else {
                   // 現在のコーナーがまだ完了していない場合は変化を遅くする - ただし停止はしない
                   this.lastDriftDirection += (0 - this.lastDriftDirection) * directionChangeSpeed * 0.3; // 速度を元に戻す (0.2→0.3)
-                  
-                  // 方向転換遅延のデバッグログ
-                  if (Math.random() < 0.05 && Math.abs(this.lastDriftDirection) > 0.5) {
-                      console.log(`方向転換遅延中: コーナー未完了, 現在の方向=${this.lastDriftDirection.toFixed(2)}`);
-                  }
               }
               
               // ほぼ0になったら、目標方向に変え始める - 値を元に戻す
@@ -1134,11 +1068,6 @@ export class Car {
           
           // 速度スケーリングを大幅に強調（元の値よりも大きな差）
           const targetDriftAngle = this.currentDriftStrength * baseMaxDriftAngle * speedScalingFactor * this.lastDriftDirection * transitionFactor;
-          
-          // デバッグ: ドリフト角度の変化を監視
-          if (Math.random() < 0.01 && Math.abs(this.lastDriftAngle - targetDriftAngle) > 0.3) {
-              console.log(`ドリフト角度変化: 現在=${this.lastDriftAngle.toFixed(2)}, 目標=${targetDriftAngle.toFixed(2)}, パターン=${curvePattern}`);
-          }
           
           // 前回のドリフト角度から目標角度へ徐々に補間 - 速度に応じて変化速度を調整
           const angleInterpolationBase = 0.15; // 基本補間速度を元に戻す (0.1→0.15)

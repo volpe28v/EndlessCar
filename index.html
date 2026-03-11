@@ -379,7 +379,7 @@
         }
         
         // 初期状態では3台の車を作成
-        createCars(10);
+        createCars(16);
         
         log("車の作成完了");
         
@@ -1335,6 +1335,43 @@
             for (let i = 0; i < cars.length; i++) {
                 const car = cars[i];
                 car.update(deltaTime, isNight);
+
+                // デバッグ: 追走/追い抜きモードの可視化
+                if (!car._debugLabel) {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 256;
+                    canvas.height = 64;
+                    const texture = new THREE.CanvasTexture(canvas);
+                    const material = new THREE.SpriteMaterial({ map: texture, depthTest: false });
+                    const sprite = new THREE.Sprite(material);
+                    sprite.scale.set(10, 2.5, 1);
+                    scene.add(sprite);
+                    car._debugLabel = sprite;
+                    car._debugCanvas = canvas;
+                    car._debugTexture = texture;
+                }
+                // ラベル更新
+                const ctx = car._debugCanvas.getContext('2d');
+                ctx.clearRect(0, 0, 256, 64);
+                let label = '';
+                let color = '';
+                if (car.isTandemFollowing) {
+                    const remainSec = Math.max(0, Math.ceil((car.tandemMaxDuration - car.tandemDuration) / 60));
+                    label = 'TANDEM ' + remainSec + 's';
+                    color = '#00ff88';
+                } else if (car.isOvertaking) {
+                    label = 'PASS';
+                    color = '#ff8800';
+                }
+                if (label) {
+                    ctx.font = 'bold 28px sans-serif';
+                    ctx.fillStyle = color;
+                    ctx.textAlign = 'center';
+                    ctx.fillText(label, 128, 42);
+                }
+                car._debugTexture.needsUpdate = true;
+                car._debugLabel.position.copy(car.object.position);
+                car._debugLabel.position.y += 5;
             }
             metrics.carUpdates = performance.now() - lastCheck;
             lastCheck = performance.now();
@@ -2247,7 +2284,11 @@
                 ctx.lineTo(-3, 3);  // 左下
                 ctx.lineTo(3, 3);   // 右下
                 ctx.closePath();
-                ctx.fillStyle = (i === currentCarIndex) ? 'red' : 'white';
+                let carColor = 'white';
+                if (i === currentCarIndex) carColor = 'red';
+                else if (car.isTandemFollowing) carColor = '#00ffff'; // TANDEM: シアン
+                else if (car.isOvertaking) carColor = '#ff8800'; // PASS: オレンジ
+                ctx.fillStyle = carColor;
                 ctx.fill();
                 ctx.restore();
             }

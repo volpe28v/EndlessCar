@@ -48,6 +48,7 @@ export class Car {
       this.isOvertaking = false;           // 追い抜き中フラグ
       this.overtakeDirection = 0;          // 追い抜き方向（-1: 左, 1: 右）
       this.overtakeTarget = null;          // 追い抜き対象の車
+      this.overtakeTargetCar = null;       // 追い抜き中の対象（距離判定用）
       this.overtakeProgress = 0;           // 追い越し進捗（0.0 〜 1.0）
       this.overtakePhaseSpeed = 0.015;     // 追い越し進捗の更新速度
 
@@ -1626,38 +1627,60 @@ export class Car {
       return d;
   }
 
+  // 前方の最も近い車を検索
+  findCarAhead(cars) {
+      const myT = this.position;
+      let nearestCar = null;
+      let nearestGap = Infinity;
+
+      for (const car of cars) {
+          const tDelta = Car.pathDelta(myT, car.position);
+          // 前方かつ検知範囲内
+          if (tDelta < 0.002 || tDelta > 0.04) continue;
+
+          // 3D距離も確認（パス上は近くても実際は遠い場合がある）
+          const dx = car.object.position.x - this.object.position.x;
+          const dz = car.object.position.z - this.object.position.z;
+          const dist3D = Math.sqrt(dx * dx + dz * dz);
+          if (dist3D > this.overtakeDistance) continue;
+
+          if (tDelta < nearestGap) {
+              nearestGap = tDelta;
+              nearestCar = car;
+          }
+      }
+      return { car: nearestCar, gap: nearestGap };
+  }
+
   // 追い抜き＆追走処理
   handleOvertaking(cars) {
-      // クールダウン減少
       if (this.tandemCooldown > 0) this.tandemCooldown--;
 
       // === 追走フォロワー中の処理 ===
       if (this.isTandemFollowing && this.tandemLeader) {
           this.tandemDuration++;
 
-          // 追走終了条件：最大時間超過、またはリーダーが消えた
+          // 追走終了条件
           if (this.tandemDuration > this.tandemMaxDuration || !this.tandemLeader.object) {
-              this.endTandem();
+              this.endTandem(cars);
               return;
           }
 
-          // リーダーとの距離を調整（速度をリーダーに合わせる）
           const gap = Car.pathDelta(this.position, this.tandemLeader.position);
 
-          if (gap < 0 || gap > 0.1) {
-              // リーダーから離れすぎた or 追い越してしまった → 追走終了
-              this.endTandem();
+          if (gap < -0.002 || gap > 0.08) {
+              // リーダーから離れすぎた or 追い越した → 終了して再判定
+              this.endTandem(cars);
               return;
           }
 
-          // 目標間隔との差に応じて速度を微調整（スムーズに合わせる）
+          // 目標間隔を維持（スムーズに速度調整）
           const gapError = gap - this.tandemTargetGap;
-          const targetSpeed = this.tandemLeader.speed + gapError * 0.3;
+          const targetSpeed = this.tandemLeader.speed + gapError * 0.4;
           const clampedTarget = Math.max(this.MIN_SPEED, Math.min(this.MAX_SPEED, targetSpeed));
-          // 現在速度から徐々に目標速度へ（急変しない）
-          this.speed += (clampedTarget - this.speed) * 0.03;
+          this.speed += (clampedTarget - this.speed) * 0.05;
 
-          // 追い抜きオフセットは使わない（同じラインを走る）
+          // 追い抜きオフセットを徐々に解除
           this.overtakeProgress = Math.max(0, this.overtakeProgress - 0.02);
           if (this.overtakeProgress <= 0) {
               this.isOvertaking = false;
@@ -1666,85 +1689,130 @@ export class Car {
           return;
       }
 
-      // === 通常の追い抜き or 追走開始判定 ===
-      const myT = this.position;
-      let nearestCar = null;
-      let nearestGap = Infinity;
+      // === 前方の車を検索 ===
+      const { car: aheadCar, gap: aheadGap } = this.findCarAhead(cars);
 
-      for (const car of cars) {
-          // 既に他の車の追走フォロワーになっている車は対象外
-          if (car.tandemFollower) continue;
-          // 自分が既に誰かのリーダーの場合は新たな追走開始しない
-          if (this.tandemFollower) continue;
+      // === 追い抜きモード継続中の処理 ===
+      if (this.isOvertaking && this.overtakeTargetCar) {
+          const targetGap = Car.pathDelta(this.position, this.overtakeTargetCar.position);
+          // targetGap > 0 → 対象はまだ前方、targetGap < 0 → 自分が前に出た
 
-          const tDelta = Car.pathDelta(myT, car.position);
-          // 前方かつ近い車のみ
-          if (tDelta < 0.001 || tDelta > 0.03) continue;
+          if (targetGap < -0.025) {
+              // 十分追い越した → 追い抜き完了、ラインに戻る
+              this.overtakeTargetCar = null;
+              this._returnToLine();
+          } else if (targetGap > 0.04) {
+              // 対象から離されすぎた（検知範囲外） → 追い抜き諦め
+              this.overtakeTargetCar = null;
+              this._returnToLine();
+          } else {
+              // まだ追い抜き中 → オフセット維持
+              this.overtakeProgress = Math.min(1.0, this.overtakeProgress + this.overtakePhaseSpeed);
+          }
+          return;
+      }
 
-          // 自分の方が速い場合のみ
-          if (this.speed <= car.speed) continue;
+      // === 追い抜き対象なしでオフセットが残っている場合 → 戻す ===
+      if (this.isOvertaking && !this.overtakeTargetCar) {
+          this._returnToLine();
+          // 戻し中は新しい判定をしない
+          if (this.overtakeProgress > 0) return;
+      }
 
-          if (tDelta < nearestGap) {
-              nearestGap = tDelta;
-              nearestCar = car;
+      // === 前方に車がいない場合 ===
+      if (!aheadCar) {
+          this._returnToLine();
+          return;
+      }
+
+      // === 追走 or 追い抜き の新規判定 ===
+      const canTandem = this.tandemCooldown <= 0 &&
+                        !aheadCar.isTandemFollowing &&
+                        !aheadCar.tandemFollower &&
+                        !this.tandemFollower;
+
+      // 追走開始：近づいたタイミングで判定
+      if (canTandem && aheadGap < 0.02) {
+          const tandemChance = 0.008 + (1 - aheadGap / 0.02) * 0.05;
+          if (Math.random() < tandemChance) {
+              this.startTandem(aheadCar);
+              return;
           }
       }
 
-      if (nearestCar) {
-          // 追走開始判定：クールダウン中でなく、両方ドリフト車なら追走
-          const bothDrift = this.drivingStyle.useDrift && nearestCar.drivingStyle.useDrift;
-          const canTandem = this.tandemCooldown <= 0 && bothDrift && !nearestCar.isTandemFollowing;
+      // === 追い抜き開始 ===
+      if (this.speed > aheadCar.speed || aheadGap < 0.008) {
+          this.isOvertaking = true;
+          this.overtakeProgress = 0;
+          this.overtakeTargetCar = aheadCar;
 
-          if (canTandem && Math.random() < 0.15) {
-              // 追走開始
-              this.isTandemFollowing = true;
-              this.tandemLeader = nearestCar;
-              nearestCar.tandemFollower = this;
-              this.tandemDuration = 0;
-              this.tandemMaxDuration = 600 + Math.floor(Math.random() * 900); // 10〜25秒程度
-              this.originalSpeed = this.speed;
-              this.tandemTargetGap = 0.004 + Math.random() * 0.004; // 車間距離に個性
-
-              // 追い抜きをキャンセル
-              this.isOvertaking = false;
-              this.overtakeProgress = 0;
-              this.overtakeDirection = 0;
-              return;
-          }
-
-          // 追走しない場合は通常の追い抜き
-          if (!this.isOvertaking) {
-              this.isOvertaking = true;
-              this.overtakeProgress = 0;
-
-              const myDirection = new THREE.Vector3();
-              this.object.getWorldDirection(myDirection);
-              const rightVector = new THREE.Vector3(-myDirection.z, 0, myDirection.x);
-              const dx = nearestCar.object.position.x - this.object.position.x;
-              const dz = nearestCar.object.position.z - this.object.position.z;
-              const lateralDot = rightVector.dot(new THREE.Vector3(dx, 0, dz));
-              this.overtakeDirection = lateralDot > 0 ? -1 : 1;
-          }
+          const myDirection = new THREE.Vector3();
+          this.object.getWorldDirection(myDirection);
+          const rightVector = new THREE.Vector3(-myDirection.z, 0, myDirection.x);
+          const dx = aheadCar.object.position.x - this.object.position.x;
+          const dz = aheadCar.object.position.z - this.object.position.z;
+          const lateralDot = rightVector.dot(new THREE.Vector3(dx, 0, dz));
+          this.overtakeDirection = lateralDot > 0 ? -1 : 1;
           this.overtakeProgress = Math.min(1.0, this.overtakeProgress + this.overtakePhaseSpeed);
       } else {
-          // 前方に対象がいなければ徐々に元のラインに戻る
-          this.overtakeProgress = Math.max(0, this.overtakeProgress - this.overtakePhaseSpeed);
-          if (this.overtakeProgress <= 0) {
-              this.isOvertaking = false;
-              this.overtakeDirection = 0;
+          // 速度差がなく追い抜き不要 → 自然に減速して距離を保つ
+          if (aheadGap < 0.01) {
+              this.speed += (aheadCar.speed * 0.95 - this.speed) * 0.02;
           }
       }
   }
 
-  // 追走終了
-  endTandem() {
+  // 追い抜きオフセットを徐々に戻す
+  _returnToLine() {
+      this.overtakeProgress = Math.max(0, this.overtakeProgress - this.overtakePhaseSpeed);
+      if (this.overtakeProgress <= 0) {
+          this.isOvertaking = false;
+          this.overtakeDirection = 0;
+          this.overtakeTargetCar = null;
+      }
+  }
+
+  // 追走開始
+  startTandem(leader) {
+      this.isTandemFollowing = true;
+      this.tandemLeader = leader;
+      leader.tandemFollower = this;
+      this.tandemDuration = 0;
+      this.tandemMaxDuration = 600 + Math.floor(Math.random() * 900); // 10〜25秒
+      this.originalSpeed = this.speed;
+      this.tandemTargetGap = 0.008 + Math.random() * 0.006; // 車間距離を広めに（重ならない）
+
+      // 追い抜きをキャンセル
+      this.isOvertaking = false;
+      this.overtakeProgress = 0;
+      this.overtakeDirection = 0;
+  }
+
+  // 追走終了 → 即座に次の判定へ
+  endTandem(cars) {
       if (this.tandemLeader) {
           this.tandemLeader.tandemFollower = null;
       }
       this.isTandemFollowing = false;
       this.tandemLeader = null;
       this.tandemDuration = 0;
-      this.tandemCooldown = 120 + Math.floor(Math.random() * 180); // 2〜5秒のクールダウン
-      // 元の速度に徐々に戻る（updateSpeedが処理するので特別な処理不要）
+      this.tandemCooldown = 60 + Math.floor(Math.random() * 120); // 1〜3秒の短いクールダウン
+
+      // 追走終了直後に前方の車を再チェック → 自然に追い抜きか再追走へ
+      if (cars) {
+          const { car: aheadCar, gap: aheadGap } = this.findCarAhead(cars);
+          if (aheadCar && aheadGap < 0.015 && this.speed > aheadCar.speed) {
+              // 前にまだ車がいて自分が速い → 追い抜き開始
+              this.isOvertaking = true;
+              this.overtakeProgress = 0.3; // ある程度オフセット済みの状態から開始
+              const myDirection = new THREE.Vector3();
+              this.object.getWorldDirection(myDirection);
+              const rightVector = new THREE.Vector3(-myDirection.z, 0, myDirection.x);
+              const dx = aheadCar.object.position.x - this.object.position.x;
+              const dz = aheadCar.object.position.z - this.object.position.z;
+              const lateralDot = rightVector.dot(new THREE.Vector3(dx, 0, dz));
+              this.overtakeDirection = lateralDot > 0 ? -1 : 1;
+          }
+      }
   }
 }

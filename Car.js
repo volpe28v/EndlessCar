@@ -50,6 +50,16 @@ export class Car {
       this.overtakeTarget = null;          // 追い抜き対象の車
       this.overtakeProgress = 0;           // 追い越し進捗（0.0 〜 1.0）
       this.overtakePhaseSpeed = 0.015;     // 追い越し進捗の更新速度
+
+      // 追走ドリフト関連のパラメータ
+      this.tandemLeader = null;            // 追走リーダー（前の車）
+      this.tandemFollower = null;          // 追走フォロワー（後ろの車）
+      this.isTandemFollowing = false;      // 追走フォロワー中フラグ
+      this.tandemDuration = 0;             // 追走継続フレーム数
+      this.tandemMaxDuration = 0;          // 追走最大継続フレーム数
+      this.tandemCooldown = 0;             // 追走クールダウン（再発生防止）
+      this.tandemTargetGap = 0.006;        // リーダーとの目標パス距離（近い追走）
+      this.originalSpeed = 0;              // 追走前の元の速度
       
       // 速度係数の計算（0〜1の範囲で正規化）
       // 速度（km/h）に基づいた係数を計算
@@ -140,8 +150,8 @@ export class Car {
           // 追加: アウトインアウトの強さ（0: 控えめ、1: 大胆）
           outInOutStrength: Math.random(),
 
-          // 追加: ドリフトスタイルを持っているかどうか（50%→70%）
-          useDrift: Math.random() > 0.3 // 0.5から0.3に変更して、70%の確率でドリフトカーになるようにします
+          // 全車ドリフト
+          useDrift: true
       };
 
       return style;
@@ -1625,6 +1635,9 @@ export class Car {
   }
   
   updateSpeed() {
+      // 追走フォロワー中はリーダーに速度を合わせるため、ここでは更新しない
+      if (this.isTandemFollowing) return;
+
       // 現在のカーブ強度を取得
       const currentCurvature = this.calculateCurvature(this.position).angle;
       
@@ -1724,45 +1737,105 @@ export class Car {
       }
   }
 
-  // 追い抜き処理（自分が速い場合のみ前の車を避ける）
+  // パス上の距離差を計算（ループ対応、正=前方）
+  static pathDelta(from, to) {
+      let d = to - from;
+      if (d > 0.5) d -= 1;
+      if (d < -0.5) d += 1;
+      return d;
+  }
+
+  // 追い抜き＆追走処理
   handleOvertaking(cars) {
-      // パス上の距離差を計算（ループ対応、正=前方）
-      function pathDelta(from, to) {
-          let d = to - from;
-          if (d > 0.5) d -= 1;
-          if (d < -0.5) d += 1;
-          return d;
+      // クールダウン減少
+      if (this.tandemCooldown > 0) this.tandemCooldown--;
+
+      // === 追走フォロワー中の処理 ===
+      if (this.isTandemFollowing && this.tandemLeader) {
+          this.tandemDuration++;
+
+          // 追走終了条件：最大時間超過、またはリーダーが消えた
+          if (this.tandemDuration > this.tandemMaxDuration || !this.tandemLeader.object) {
+              this.endTandem();
+              return;
+          }
+
+          // リーダーとの距離を調整（速度をリーダーに合わせる）
+          const gap = Car.pathDelta(this.position, this.tandemLeader.position);
+
+          if (gap < 0 || gap > 0.1) {
+              // リーダーから離れすぎた or 追い越してしまった → 追走終了
+              this.endTandem();
+              return;
+          }
+
+          // 目標間隔との差に応じて速度を微調整（スムーズに合わせる）
+          const gapError = gap - this.tandemTargetGap;
+          const targetSpeed = this.tandemLeader.speed + gapError * 0.3;
+          const clampedTarget = Math.max(this.MIN_SPEED, Math.min(this.MAX_SPEED, targetSpeed));
+          // 現在速度から徐々に目標速度へ（急変しない）
+          this.speed += (clampedTarget - this.speed) * 0.03;
+
+          // 追い抜きオフセットは使わない（同じラインを走る）
+          this.overtakeProgress = Math.max(0, this.overtakeProgress - 0.02);
+          if (this.overtakeProgress <= 0) {
+              this.isOvertaking = false;
+              this.overtakeDirection = 0;
+          }
+          return;
       }
 
+      // === 通常の追い抜き or 追走開始判定 ===
       const myT = this.position;
       let nearestCar = null;
-      let nearestDist = Infinity;
+      let nearestGap = Infinity;
 
       for (const car of cars) {
-          // パス上で前方にいる車のみ対象
-          const tDelta = pathDelta(myT, car.position);
+          // 既に他の車の追走フォロワーになっている車は対象外
+          if (car.tandemFollower) continue;
+          // 自分が既に誰かのリーダーの場合は新たな追走開始しない
+          if (this.tandemFollower) continue;
+
+          const tDelta = Car.pathDelta(myT, car.position);
+          // 前方かつ近い車のみ
           if (tDelta < 0.001 || tDelta > 0.03) continue;
 
-          // 自分の方が速い場合のみ追い抜く（遅い車は避けない）
+          // 自分の方が速い場合のみ
           if (this.speed <= car.speed) continue;
 
-          // 3D距離
-          const dx = car.object.position.x - this.object.position.x;
-          const dz = car.object.position.z - this.object.position.z;
-          const dist = Math.sqrt(dx * dx + dz * dz);
-
-          if (dist < this.overtakeDistance && dist < nearestDist) {
-              nearestDist = dist;
+          if (tDelta < nearestGap) {
+              nearestGap = tDelta;
               nearestCar = car;
           }
       }
 
       if (nearestCar) {
+          // 追走開始判定：クールダウン中でなく、両方ドリフト車なら追走
+          const bothDrift = this.drivingStyle.useDrift && nearestCar.drivingStyle.useDrift;
+          const canTandem = this.tandemCooldown <= 0 && bothDrift && !nearestCar.isTandemFollowing;
+
+          if (canTandem && Math.random() < 0.15) {
+              // 追走開始
+              this.isTandemFollowing = true;
+              this.tandemLeader = nearestCar;
+              nearestCar.tandemFollower = this;
+              this.tandemDuration = 0;
+              this.tandemMaxDuration = 600 + Math.floor(Math.random() * 900); // 10〜25秒程度
+              this.originalSpeed = this.speed;
+              this.tandemTargetGap = 0.004 + Math.random() * 0.004; // 車間距離に個性
+
+              // 追い抜きをキャンセル
+              this.isOvertaking = false;
+              this.overtakeProgress = 0;
+              this.overtakeDirection = 0;
+              return;
+          }
+
+          // 追走しない場合は通常の追い抜き
           if (!this.isOvertaking) {
               this.isOvertaking = true;
               this.overtakeProgress = 0;
 
-              // 回避方向を決定（相手が右なら左へ避ける）
               const myDirection = new THREE.Vector3();
               this.object.getWorldDirection(myDirection);
               const rightVector = new THREE.Vector3(-myDirection.z, 0, myDirection.x);
@@ -1771,7 +1844,6 @@ export class Car {
               const lateralDot = rightVector.dot(new THREE.Vector3(dx, 0, dz));
               this.overtakeDirection = lateralDot > 0 ? -1 : 1;
           }
-          // ゆっくりオフセットを増やす
           this.overtakeProgress = Math.min(1.0, this.overtakeProgress + this.overtakePhaseSpeed);
       } else {
           // 前方に対象がいなければ徐々に元のラインに戻る
@@ -1781,5 +1853,17 @@ export class Car {
               this.overtakeDirection = 0;
           }
       }
+  }
+
+  // 追走終了
+  endTandem() {
+      if (this.tandemLeader) {
+          this.tandemLeader.tandemFollower = null;
+      }
+      this.isTandemFollowing = false;
+      this.tandemLeader = null;
+      this.tandemDuration = 0;
+      this.tandemCooldown = 120 + Math.floor(Math.random() * 180); // 2〜5秒のクールダウン
+      // 元の速度に徐々に戻る（updateSpeedが処理するので特別な処理不要）
   }
 }

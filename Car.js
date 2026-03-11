@@ -1724,62 +1724,62 @@ export class Car {
       }
   }
 
-  // シンプルな追い抜き処理
+  // 追い抜き処理（自分が速い場合のみ前の車を避ける）
   handleOvertaking(cars) {
-      if (this.isOvertaking) {
-          // 追い抜き中の場合、対象の車との相対位置をチェック
-          if (this.overtakeTarget) {
-              const relativePos = this.object.position.clone().sub(this.overtakeTarget.object.position);
-              const distance = relativePos.length();
-              
-              // 追い抜き対象より十分前に出た場合は追い抜き完了
-              if (distance > this.overtakeDistance && relativePos.z < 0) {
-                  // 追い越し完了時は徐々に元のラインに戻る
-                  this.overtakeProgress = Math.max(0, this.overtakeProgress - this.overtakePhaseSpeed);
-                  if (this.overtakeProgress <= 0) {
-                      this.isOvertaking = false;
-                      this.overtakeTarget = null;
-                      this.overtakeDirection = 0;
-                  }
-                  return;
-              }
-              
-              // 追い越し中は進捗を更新
-              this.overtakeProgress = Math.min(1.0, this.overtakeProgress + this.overtakePhaseSpeed);
-          }
-          return;  // 追い抜き中は新たな追い抜き判定を行わない
+      // パス上の距離差を計算（ループ対応、正=前方）
+      function pathDelta(from, to) {
+          let d = to - from;
+          if (d > 0.5) d -= 1;
+          if (d < -0.5) d += 1;
+          return d;
       }
-      
-      // 前方の車を検出
-      const myPosition = this.object.position.clone();
-      const myDirection = new THREE.Vector3();
-      this.object.getWorldDirection(myDirection);
-      
+
+      const myT = this.position;
       let nearestCar = null;
-      let minDistance = Infinity;
-      
-      // 最も近い前方の車を探す
+      let nearestDist = Infinity;
+
       for (const car of cars) {
-          const carPosition = car.object.position.clone();
-          const toOtherCar = carPosition.clone().sub(myPosition);
-          const distance = toOtherCar.length();
-          
-          if (distance < this.overtakeDistance && distance < minDistance) {
+          // パス上で前方にいる車のみ対象
+          const tDelta = pathDelta(myT, car.position);
+          if (tDelta < 0.001 || tDelta > 0.03) continue;
+
+          // 自分の方が速い場合のみ追い抜く（遅い車は避けない）
+          if (this.speed <= car.speed) continue;
+
+          // 3D距離
+          const dx = car.object.position.x - this.object.position.x;
+          const dz = car.object.position.z - this.object.position.z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+
+          if (dist < this.overtakeDistance && dist < nearestDist) {
+              nearestDist = dist;
               nearestCar = car;
-              minDistance = distance;
           }
       }
-      
-      // 前方に車がいて、その車より速い場合に追い抜き開始
-      if (nearestCar && this.speed > nearestCar.speed) {
-          this.isOvertaking = true;
-          this.overtakeTarget = nearestCar;
-          this.overtakeProgress = 0;  // 追い越し開始時は進捗を0に初期化
-          
-          // 追い抜き方向を決定（相対位置から左右どちらが空いているか判断）
-          const rightVector = new THREE.Vector3(-myDirection.z, 0, myDirection.x);
-          const toTarget = nearestCar.object.position.clone().sub(myPosition);
-          this.overtakeDirection = Math.sign(rightVector.dot(toTarget));
+
+      if (nearestCar) {
+          if (!this.isOvertaking) {
+              this.isOvertaking = true;
+              this.overtakeProgress = 0;
+
+              // 回避方向を決定（相手が右なら左へ避ける）
+              const myDirection = new THREE.Vector3();
+              this.object.getWorldDirection(myDirection);
+              const rightVector = new THREE.Vector3(-myDirection.z, 0, myDirection.x);
+              const dx = nearestCar.object.position.x - this.object.position.x;
+              const dz = nearestCar.object.position.z - this.object.position.z;
+              const lateralDot = rightVector.dot(new THREE.Vector3(dx, 0, dz));
+              this.overtakeDirection = lateralDot > 0 ? -1 : 1;
+          }
+          // ゆっくりオフセットを増やす
+          this.overtakeProgress = Math.min(1.0, this.overtakeProgress + this.overtakePhaseSpeed);
+      } else {
+          // 前方に対象がいなければ徐々に元のラインに戻る
+          this.overtakeProgress = Math.max(0, this.overtakeProgress - this.overtakePhaseSpeed);
+          if (this.overtakeProgress <= 0) {
+              this.isOvertaking = false;
+              this.overtakeDirection = 0;
+          }
       }
   }
 }

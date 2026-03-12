@@ -27,6 +27,7 @@ export class Car {
       INITIAL_MULT: 1.12,         // 初期倍率
       DECAY: 0.05,                // 減衰量（1.12→1.07）
       MAX_SPEED_RATIO: 1.1,       // MAX_SPEEDに対する上限比
+      RAMP_UP: 30,                // ブースト立ち上がりフレーム（約0.5秒）
   };
 
   // 追い抜き定数
@@ -1869,14 +1870,17 @@ class PassState extends CarState {
                 this.car.transitionTo(ReturningState);
             }
         } else {
-            // 継続 → スリップストリームターボ
+            // 継続 → スリップストリームターボ（立ち上がり期間あり）
             const turboProgress = Math.min(1.0, this.duration / Car.TURBO.DURATION);
             const turboMultiplier = Car.TURBO.INITIAL_MULT - turboProgress * Car.TURBO.DECAY;
             const boostSpeed = Math.min(
                 this.car.MAX_SPEED * Car.TURBO.MAX_SPEED_RATIO,
                 this.target.speed * turboMultiplier
             );
-            this.car.speed = Math.max(this.car.speed, boostSpeed);
+            // 立ち上がり: 現在速度からブースト速度へ徐々にブレンド
+            const rampRatio = Math.min(1.0, this.duration / Car.TURBO.RAMP_UP);
+            const blendedSpeed = this.car.speed + (boostSpeed - this.car.speed) * rampRatio * 0.1;
+            this.car.speed = Math.max(this.car.speed, blendedSpeed);
             this.car.overtakeProgress = Math.min(1.0, this.car.overtakeProgress + Car.OVERTAKE.PHASE_SPEED);
         }
     }

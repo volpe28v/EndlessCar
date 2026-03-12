@@ -1432,7 +1432,7 @@
                     
                 case 1: // 追従
                     // 車の後ろから少し上の位置（Z軸を正に変更して車の後ろに）
-                    const followOffset = new THREE.Vector3(0, 10, 20); // 高さを少し上げる（起伏に対応）
+                    const followOffset = new THREE.Vector3(0, 5, 10); // 車の真後ろ寄り
                     // 車の向きに合わせてオフセットを回転
                     const rotatedOffset = followOffset.clone().applyQuaternion(currentCar.object.quaternion);
                     
@@ -1451,24 +1451,20 @@
                     break;
                     
                 case 2: // 車載（ドライバー視点）
-                    // 車内の運転席位置（車の中心よりやや後ろ、低い目線）
-                    const fpvOffset = new THREE.Vector3(0, 1.8, 0.5); // 高さ1.8=ドライバーの目線、Z=0.5で座席位置
-                    // 車の向きに合わせてオフセットを回転
+                    // 車体に固定マウント（運転席位置）
+                    const fpvOffset = new THREE.Vector3(0, 1.2, 0.0);
                     const rotatedFpvOffset = fpvOffset.clone().applyQuaternion(currentCar.object.quaternion);
+                    // 車体に直接固定（lerpなし）
+                    camera.position.copy(currentCar.object.position).add(rotatedFpvOffset);
 
-                    // カメラ位置をスムーズに更新
-                    const targetFpvCameraPos = new THREE.Vector3().addVectors(currentCar.object.position, rotatedFpvOffset);
-                    camera.position.lerp(targetFpvCameraPos, 0.04); // ゆっくり追従でドリフト時の酔い軽減
-
-                    // 進行方向の遠くを見る（ドライバーの視線）
-                    const fpvLookAheadOffset = new THREE.Vector3(0, 0.8, -40).applyQuaternion(currentCar.object.quaternion);
+                    // 進行方向を見る（注視点のみ少しスムージング）
+                    const fpvLookAheadOffset = new THREE.Vector3(0, 0.5, -30).applyQuaternion(currentCar.object.quaternion);
                     const fpvLookAtPoint = new THREE.Vector3().addVectors(currentCar.object.position, fpvLookAheadOffset);
-                    // 注視点もゆっくり追従
                     if (!camera.userData.fpvLookTarget) camera.userData.fpvLookTarget = fpvLookAtPoint.clone();
-                    camera.userData.fpvLookTarget.lerp(fpvLookAtPoint, 0.04);
+                    camera.userData.fpvLookTarget.lerp(fpvLookAtPoint, 0.15);
                     camera.lookAt(camera.userData.fpvLookTarget);
 
-                    camera.fov = 80; // やや広角でスピード感
+                    camera.fov = 80;
                     camera.updateProjectionMatrix();
 
                     break;

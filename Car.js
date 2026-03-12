@@ -1928,23 +1928,22 @@ export class Car {
       this.overtakeDirection = this._calculateOvertakeDirection(targetCar);
   }
 
-  // 追走開始
+  // --- 状態遷移 ---
+
   startTandem(leader) {
       this.isTandemFollowing = true;
       this.tandemLeader = leader;
       leader.tandemFollower = this;
       this.tandemDuration = 0;
-      this.tandemMaxDuration = 600 + Math.floor(Math.random() * 900); // 10〜25秒
+      this.tandemMaxDuration = 600 + Math.floor(Math.random() * 900);
       this.originalSpeed = this.speed;
-      this.tandemTargetGap = 0.003 + Math.random() * 0.002; // 車間距離を近めに（迫力ある追走）
-
-      // 追い抜きオフセットは残して徐々に戻す（急な動きを防止）
+      this.tandemTargetGap = 0.003 + Math.random() * 0.002;
       this.isOvertaking = false;
-      // overtakeProgress と overtakeDirection は保持 → TANDEM中に徐々に0に戻る
+      // overtakeProgress/Direction は保持 → _fadeOvertakeOffset で徐々に戻る
   }
 
-  // 追走終了 → 即座に追走 or 追い抜きを再判定
   endTandem(cars) {
+      // リーダーとの関係を解除
       if (this.tandemLeader) {
           this.tandemLeader.tandemFollower = null;
       }
@@ -1956,20 +1955,15 @@ export class Car {
 
       if (!cars) return;
 
-      // 前方の車を再チェック
+      // 前方車を再チェックして即座に次のモードへ遷移
       const { car: aheadCar, gap: aheadGap } = this.findCarAhead(cars);
       if (!aheadCar || aheadGap > Car.GAP.ENDTANDEM_CHECK) return;
+      if (aheadCar.speed > this.speed * 1.05) return; // 離れていく車は追わない
 
-      // 前の車が離れていく（自分より速い）→ 追いかけない
-      if (aheadCar.speed > this.speed * 1.05) return;
-
-      // 前の車がPASS or TANDEM中 → 無条件でTANDEM（速度問わず）
       if (this._isCarBusy(aheadCar)) {
-          this.startTandem(aheadCar);
-          return;
+          this.startTandem(aheadCar); // busy車 → 再TANDEM
+      } else {
+          this._startPass(aheadCar, 0.3); // 通常車 → PASS
       }
-
-      // 前方車が通常モード → 100% PASS（ブーストで抜く）
-      this._startPass(aheadCar, 0.3);
   }
 }

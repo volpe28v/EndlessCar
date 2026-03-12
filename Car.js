@@ -88,42 +88,6 @@ export class Car {
       this.tandemMaxDuration = 0;          // 追走最大継続フレーム数
       this.tandemTargetGap = 0;             // リーダーとの目標パス距離（startTandemで設定）
       this.originalSpeed = 0;              // 追走前の元の速度
-      
-      // 速度係数の計算（0〜1の範囲で正規化）
-      // 速度（km/h）に基づいた係数を計算
-      const speedKmh = this.speed * this.SPEED_TO_KMH; // 内部速度を km/h に変換
-      
-      // 速度範囲の定義
-      const slowSpeedMin = 100; // 低速範囲の下限 (km/h)
-      const slowSpeedMax = 130; // 低速範囲の上限 (km/h)
-      const fastSpeedMin = 150; // 高速範囲の下限 (km/h)
-      const fastSpeedMax = 180; // 高速範囲の上限 (km/h)
-      
-      // 速度に応じたドリフトスケーリング係数 
-      let speedScalingFactor;
-      
-      if (speedKmh <= 60) {
-          // 60km/h以下: ほぼドリフトなし
-          speedScalingFactor = 0.03; // 値を下げる (0.05→0.03)
-      } else if (speedKmh <= 80) {
-          // 60-80km/h: 最小ドリフト（0.03から0.1へ線形補間）- 値を下げる
-          speedScalingFactor = 0.03 + (speedKmh - 60) * (0.07 / 20);
-      } else if (speedKmh <= 100) {
-          // 80-100km/h: 小さめドリフト（0.1から0.2へ線形補間）- 値を下げる
-          speedScalingFactor = 0.1 + (speedKmh - 80) * (0.1 / 20);
-      } else if (speedKmh <= 130) {
-          // 100-130km/h: 控えめなドリフト（0.2から0.4へ線形補間）- 値を下げる
-          speedScalingFactor = 0.2 + (speedKmh - 100) * (0.2 / 30);
-      } else if (speedKmh <= 150) {
-          // 130-150km/h: 中くらいのドリフト（0.4から0.7へ線形補間）- 値を下げる
-          speedScalingFactor = 0.4 + (speedKmh - 130) * (0.3 / 20);
-      } else if (speedKmh <= 180) {
-          // 150-180km/h: 大きいドリフト（0.7から1.3へ線形補間）- 値を下げる
-          speedScalingFactor = 0.7 + (speedKmh - 150) * (0.6 / 30);
-      } else {
-          // 180km/h超: 最大ドリフト幅
-          speedScalingFactor = 1.3; // 値を下げる (2.0→1.3)
-      }
   }
   
   setOtherCars(otherCars) {
@@ -939,44 +903,8 @@ export class Car {
       // 追い抜き処理を実行（updateSpeedの後にブースト上乗せ）
       this.handleOvertaking(this.otherCars);
 
-      // 速度をkm/h単位に変換
-      const SPEED_TO_KMH = 450; // 内部速度からkm/hへの変換係数
-      const speedKmh = this.speed * SPEED_TO_KMH;
-      
-      // 速度範囲に基づくスケーリング係数を計算
-      let speedScalingFactor;
-      
-      // この車がドリフトスタイルを持っているかどうかをチェック
-      const isDriftStyleCar = this.drivingStyle && this.drivingStyle.useDrift;
-      
-      if (!isDriftStyleCar) {
-          // ドリフトしない車はほぼドリフトなし
-          speedScalingFactor = 0.01; // 極小のドリフト効果
-      } else {
-          // 速度に応じたスケーリング係数の決定 - 全体的に値を上げる
-          if (speedKmh <= 60) {
-              // 60km/h以下: ほぼドリフトなし
-              speedScalingFactor = 0.05; // 値を上げる (0.03→0.05)
-          } else if (speedKmh <= 80) {
-              // 60-80km/h: 最小ドリフト（0.05から0.15へ線形補間）- 値を上げる
-              speedScalingFactor = 0.05 + (speedKmh - 60) * (0.1 / 20);
-          } else if (speedKmh <= 100) {
-              // 80-100km/h: 小さめドリフト（0.15から0.3へ線形補間）- 値を上げる
-              speedScalingFactor = 0.15 + (speedKmh - 80) * (0.15 / 20);
-          } else if (speedKmh <= 130) {
-              // 100-130km/h: 控えめなドリフト（0.3から0.6へ線形補間）- 値を上げる
-              speedScalingFactor = 0.3 + (speedKmh - 100) * (0.3 / 30);
-          } else if (speedKmh <= 150) {
-              // 130-150km/h: 中くらいのドリフト（0.6から1.0へ線形補間）- 値を上げる
-              speedScalingFactor = 0.6 + (speedKmh - 130) * (0.4 / 20);
-          } else if (speedKmh <= 180) {
-              // 150-180km/h: 大きいドリフト（1.0から1.7へ線形補間）- 値を上げる
-              speedScalingFactor = 1.0 + (speedKmh - 150) * (0.7 / 30);
-          } else {
-              // 180km/h超: 最大ドリフト幅
-              speedScalingFactor = 1.7; // 値を上げる (1.3→1.7)
-          }
-      }
+      const speedKmh = this.speed * this.SPEED_TO_KMH;
+      const speedScalingFactor = this._calcDriftScalingFactor(speedKmh);
       
       // 位置を更新
       this.position += this.speed * 0.001;
@@ -1873,6 +1801,18 @@ export class Car {
       }
   }
   // --- ヘルパーメソッド ---
+
+  // 速度(km/h)に応じたドリフトスケーリング係数を計算
+  _calcDriftScalingFactor(speedKmh) {
+      if (!this.drivingStyle || !this.drivingStyle.useDrift) return 0.01;
+      if (speedKmh <= 60)  return 0.05;
+      if (speedKmh <= 80)  return 0.05 + (speedKmh - 60) * (0.1 / 20);
+      if (speedKmh <= 100) return 0.15 + (speedKmh - 80) * (0.15 / 20);
+      if (speedKmh <= 130) return 0.3 + (speedKmh - 100) * (0.3 / 30);
+      if (speedKmh <= 150) return 0.6 + (speedKmh - 130) * (0.4 / 20);
+      if (speedKmh <= 180) return 1.0 + (speedKmh - 150) * (0.7 / 30);
+      return 1.7;
+  }
 
   // 車がbusy状態か（PASS中/TANDEM中/TANDEMリーダー）
   _isCarBusy(car) {

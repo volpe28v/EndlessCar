@@ -1454,14 +1454,14 @@
                     // 車体に固定マウント（運転席位置）
                     const fpvOffset = new THREE.Vector3(0, 1.2, 0.0);
                     const rotatedFpvOffset = fpvOffset.clone().applyQuaternion(currentCar.object.quaternion);
-                    // 車体に直接固定（lerpなし）
+                    // 車体に直接固定
                     camera.position.copy(currentCar.object.position).add(rotatedFpvOffset);
 
-                    // 進行方向を見る（注視点のみ少しスムージング）
+                    // 進行方向を見る（注視点も少し遅延）
                     const fpvLookAheadOffset = new THREE.Vector3(0, 0.5, -30).applyQuaternion(currentCar.object.quaternion);
                     const fpvLookAtPoint = new THREE.Vector3().addVectors(currentCar.object.position, fpvLookAheadOffset);
                     if (!camera.userData.fpvLookTarget) camera.userData.fpvLookTarget = fpvLookAtPoint.clone();
-                    camera.userData.fpvLookTarget.lerp(fpvLookAtPoint, 0.15);
+                    camera.userData.fpvLookTarget.lerp(fpvLookAtPoint, 0.1);
                     camera.lookAt(camera.userData.fpvLookTarget);
 
                     camera.fov = 80;

@@ -180,7 +180,7 @@ export class Car {
 
       // === 共通マテリアル ===
       const bodyMat = new THREE.MeshPhongMaterial({ color: selectedColor.body, shininess: 120, specular: 0x444444 });
-      const glassMat = new THREE.MeshPhongMaterial({ color: 0x88CCFF, transparent: true, opacity: 0.35, shininess: 200, specular: 0xFFFFFF });
+      const glassMat = new THREE.MeshPhongMaterial({ color: 0x88CCFF, transparent: true, opacity: 0.0, shininess: 200, specular: 0xFFFFFF });
       const carbonMat = new THREE.MeshPhongMaterial({ color: 0x222222, shininess: 40, specular: 0x333333 });
       const darkMat = new THREE.MeshPhongMaterial({ color: 0x111111, shininess: 30 });
       const chromeMat = new THREE.MeshPhongMaterial({ color: 0xCCCCCC, shininess: 250, specular: 0xFFFFFF });

@@ -1,5 +1,4 @@
 // Car.js
-  // デバッグ用のログ
 function log(message) {
   console.log(`[${new Date().toISOString()}] ${message}`);
 }
@@ -1505,7 +1504,6 @@ export class Car {
       }
   }
 
-  // index と重複してるのでなんとかしたい
   calculateCurvature(t, samplePoints = 15, sampleDistance = 0.005) {
     const angles = [];
     
@@ -1550,7 +1548,6 @@ export class Car {
     return { angle: avgAngle, direction: tiltDirection };
   }
 
-  // index と重複してるのでなんとかしたい
   predictUpcomingCurve(currentPosition, lookAheadDistance = 0.05) {
     // 現在の位置から少し先の位置でのカーブ強度を取得
     const upcomingPos = (currentPosition + lookAheadDistance) % 1;
@@ -1773,16 +1770,10 @@ export class Car {
           return;
       }
 
-      // 後方詰まり → 100% PASS
+      // 後方詰まり → 100% PASS（速度差に関わらずブーストで抜く）
       if (carsCloselyBehind >= 1) {
-          if (this.speed > aheadCar.speed) {
-              this._startPass(aheadCar, 0);
-              this.overtakeProgress = Math.min(1.0, this.overtakeProgress + this.overtakePhaseSpeed);
-          } else {
-              // 自分が遅いがブーストで抜く
-              this._startPass(aheadCar, 0);
-              this.overtakeProgress = Math.min(1.0, this.overtakeProgress + this.overtakePhaseSpeed);
-          }
+          this._startPass(aheadCar, 0);
+          this.overtakeProgress = Math.min(1.0, this.overtakeProgress + this.overtakePhaseSpeed);
           return;
       }
 

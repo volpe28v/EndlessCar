@@ -905,17 +905,17 @@ export class Car {
   }
   
   update(deltaTime, isNight = false) {
-      // 追い抜き処理を実行（他の車の配列を使用）
-      this.handleOvertaking(this.otherCars);
-      
       // ヘッドライトは処理が重いので一旦オフ
       isNight = false;
       // ヘッドライトの更新
       this.updateHeadlights(isNight);
-      
-      // 速度を更新（カーブに応じて）
+
+      // 速度を更新（カーブに応じて）→ その後に追い抜き処理（ブースト上乗せ）
       this.updateSpeed();
-      
+
+      // 追い抜き処理を実行（updateSpeedの後にブースト上乗せ）
+      this.handleOvertaking(this.otherCars);
+
       // 速度をkm/h単位に変換
       const SPEED_TO_KMH = 450; // 内部速度からkm/hへの変換係数
       const speedKmh = this.speed * SPEED_TO_KMH;
@@ -1514,11 +1514,7 @@ export class Car {
   }
   
   updateSpeed() {
-      // 追走フォロワー中はリーダーに速度を合わせるため、ここでは更新しない
-      if (this.isTandemFollowing) return;
-
-      // PASS中はhandleOvertakingでブースト制御するため、ここでは更新しない
-      if (this.isOvertaking && this.overtakeTargetCar) return;
+      // TANDEM/PASS中もカーブ減速は適用する（モード別の速度制御はhandleOvertakingで上書き）
 
       // 現在のカーブ強度を取得
       const currentCurvature = this.calculateCurvature(this.position).angle;
@@ -1546,7 +1542,7 @@ export class Car {
       // 最低速度を設定（完全に止まらないように）
       this.targetSpeed = Math.max(this.MIN_SPEED * 1.2, this.MAX_SPEED * (curvatureSpeedFactor + brakingAdjustment));
 
-      // 速度を目標に近づける
+      // 速度を目標に近づける（TANDEM中も通常通り加減速する）
       const accelerationBoost = this.drivingStyle.cornerExitAggression * 0.2;
       if (this.speed < this.targetSpeed) {
           this.speed = Math.min(this.targetSpeed,
@@ -1691,22 +1687,14 @@ export class Car {
               // durationはリセットしない（追走自体は継続）
           }
 
-          // 目標間隔を維持（絶対に追い越さない）
+          // リーダーが近い場合のみ速度キャップ、遠い場合は通常走行
           const currentGap = Car.pathDelta(this.position, this.tandemLeader.position);
           const leaderSpeed = this.tandemLeader.speed;
-          if (currentGap <= 0.002) {
-              // リーダーに追いつきすぎ → 強制減速
-              this.speed = leaderSpeed * 0.5;
-          } else if (currentGap <= this.tandemTargetGap) {
-              // 目標距離以内 → リーダーと同速（それ以上近づかない）
-              this.speed = leaderSpeed;
-          } else {
-              // 目標より遠い → 接近するがMAX_SPEEDは超えない
-              const desiredSpeed = Math.min(this.MAX_SPEED, Math.max(this.originalSpeed, leaderSpeed * 1.05));
-              this.speed += (desiredSpeed - this.speed) * 0.15;
+          if (currentGap <= this.tandemTargetGap) {
+              // リーダーが近い → リーダー速度を超えないようキャップ（追い越し防止）
+              this.speed = Math.min(this.speed, leaderSpeed);
           }
-          // カーブでの速度制限も適用（リーダーに合わせつつ上限を守る）
-          this.speed = Math.min(this.speed, Math.max(leaderSpeed, this.MAX_SPEED * 0.9));
+          // リーダーが遠い → updateSpeed()の通常速度のまま（何もしない）
 
           // 追い抜きオフセットを徐々に解除（なめらかに）
           const returnSpeed = Math.max(0.003, this.overtakeProgress * 0.04);
@@ -1756,11 +1744,14 @@ export class Car {
               // 十分追い越した → 追い抜き完了、ラインに戻る
               this.overtakeTargetCar = null;
               this.overtakeDuration = 0;
+              // ブースト速度をリセット（MAX_SPEEDに戻す）
+              this.speed = Math.min(this.speed, this.MAX_SPEED);
               this._returnToLine();
           } else if (targetGap > 0.04) {
               // 対象から離されすぎた（検知範囲外） → 追い抜き諦め
               this.overtakeTargetCar = null;
               this.overtakeDuration = 0;
+              this.speed = Math.min(this.speed, this.MAX_SPEED);
               this._returnToLine();
           } else if (this.overtakeDuration > this.overtakeMaxDuration) {
               // 抜き切れないまま時間切れ → PASSを諦めてTANDEMに切り替え
@@ -1775,13 +1766,16 @@ export class Car {
           } else {
               // まだ追い抜き中 → オフセット維持 + スリップストリームターボ
               // 開始直後は強いブースト、時間経過で減衰
-              const turboDuration = 120; // ターボ持続フレーム（約2秒）
+              const turboDuration = 90; // ターボ持続フレーム（約1.5秒）
               const turboProgress = Math.min(1.0, this.overtakeDuration / turboDuration);
-              const turboMultiplier = 1.35 - turboProgress * 0.2; // 1.35x → 1.15x に減衰
-              const boostSpeed = this.overtakeTargetCar.speed * turboMultiplier;
-              if (this.speed < boostSpeed) {
-                  this.speed += (boostSpeed - this.speed) * 0.15;
-              }
+              const turboMultiplier = 1.12 - turboProgress * 0.05; // 1.12x → 1.07x に減衰
+              // ターゲットの速度ベースだが、自車MAX_SPEEDの110%を上限とする（複利膨張を防止）
+              const boostSpeed = Math.min(
+                  this.MAX_SPEED * 1.1,
+                  this.overtakeTargetCar.speed * turboMultiplier
+              );
+              // カーブ減速後の速度にブースト分を上乗せ
+              this.speed = Math.max(this.speed, boostSpeed);
               this.overtakeProgress = Math.min(1.0, this.overtakeProgress + this.overtakePhaseSpeed);
           }
           return;

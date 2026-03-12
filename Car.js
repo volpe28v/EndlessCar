@@ -5,6 +5,31 @@ function log(message) {
 }
 
 export class Car {
+  // 距離閾値定数
+  static GAP = {
+      OVERTAKE_COMPLETE: -0.01,   // 抜き切り判定
+      OVERTAKE_LOST: 0.04,        // 離されすぎ判定
+      TANDEM_BEHIND: -0.002,      // TANDEM追い越し判定
+      TANDEM_FAR: 0.08,           // TANDEM離れすぎ
+      AHEAD_BUSY: 0.02,           // 前方busy車のTANDEM判定距離
+      APPROACH: 0.018,            // 接近判定距離
+      FORCE_TANDEM: 0.01,         // 強制TANDEM距離
+      SLOW_DOWN: 0.015,           // 減速開始距離
+      BEHIND_CHECK: 0.015,        // 後方詰まり判定距離
+      FIND_AHEAD_MIN: 0.002,      // findCarAhead最小距離
+      FIND_AHEAD_MAX: 0.04,       // findCarAhead最大距離
+      ENDTANDEM_CHECK: 0.02,      // endTandem前方チェック距離
+      ENDTANDEM_PASS_START: 0.03, // endTandemでPASS開始する距離
+  };
+
+  // ターボブースト定数
+  static TURBO = {
+      DURATION: 90,               // 持続フレーム（約1.5秒）
+      INITIAL_MULT: 1.12,         // 初期倍率
+      DECAY: 0.05,                // 減衰量（1.12→1.07）
+      MAX_SPEED_RATIO: 1.1,       // MAX_SPEEDに対する上限比
+  };
+
   constructor(carPath) {
       this.carPath = carPath;
       this.position = 0;  // パス上の位置（0から1）
@@ -1637,7 +1662,7 @@ export class Car {
       for (const car of cars) {
           const tDelta = Car.pathDelta(myT, car.position);
           // 前方かつ検知範囲内
-          if (tDelta < 0.002 || tDelta > 0.04) continue;
+          if (tDelta < Car.GAP.FIND_AHEAD_MIN || tDelta > Car.GAP.FIND_AHEAD_MAX) continue;
 
           // 3D距離も確認（パス上は近くても実際は遠い場合がある）
           const dx = car.object.position.x - this.object.position.x;
@@ -1667,7 +1692,7 @@ export class Car {
 
           const gap = Car.pathDelta(this.position, this.tandemLeader.position);
 
-          if (gap < -0.002 || gap > 0.08) {
+          if (gap < Car.GAP.TANDEM_BEHIND || gap > Car.GAP.TANDEM_FAR) {
               this.endTandem(cars);
               return;
           }
@@ -1709,13 +1734,13 @@ export class Car {
       const carsCloselyBehind = cars.filter(c => {
           if (c === this || c === this.tandemFollower) return false;
           const behindGap = Car.pathDelta(c.position, this.position);
-          return behindGap > 0 && behindGap < 0.015;
+          return behindGap > 0 && behindGap < Car.GAP.BEHIND_CHECK;
       }).length;
 
       // === 前の車がPASS or TANDEM中 → 距離が近ければ無条件でTANDEM（毎フレーム判定・最優先） ===
       // ただし後ろに車が詰まっている場合はPASSを許可（接近判定に流す）
       // 前の車が自分より速い（離れていく）場合は何もしない
-      if (aheadCar && aheadGap < 0.02 && carsCloselyBehind === 0 && this.speed >= aheadCar.speed) {
+      if (aheadCar && aheadGap < Car.GAP.AHEAD_BUSY && carsCloselyBehind === 0 && this.speed >= aheadCar.speed) {
           const aheadIsBusy = aheadCar.isOvertaking || aheadCar.isTandemFollowing || aheadCar.tandemFollower;
           if (aheadIsBusy) {
               // PASS中だった場合はPASSを解除してTANDEMに切り替え
@@ -1736,14 +1761,14 @@ export class Car {
           const targetGap = Car.pathDelta(this.position, this.overtakeTargetCar.position);
           // targetGap > 0 → 対象はまだ前方、targetGap < 0 → 自分が前に出た
 
-          if (targetGap < -0.01) {
+          if (targetGap < Car.GAP.OVERTAKE_COMPLETE) {
               // 十分追い越した → 追い抜き完了、ラインに戻る
               this.overtakeTargetCar = null;
               this.overtakeDuration = 0;
               // ブースト速度をリセット（MAX_SPEEDに戻す）
               this.speed = Math.min(this.speed, this.MAX_SPEED);
               this._returnToLine();
-          } else if (targetGap > 0.04) {
+          } else if (targetGap > Car.GAP.OVERTAKE_LOST) {
               // 対象から離されすぎた（検知範囲外） → 追い抜き諦め
               this.overtakeTargetCar = null;
               this.overtakeDuration = 0;
@@ -1754,7 +1779,7 @@ export class Car {
               // overtakeProgressは残してTANDEM中に徐々に戻す
               this.overtakeTargetCar = null;
               this.overtakeDuration = 0;
-              if (aheadCar && aheadGap < 0.03) {
+              if (aheadCar && aheadGap < Car.GAP.ENDTANDEM_PASS_START) {
                   this.startTandem(aheadCar);
               } else {
                   this._returnToLine();
@@ -1762,12 +1787,10 @@ export class Car {
           } else {
               // まだ追い抜き中 → オフセット維持 + スリップストリームターボ
               // 開始直後は強いブースト、時間経過で減衰
-              const turboDuration = 90; // ターボ持続フレーム（約1.5秒）
-              const turboProgress = Math.min(1.0, this.overtakeDuration / turboDuration);
-              const turboMultiplier = 1.12 - turboProgress * 0.05; // 1.12x → 1.07x に減衰
-              // ターゲットの速度ベースだが、自車MAX_SPEEDの110%を上限とする（複利膨張を防止）
+              const turboProgress = Math.min(1.0, this.overtakeDuration / Car.TURBO.DURATION);
+              const turboMultiplier = Car.TURBO.INITIAL_MULT - turboProgress * Car.TURBO.DECAY;
               const boostSpeed = Math.min(
-                  this.MAX_SPEED * 1.1,
+                  this.MAX_SPEED * Car.TURBO.MAX_SPEED_RATIO,
                   this.overtakeTargetCar.speed * turboMultiplier
               );
               // カーブ減速後の速度にブースト分を上乗せ
@@ -1791,7 +1814,7 @@ export class Car {
       }
 
       // === 一定距離まで近づいた時に判定：追走 or 追い抜き ===
-      const approachThreshold = 0.018; // この距離で判定発動
+      const approachThreshold = Car.GAP.APPROACH;
 
       // 判定対象が変わったらリセット
       if (this._approachTarget && this._approachTarget !== aheadCar) {
@@ -1850,20 +1873,20 @@ export class Car {
       // 判定対象から離れたらリセット（次の接近時に再判定可能に）
       if (this._approachJudged && this._approachTarget) {
           const targetGap = Car.pathDelta(this.position, this._approachTarget.position);
-          if (targetGap < -0.01 || targetGap > 0.04) {
+          if (targetGap < Car.GAP.OVERTAKE_COMPLETE || targetGap > Car.GAP.OVERTAKE_LOST) {
               this._approachJudged = false;
               this._approachTarget = null;
           }
       }
 
       // 距離が近すぎるがTANDEMでもPASSでもない → 強制的にTANDEMに入る
-      if (!this.isOvertaking && !this.isTandemFollowing && aheadGap < 0.01) {
+      if (!this.isOvertaking && !this.isTandemFollowing && aheadGap < Car.GAP.FORCE_TANDEM) {
           this.startTandem(aheadCar);
           return;
       }
 
       // TANDEM/PASSでもないが近い → 減速して距離を保つ
-      if (!this.isOvertaking && !this.isTandemFollowing && aheadGap < 0.015) {
+      if (!this.isOvertaking && !this.isTandemFollowing && aheadGap < Car.GAP.SLOW_DOWN) {
           this.speed += (aheadCar.speed * 0.95 - this.speed) * 0.05;
       }
   }
@@ -1910,7 +1933,7 @@ export class Car {
 
       // 前方の車を再チェック
       const { car: aheadCar, gap: aheadGap } = this.findCarAhead(cars);
-      if (!aheadCar || aheadGap > 0.02) return;
+      if (!aheadCar || aheadGap > Car.GAP.ENDTANDEM_CHECK) return;
 
       // 前の車が離れていく（自分より速い）→ 追いかけない
       if (aheadCar.speed > this.speed * 1.05) return;

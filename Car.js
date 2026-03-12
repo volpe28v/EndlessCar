@@ -47,7 +47,6 @@ export class Car {
       this.overtakeOffset = 5.0;           // 追い抜き時の横方向オフセット（車2台分）
       this.isOvertaking = false;           // 追い抜き中フラグ
       this.overtakeDirection = 0;          // 追い抜き方向（-1: 左, 1: 右）
-      this.overtakeTarget = null;          // 追い抜き対象の車
       this.overtakeTargetCar = null;       // 追い抜き中の対象（距離判定用）
       this._approachJudged = false;         // 接近時の追走/追い抜き判定済みフラグ
       this._approachTarget = null;          // 判定対象の車
@@ -62,8 +61,7 @@ export class Car {
       this.isTandemFollowing = false;      // 追走フォロワー中フラグ
       this.tandemDuration = 0;             // 追走継続フレーム数
       this.tandemMaxDuration = 0;          // 追走最大継続フレーム数
-      this.tandemCooldown = 0;             // 追走クールダウン（再発生防止）
-      this.tandemTargetGap = 0.006;        // リーダーとの目標パス距離（近い追走）
+      this.tandemTargetGap = 0;             // リーダーとの目標パス距離（startTandemで設定）
       this.originalSpeed = 0;              // 追走前の元の速度
       
       // 速度係数の計算（0〜1の範囲で正規化）
@@ -1657,8 +1655,6 @@ export class Car {
 
   // 追い抜き＆追走処理
   handleOvertaking(cars) {
-      if (this.tandemCooldown > 0) this.tandemCooldown--;
-
       // === 追走フォロワー中の処理 ===
       if (this.isTandemFollowing && this.tandemLeader) {
           this.tandemDuration++;
@@ -1808,8 +1804,6 @@ export class Car {
           this._approachJudged = true;
           this._approachTarget = aheadCar;
 
-          const canTandem = this.tandemCooldown <= 0;
-
           const isAlreadyBeingOvertaken = cars.some(c => c.isOvertaking && c.overtakeTargetCar === aheadCar);
 
           let tandemChance = 0.6;                                  // 通常 → 40% PASS
@@ -1821,16 +1815,13 @@ export class Car {
               // 後ろに詰まっていればPASSを許可（ブーストで抜く）
               if (carsCloselyBehind >= 1 && !isAlreadyBeingOvertaken) {
                   // PASSへ（下のtandemChance判定に流す）
-              } else if (canTandem) {
-                  this.startTandem(aheadCar);
-                  return;
               } else {
-                  this.speed += (aheadCar.speed * 0.95 - this.speed) * 0.05;
+                  this.startTandem(aheadCar);
                   return;
               }
           }
 
-          if (canTandem && Math.random() < tandemChance) {
+          if (Math.random() < tandemChance) {
               this.startTandem(aheadCar);
               return;
           } else if (isAlreadyBeingOvertaken) {
@@ -1906,14 +1897,12 @@ export class Car {
 
   // 追走終了 → 即座に追走 or 追い抜きを再判定
   endTandem(cars) {
-      const prevLeader = this.tandemLeader;
       if (this.tandemLeader) {
           this.tandemLeader.tandemFollower = null;
       }
       this.isTandemFollowing = false;
       this.tandemLeader = null;
       this.tandemDuration = 0;
-      this.tandemCooldown = 0; // クールダウンなし（即再判定）
       this._approachJudged = false;
       this._approachTarget = null;
 

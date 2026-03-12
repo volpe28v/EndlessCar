@@ -29,6 +29,14 @@ export class Car {
       MAX_SPEED_RATIO: 1.1,       // MAX_SPEEDに対する上限比
   };
 
+  // 追い抜き定数
+  static OVERTAKE = {
+      DISTANCE: 40.0,             // 前方の車を検知する距離
+      OFFSET: 5.0,                // 追い抜き時の横方向オフセット（車2台分）
+      PHASE_SPEED: 0.015,         // 追い越し進捗の更新速度
+      MAX_DURATION: 300,          // 追い抜き最大継続フレーム（約5秒）
+  };
+
   constructor(carPath) {
       this.carPath = carPath;
       this.position = 0;  // パス上の位置（0から1）
@@ -66,20 +74,9 @@ export class Car {
       this.ACCELERATION_RATE = 0.01 * this.specs.acceleration;
       this.DECELERATION_RATE = 0.02 * this.specs.handling;
       
-      // 追い抜き関連のパラメータ
-      this.overtakeDistance = 40.0;        // 前方の車を検知する距離
-      this.overtakeOffset = 5.0;           // 追い抜き時の横方向オフセット（車2台分）
+      // 追い抜き関連（状態をまたいで引き継がれるデータ）
       this.overtakeDirection = 0;          // 追い抜き方向（-1: 左, 1: 右）
-      this.overtakeTargetCar = null;       // 追い抜き中の対象（距離判定用）
       this.overtakeProgress = 0;           // 追い越し進捗（0.0 〜 1.0）
-      this.overtakePhaseSpeed = 0.015;     // 追い越し進捗の更新速度
-      this.overtakeDuration = 0;           // 追い抜き継続フレーム数
-      this.overtakeMaxDuration = 300;      // 追い抜き最大継続フレーム（約5秒）
-
-      // 追走ドリフト関連のパラメータ
-      this.tandemDuration = 0;             // 追走継続フレーム数
-      this.tandemMaxDuration = 0;          // 追走最大継続フレーム数
-      this.tandemTargetGap = 0;            // 前方車との目標パス距離
 
       // ステートパターン
       this._state = new NormalState(this);
@@ -971,7 +968,7 @@ export class Car {
       // 追い抜き用の追加オフセットを計算
       if (this.isOvertaking || this.overtakeProgress > 0) {
           const overtakeVector = new THREE.Vector3(-flatTangent.z, 0, flatTangent.x).normalize();
-          point.add(overtakeVector.multiplyScalar(this.overtakeOffset * this.overtakeDirection * this.overtakeProgress));
+          point.add(overtakeVector.multiplyScalar(Car.OVERTAKE.OFFSET * this.overtakeDirection * this.overtakeProgress));
       }
       
       // 車の高さは道路の高さに合わせる
@@ -1589,7 +1586,7 @@ export class Car {
           const dx = car.object.position.x - this.object.position.x;
           const dz = car.object.position.z - this.object.position.z;
           const dist3D = Math.sqrt(dx * dx + dz * dz);
-          if (dist3D > this.overtakeDistance) continue;
+          if (dist3D > Car.OVERTAKE.DISTANCE) continue;
 
           if (tDelta < nearestGap) {
               nearestGap = tDelta;
@@ -1621,6 +1618,13 @@ export class Car {
   get stateName() {
       return this._state.name;
   }
+  // index.html 互換 getter（TANDEM残り時間表示用）
+  get tandemDuration() {
+      return this._state instanceof TandemState ? this._state.duration : 0;
+  }
+  get tandemMaxDuration() {
+      return this._state instanceof TandemState ? this._state.maxDuration : 0;
+  }
 
   // --- ヘルパーメソッド ---
 
@@ -1650,15 +1654,9 @@ export class Car {
       }).length;
   }
 
-  // 追い抜き方向を計算（-1: 左, 1: 右）
-  _calculateOvertakeDirection(targetCar) {
-      const myDirection = new THREE.Vector3();
-      this.object.getWorldDirection(myDirection);
-      const rightVector = new THREE.Vector3(-myDirection.z, 0, myDirection.x);
-      const dx = targetCar.object.position.x - this.object.position.x;
-      const dz = targetCar.object.position.z - this.object.position.z;
-      const lateralDot = rightVector.dot(new THREE.Vector3(dx, 0, dz));
-      return lateralDot > 0 ? -1 : 1;
+  // 他車から参照される PASS ターゲット
+  get overtakeTargetCar() {
+      return this._state instanceof PassState ? this._state.target : null;
   }
 
   // 追い抜きオフセットを徐々に戻す
@@ -1667,7 +1665,6 @@ export class Car {
       this.overtakeProgress = Math.max(0, this.overtakeProgress - returnSpeed);
       if (this.overtakeProgress <= 0) {
           this.overtakeDirection = 0;
-          this.overtakeTargetCar = null;
       }
   }
 }
@@ -1702,7 +1699,7 @@ class NormalState extends CarState {
         // 前方busy車 → 無条件TANDEM（後方詰まりなし & 自分が速い場合）
         if (aheadGap < Car.GAP.AHEAD_BUSY && carsCloselyBehind === 0 && this.car.speed >= aheadCar.speed) {
             if (this.car._isCarBusy(aheadCar)) {
-                this.car.transitionTo(TandemState, { from: aheadGap });
+                this.car.transitionTo(TandemState);
                 return;
             }
         }
@@ -1780,20 +1777,16 @@ class TandemState extends CarState {
     get name() { return 'tandem'; }
 
     enter() {
-        this.car.tandemDuration = 0;
-        this.car.tandemMaxDuration = 600 + Math.floor(Math.random() * 900);
-        this.car.tandemTargetGap = 0.003 + Math.random() * 0.002;
-    }
-
-    exit() {
-        this.car.tandemDuration = 0;
+        this.duration = 0;
+        this.maxDuration = 600 + Math.floor(Math.random() * 900);
+        this.targetGap = 0.003 + Math.random() * 0.002;
     }
 
     update(cars) {
-        this.car.tandemDuration++;
+        this.duration++;
 
         // 時間切れ → 終了判定
-        if (this.car.tandemDuration > this.car.tandemMaxDuration) {
+        if (this.duration > this.maxDuration) {
             this._endTandem(cars);
             return;
         }
@@ -1807,7 +1800,7 @@ class TandemState extends CarState {
         }
 
         // 速度制御: 前方車が近い場合のみキャップ
-        if (gap <= this.car.tandemTargetGap) {
+        if (gap <= this.targetGap) {
             this.car.speed = Math.min(this.car.speed, ahead.speed);
         }
 
@@ -1838,17 +1831,13 @@ class PassState extends CarState {
     get name() { return 'pass'; }
 
     enter({ target, initialProgress = 0 } = {}) {
-        this.car.overtakeProgress = initialProgress;
-        this.car.overtakeDuration = 0;
-        this.car.overtakeTargetCar = target;
-        this.car.overtakeDirection = this.car._calculateOvertakeDirection(target);
-        // 初回進捗更新
-        this.car.overtakeProgress = Math.min(1.0, this.car.overtakeProgress + this.car.overtakePhaseSpeed);
+        this.target = target;
+        this.duration = 0;
+        this.car.overtakeProgress = Math.min(1.0, initialProgress + Car.OVERTAKE.PHASE_SPEED);
+        this.car.overtakeDirection = this._calculateDirection(target);
     }
 
     exit() {
-        this.car.overtakeTargetCar = null;
-        this.car.overtakeDuration = 0;
         this.car.speed = Math.min(this.car.speed, this.car.MAX_SPEED);
     }
 
@@ -1866,13 +1855,13 @@ class PassState extends CarState {
             }
         }
 
-        this.car.overtakeDuration++;
-        const targetGap = Car.pathDelta(this.car.position, this.car.overtakeTargetCar.position);
+        this.duration++;
+        const targetGap = Car.pathDelta(this.car.position, this.target.position);
 
         if (targetGap < Car.GAP.OVERTAKE_COMPLETE || targetGap > Car.GAP.OVERTAKE_LOST) {
             // 抜き切った or 離されすぎた → ライン戻し
             this.car.transitionTo(ReturningState);
-        } else if (this.car.overtakeDuration > this.car.overtakeMaxDuration) {
+        } else if (this.duration > Car.OVERTAKE.MAX_DURATION) {
             // 時間切れ → TANDEM or ライン戻し
             if (aheadCar && aheadGap < Car.GAP.ENDTANDEM_PASS_START) {
                 this.car.transitionTo(TandemState);
@@ -1881,15 +1870,26 @@ class PassState extends CarState {
             }
         } else {
             // 継続 → スリップストリームターボ
-            const turboProgress = Math.min(1.0, this.car.overtakeDuration / Car.TURBO.DURATION);
+            const turboProgress = Math.min(1.0, this.duration / Car.TURBO.DURATION);
             const turboMultiplier = Car.TURBO.INITIAL_MULT - turboProgress * Car.TURBO.DECAY;
             const boostSpeed = Math.min(
                 this.car.MAX_SPEED * Car.TURBO.MAX_SPEED_RATIO,
-                this.car.overtakeTargetCar.speed * turboMultiplier
+                this.target.speed * turboMultiplier
             );
             this.car.speed = Math.max(this.car.speed, boostSpeed);
-            this.car.overtakeProgress = Math.min(1.0, this.car.overtakeProgress + this.car.overtakePhaseSpeed);
+            this.car.overtakeProgress = Math.min(1.0, this.car.overtakeProgress + Car.OVERTAKE.PHASE_SPEED);
         }
+    }
+
+    // 追い抜き方向を計算（-1: 左, 1: 右）
+    _calculateDirection(targetCar) {
+        const myDirection = new THREE.Vector3();
+        this.car.object.getWorldDirection(myDirection);
+        const rightVector = new THREE.Vector3(-myDirection.z, 0, myDirection.x);
+        const dx = targetCar.object.position.x - this.car.object.position.x;
+        const dz = targetCar.object.position.z - this.car.object.position.z;
+        const lateralDot = rightVector.dot(new THREE.Vector3(dx, 0, dz));
+        return lateralDot > 0 ? -1 : 1;
     }
 }
 

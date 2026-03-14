@@ -163,6 +163,11 @@
         
         #timeWeatherInfo {
             display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .info-row {
+            display: flex;
             align-items: center;
             gap: 5px;
         }
@@ -452,10 +457,13 @@
     </div>
     <div id="info">
         <div id="timeWeatherInfo" style="font-family: 'Helvetica', sans-serif;">
-            <button id="timeToggleButton" title="現在の時刻に連動（クリックで切替）">🕒</button>
-            <span id="currentTime">--:--</span>
-            <span style="margin: 0 5px;">|</span>
-            <span id="currentWeatherText">-</span>
+            <div class="info-row">
+                <button id="timeToggleButton" title="現在の時刻に連動（クリックで切替）">🕒</button>
+                <span id="currentTime">--:--</span>
+            </div>
+            <div class="info-row">
+                <span id="currentWeatherText">-</span>
+            </div>
         </div>
     </div>
     <div id="race-ui" style="display:none;">

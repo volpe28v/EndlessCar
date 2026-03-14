@@ -129,7 +129,7 @@ export class Car {
       this.targetDriftDirection = 0; // 目標とするドリフト方向
       
       // 速度と表示用速度（km/h）の変換係数
-      this.SPEED_TO_KMH = 450; // 内部速度を km/h に変換する係数
+      this.SPEED_TO_KMH = 360; // 内部速度を km/h に変換する係数（HORIZONTAL_SCALE × 3.6）
       
       // ヘッドライト関連
       this.leftHeadlight = null;  // 左ヘッドライト

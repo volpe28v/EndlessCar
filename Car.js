@@ -142,8 +142,8 @@ export class Car {
       // スペックに基づいて速度制限を設定
       this.MIN_SPEED = 0.15 * this.specs.acceleration;
       this.MAX_SPEED = 0.4 * this.specs.topSpeed;
-      this.ACCELERATION_RATE = 0.01 * this.specs.acceleration;
-      this.DECELERATION_RATE = 0.02 * this.specs.handling;
+      this.ACCELERATION_RATE = 0.007 * this.specs.acceleration;
+      this.DECELERATION_RATE = 0.014 * this.specs.handling;
       
       // 追い抜き関連（状態をまたいで引き継がれるデータ）
       this.overtakeDirection = 0;          // 追い抜き方向（-1: 左, 1: 右）
@@ -1597,7 +1597,7 @@ export class Car {
               this.speed + (this.ACCELERATION_RATE * (1 + accelerationBoost)));
       } else if (this.speed > this.targetSpeed) {
           // 減速は加速より速く（ブレーキング感）
-          const brakingForce = this.DECELERATION_RATE * (1 + normalizedCurvature * 2);
+          const brakingForce = this.DECELERATION_RATE * (1 + normalizedCurvature * 1.5);
           this.speed = Math.max(this.targetSpeed, this.speed - brakingForce);
       }
   }
@@ -1956,10 +1956,13 @@ export class Car {
           const forwardDist = fwd.x * dx + fwd.z * dz;
           const lateralDist = Math.abs(right.x * dx + right.z * dz);
 
-          // --- 前方車への減速（従来ロジック）---
+          // --- 前方車への減速（近いほど急ブレーキ）---
           if (forwardDist > 0 && forwardDist <= Car.COLLISION.AHEAD_DIST && lateralDist <= laneWidth) {
               if (this.speed > other.speed) {
-                  if (forwardDist < Car.COLLISION.BRAKE_DIST) {
+                  if (forwardDist < Car.COLLISION.BRAKE_DIST * 0.4) {
+                      // 超接近: 相手より遅くして引き離す
+                      this.speed = Math.min(this.speed, Math.max(other.speed * 0.9, this.MIN_SPEED));
+                  } else if (forwardDist < Car.COLLISION.BRAKE_DIST) {
                       this.speed = Math.min(this.speed, Math.max(other.speed, this.MIN_SPEED));
                   } else {
                       const t = 1.0 - (forwardDist - Car.COLLISION.BRAKE_DIST) / (Car.COLLISION.AHEAD_DIST - Car.COLLISION.BRAKE_DIST);

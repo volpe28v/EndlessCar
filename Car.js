@@ -90,6 +90,9 @@ export class Car {
       SIDE_FORWARD: 6.0,          // 横並び検知の前後距離
       SIDE_LATERAL: 6.0,          // 横並び検知の横距離
       SIDE_BRAKE: 0.97,           // 横並び時の減速係数（遅い方に適用）
+      BODY_LENGTH: 6.0,           // 車体長（前後の重なり判定用）
+      BODY_WIDTH: 3.0,            // 車体幅（左右の重なり判定用）
+      EMERGENCY_DIST: 4.0,        // 3D緊急ブレーキ距離
   };
 
   static AVOIDANCE = {
@@ -1075,6 +1078,13 @@ export class Car {
           point.add(avoidVec.multiplyScalar(avoidanceOffset));
       }
 
+      // 緊急押し出し（3Dボックス重なり時）
+      if (this._emergencyPush && Math.abs(this._emergencyPush) > 0.01) {
+          const pushVec = new THREE.Vector3(-flatTangent.z, 0, flatTangent.x);
+          point.add(pushVec.multiplyScalar(this._emergencyPush));
+      }
+      this._emergencyPush = 0;
+
       // 車の高さは道路の高さに合わせる
       const carHeight = point.y + 0.3;
       
@@ -1975,10 +1985,21 @@ export class Car {
           // --- 横並び減速: 真横に近い車がいたら遅い方が引く ---
           if (Math.abs(forwardDist) < Car.COLLISION.SIDE_FORWARD
               && lateralDist > 0.5 && lateralDist < Car.COLLISION.SIDE_LATERAL) {
-              // 自分が遅い方 → さらに減速して後ろに下がる
               if (this.speed <= other.speed) {
                   this.speed = Math.max(this.MIN_SPEED, this.speed * Car.COLLISION.SIDE_BRAKE);
               }
+          }
+
+          // --- 3Dボックス重なり検知: 前後・左右とも車体内なら緊急ブレーキ ---
+          if (Math.abs(forwardDist) < Car.COLLISION.BODY_LENGTH
+              && lateralDist < Car.COLLISION.BODY_WIDTH) {
+              // 自分が後ろ側（または同位置）なら急減速
+              if (forwardDist >= 0) {
+                  this.speed = Math.min(this.speed, Math.max(other.speed * 0.85, this.MIN_SPEED));
+              }
+              // 前後問わず、横方向に押し出す力も即座に加える
+              this._emergencyPush = (this._emergencyPush || 0) +
+                  (lateralDist < 0.1 ? 0.3 : 0.15) * (right.x * dx + right.z * dz > 0 ? -1 : 1);
           }
       }
   }

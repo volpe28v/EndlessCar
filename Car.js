@@ -4,10 +4,32 @@ function log(message) {
 }
 
 export class Car {
+  static DRIVER_NAMES = [
+      'SCH', 'HAM', 'SEN', 'VET', 'RAI',
+      'ALN', 'MAN', 'PRO', 'LAU', 'CLK',
+      'FIT', 'HAK', 'RIC', 'PIQ', 'STW',
+      'HIL', 'VER', 'LEC', 'NOR', 'VIL',
+      'BAR', 'COU', 'BER', 'AND', 'ROS',
+      'BOT', 'SAI', 'GAS', 'OCO', 'TSU',
+      'PER', 'MAG', 'RUS', 'PIA', 'MAS',
+      'KUB', 'BUT', 'NAK', 'SAT', 'KOB',
+  ];
+  static _usedDriverNames = [];
+
+  static pickDriverName() {
+      if (Car._usedDriverNames.length >= Car.DRIVER_NAMES.length) {
+          Car._usedDriverNames = [];
+      }
+      const available = Car.DRIVER_NAMES.filter(n => !Car._usedDriverNames.includes(n));
+      const name = available[Math.floor(Math.random() * available.length)];
+      Car._usedDriverNames.push(name);
+      return name;
+  }
+
   // 距離閾値定数
   static GAP = {
       OVERTAKE_COMPLETE: -0.01,   // 抜き切り判定
-      OVERTAKE_LOST: 0.04,        // 離されすぎ判定
+      OVERTAKE_LOST: 0.06,        // 離されすぎ判定
       TANDEM_BEHIND: -0.002,      // TANDEM追い越し判定
       TANDEM_FAR: 0.08,           // TANDEM離れすぎ
       AHEAD_BUSY: 0.02,           // 前方busy車のTANDEM判定距離
@@ -23,12 +45,12 @@ export class Car {
 
   // ターボブースト定数
   static TURBO = {
-      DURATION: 120,              // 持続フレーム（約2秒）
-      INITIAL_MULT: 1.18,         // 初期倍率
-      DECAY: 0.06,                // 減衰量（1.18→1.12）
-      MAX_SPEED_RATIO: 1.15,      // MAX_SPEEDに対する上限比
-      RAMP_UP: 20,                // ブースト立ち上がりフレーム（約0.33秒）
-      SLIPSTREAM_BONUS: 0.06,     // TANDEM時間に応じた追加倍率（最大）
+      DURATION: 300,              // 持続フレーム（約5秒）
+      INITIAL_MULT: 1.20,         // 初期倍率
+      DECAY: 0.05,                // 減衰量（1.20→1.15）
+      MAX_SPEED_RATIO: 1.20,      // MAX_SPEEDに対する上限比
+      RAMP_UP: 10,                // ブースト立ち上がりフレーム（約0.17秒）
+      SLIPSTREAM_BONUS: 0.15,     // TANDEM時間に応じた追加倍率（最大）
   };
 
   // ライン戦略定数
@@ -56,7 +78,7 @@ export class Car {
 
   // スリップストリーム定数
   static SLIPSTREAM = {
-      CHARGE_RATE: 0.003,         // TANDEM中の蓄積速度
+      CHARGE_RATE: 0.001,         // TANDEM中の蓄積速度
   };
 
   // 接触回避定数
@@ -65,6 +87,17 @@ export class Car {
       LANE_WIDTH: 4.0,            // 同一ライン判定幅
       BRAKE_DIST: 8.0,            // この距離以下で強く減速
       FORCE_TANDEM_3D: 8.0,       // この3D距離以下でNORMALなら強制TANDEM
+      SIDE_FORWARD: 6.0,          // 横並び検知の前後距離
+      SIDE_LATERAL: 6.0,          // 横並び検知の横距離
+      SIDE_BRAKE: 0.97,           // 横並び時の減速係数（遅い方に適用）
+  };
+
+  static AVOIDANCE = {
+      RADIUS: 5.0,         // 回避発動距離(m) — XZ平面での横距離
+      MAX_PUSH: 0.25,      // 最大押し出し量(m/frame)
+      PATH_DIST_MAX: 0.08, // パス距離フィルタ（軽量な事前スキップ用）
+      SMOOTH_FACTOR: 0.4,  // EMA補間係数
+      OVERTAKE_DAMPING: 0.3, // PassState中の回避力減衰
   };
 
   // 追い抜き定数
@@ -72,7 +105,7 @@ export class Car {
       DISTANCE: 40.0,             // 前方の車を検知する距離
       OFFSET: 5.0,                // 追い抜き時の横方向オフセット（車2台分）
       PHASE_SPEED: 0.008,         // 追い越し進捗の更新速度
-      MAX_DURATION: 300,          // 追い抜き最大継続フレーム（約5秒）
+      MAX_DURATION: 720,          // 追い抜き最大継続フレーム（約12秒）
   };
 
   constructor(carPath) {
@@ -121,6 +154,7 @@ export class Car {
 
       this.frozen = false;
       this.gridLateralOffset = 0; // グリッド配置時の横オフセット（走行開始後に減衰）
+      this._avoidanceOffset = 0; // 横方向回避オフセット（EMA補間）
       this.raceRank = 0; // レース中の順位（0=レース外, 1=1位...）
       this.totalCars = 0; // レース参加台数
   }
@@ -226,7 +260,7 @@ export class Car {
 
       const selectedColor = colorSets[carTypeIndex][Math.floor(Math.random() * colorSets[carTypeIndex].length)];
       this.bodyColor = selectedColor.body;
-      this.carName = selectedColor.name;
+      this.driverName = Car.pickDriverName();
       log(`車種: ${carTypeNames[carTypeIndex]} / カラー: ${selectedColor.name} / ライン: ${this.drivingStyle.lineStrategy}`);
 
       // === 共通マテリアル ===
@@ -1033,7 +1067,14 @@ export class Car {
           const eased = t * t * (3 - 2 * t);
           point.add(overtakeVector.multiplyScalar(Car.OVERTAKE.OFFSET * this.overtakeDirection * eased));
       }
-      
+
+      // 横方向回避オフセット
+      const avoidanceOffset = this.calcLateralAvoidance(flatTangent);
+      if (Math.abs(avoidanceOffset) > 0.001) {
+          const avoidVec = new THREE.Vector3(-flatTangent.z, 0, flatTangent.x);
+          point.add(avoidVec.multiplyScalar(avoidanceOffset));
+      }
+
       // 車の高さは道路の高さに合わせる
       const carHeight = point.y + 0.3;
       
@@ -1815,6 +1856,11 @@ export class Car {
   get tandemDuration() {
       return this._state instanceof TandemState ? this._state.duration : 0;
   }
+  get slipstreamCharge() {
+      if (this._state instanceof TandemState) return this._state.slipstreamCharge;
+      if (this._state instanceof PassState) return this._state.slipstreamCharge;
+      return 0;
+  }
   get tandemMaxDuration() {
       return this._state instanceof TandemState ? this._state.maxDuration : 0;
   }
@@ -1852,17 +1898,51 @@ export class Car {
       return this._state instanceof PassState ? this._state.target : null;
   }
 
-  // 接触回避: 自分のライン前方に車がいたら減速
-  avoidCollision(otherCars) {
-      if (!this.object || !otherCars) return;
-
+  // 戻り先ライン上に車がいるか判定
+  isReturnPathBlocked(cars) {
+      if (!this.object || !cars || this.overtakeDirection === 0) return false;
       const myPos = this.object.position;
-      // パス接線から前方・横方向ベクトルを取得
       const tangent = this.carPath.getTangentAt(this.position);
       const fwd = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
       const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
 
-      // ReturningState（ライン復帰中）のみ判定幅を広げる（戻り中の交差を検知）
+      for (const other of cars) {
+          if (!other.object || other === this) continue;
+
+          // パス距離で前後の近い車だけチェック
+          let pathDist = Math.abs(this.position - other.position);
+          if (pathDist > 0.5) pathDist = 1.0 - pathDist;
+          if (pathDist > 0.015) continue;
+
+          const dx = other.object.position.x - myPos.x;
+          const dz = other.object.position.z - myPos.z;
+
+          // 前後距離: 車体長分程度（8m以内）
+          const forwardDist = fwd.x * dx + fwd.z * dz;
+          if (Math.abs(forwardDist) > 8.0) continue;
+
+          // 横距離: 元ライン側にいるか判定
+          const lateralDist = right.x * dx + right.z * dz;
+          // overtakeDirection=1 → 自分は右にオフセット → 元ラインは左(lateralDist<0)
+          // 元ライン付近（横3m以内）の車だけブロック対象
+          const towardReturn = -this.overtakeDirection * lateralDist;
+          if (towardReturn > 0 && towardReturn < 3.0) {
+              return true;
+          }
+      }
+      return false;
+  }
+
+  // 接触回避: 前方・横並びの車に対して減速
+  avoidCollision(otherCars) {
+      if (!this.object || !otherCars) return;
+
+      const myPos = this.object.position;
+      const tangent = this.carPath.getTangentAt(this.position);
+      const fwd = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
+      const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+
+      // ReturningState（ライン復帰中）のみ判定幅を広げる
       const laneWidth = this.isReturning
           ? Car.COLLISION.LANE_WIDTH + Car.OVERTAKE.OFFSET * this.overtakeProgress
           : Car.COLLISION.LANE_WIDTH;
@@ -1873,27 +1953,76 @@ export class Car {
           const dx = other.object.position.x - myPos.x;
           const dz = other.object.position.z - myPos.z;
 
-          // 前方距離（負=後方）
           const forwardDist = fwd.x * dx + fwd.z * dz;
-          if (forwardDist <= 0 || forwardDist > Car.COLLISION.AHEAD_DIST) continue;
-
-          // 横方向距離（自分のラインからのずれ）
           const lateralDist = Math.abs(right.x * dx + right.z * dz);
-          if (lateralDist > laneWidth) continue;
 
-          // 自分のライン上の前方に車がいる → 速い場合のみ減速
-          if (this.speed <= other.speed) continue;
+          // --- 前方車への減速（従来ロジック）---
+          if (forwardDist > 0 && forwardDist <= Car.COLLISION.AHEAD_DIST && lateralDist <= laneWidth) {
+              if (this.speed > other.speed) {
+                  if (forwardDist < Car.COLLISION.BRAKE_DIST) {
+                      this.speed = Math.min(this.speed, Math.max(other.speed, this.MIN_SPEED));
+                  } else {
+                      const t = 1.0 - (forwardDist - Car.COLLISION.BRAKE_DIST) / (Car.COLLISION.AHEAD_DIST - Car.COLLISION.BRAKE_DIST);
+                      const limitSpeed = other.speed + (this.speed - other.speed) * (1.0 - t);
+                      this.speed = Math.min(this.speed, Math.max(limitSpeed, this.MIN_SPEED));
+                  }
+              }
+          }
 
-          if (forwardDist < Car.COLLISION.BRAKE_DIST) {
-              // 近い: 相手の速度に合わせる
-              this.speed = Math.min(this.speed, Math.max(other.speed, this.MIN_SPEED));
-          } else {
-              // 遠い: 距離に応じて段階的に
-              const t = 1.0 - (forwardDist - Car.COLLISION.BRAKE_DIST) / (Car.COLLISION.AHEAD_DIST - Car.COLLISION.BRAKE_DIST);
-              const limitSpeed = other.speed + (this.speed - other.speed) * (1.0 - t);
-              this.speed = Math.min(this.speed, Math.max(limitSpeed, this.MIN_SPEED));
+          // --- 横並び減速: 真横に近い車がいたら遅い方が引く ---
+          if (Math.abs(forwardDist) < Car.COLLISION.SIDE_FORWARD
+              && lateralDist > 0.5 && lateralDist < Car.COLLISION.SIDE_LATERAL) {
+              // 自分が遅い方 → さらに減速して後ろに下がる
+              if (this.speed <= other.speed) {
+                  this.speed = Math.max(this.MIN_SPEED, this.speed * Car.COLLISION.SIDE_BRAKE);
+              }
           }
       }
+  }
+
+  calcLateralAvoidance(flatTangent) {
+      if (!this.object || !this.otherCars) return 0;
+
+      const AV = Car.AVOIDANCE;
+      const myPos = this.object.position;
+      const rightVec = new THREE.Vector3(-flatTangent.z, 0, flatTangent.x);
+
+      let totalPush = 0;
+
+      for (const other of this.otherCars) {
+          if (!other.object) continue;
+
+          // パス距離で粗くフィルタ（軽量な事前スキップ）
+          let pathDist = Math.abs(this.position - other.position);
+          if (pathDist > 0.5) pathDist = 1.0 - pathDist;
+          if (pathDist > AV.PATH_DIST_MAX) continue;
+
+          // XZ平面距離でフィルタ（高さ差は無関係）
+          const dx = other.object.position.x - myPos.x;
+          const dz = other.object.position.z - myPos.z;
+          const distXZSq = dx * dx + dz * dz;
+          if (distXZSq > AV.RADIUS * AV.RADIUS) continue;
+
+          // rightVecへの射影で横距離・方向を取得
+          const lateralSigned = rightVec.x * dx + rightVec.z * dz;
+          const lateralAbs = Math.abs(lateralSigned);
+          if (lateralAbs < 0.01) continue;
+
+          // 線形押し出し: 近いほど強い、相手と反対方向へ
+          const pushMag = (1.0 - lateralAbs / AV.RADIUS) * AV.MAX_PUSH;
+          totalPush += lateralSigned > 0 ? -pushMag : pushMag;
+      }
+
+      // PassState中のみ減衰（ReturningStateでは全力回避）
+      if (this._state instanceof PassState) {
+          totalPush *= AV.OVERTAKE_DAMPING;
+      }
+
+      // EMA補間 → クランプ
+      this._avoidanceOffset = this._avoidanceOffset * (1.0 - AV.SMOOTH_FACTOR) + totalPush * AV.SMOOTH_FACTOR;
+      this._avoidanceOffset = Math.max(-AV.MAX_PUSH, Math.min(AV.MAX_PUSH, this._avoidanceOffset));
+
+      return this._avoidanceOffset;
   }
 
   // 追い抜きオフセットを徐々に戻す
@@ -2020,7 +2149,7 @@ class NormalState extends CarState {
 class TandemState extends CarState {
     get name() { return 'tandem'; }
 
-    enter() {
+    enter({ slipstreamCharge = 0 } = {}) {
         this.duration = 0;
         // tandemPatience に応じて TANDEM 維持時間を設定
         // せっかち(0): 60-150f (1-2.5秒) / 普通(0.5): 150-300f (2.5-5秒) / 辛抱強い(1): 240-450f (4-7.5秒)
@@ -2029,8 +2158,8 @@ class TandemState extends CarState {
         const baseRange = 90 + Math.floor(patience * 210);
         this.maxDuration = baseMin + Math.floor(Math.random() * baseRange);
         this.targetGap = 0.003 + Math.random() * 0.002;
-        // スリップストリーム蓄積（TANDEM完了→PASS時のブースト強化に使用）
-        this.slipstreamCharge = 0;
+        // スリップストリーム蓄積（前回からの引き継ぎ対応）
+        this.slipstreamCharge = slipstreamCharge;
     }
 
     update(cars) {
@@ -2094,7 +2223,7 @@ class TandemState extends CarState {
         const passChance = 0.1 + rankFactor * 0.85;
 
         if (Math.random() > passChance) {
-            this.car.transitionTo(TandemState);
+            this.car.transitionTo(TandemState, { slipstreamCharge: this.slipstreamCharge });
         } else {
             this.car.transitionTo(PassState, {
                 target: aheadCar,
@@ -2125,27 +2254,28 @@ class PassState extends CarState {
         const { car: aheadCar, gap: aheadGap } = this.car.findCarAhead(cars);
         const carsCloselyBehind = this.car._countCarsCloselyBehind(cars);
 
-        // 前方busy車チェック（毎フレーム・最優先）
-        if (aheadCar && aheadGap < Car.GAP.AHEAD_BUSY && carsCloselyBehind === 0 && this.car.speed >= aheadCar.speed) {
+        // 前方busy車チェック（横にずれきってから判定）→ 滑らかに戻してからTANDEMへ
+        if (this.duration > 30 && aheadCar && aheadGap < Car.GAP.AHEAD_BUSY && carsCloselyBehind === 0 && this.car.speed >= aheadCar.speed) {
             if (this.car._isCarBusy(aheadCar)) {
-                this.car.overtakeProgress = 0;
-                this.car.overtakeDirection = 0;
-                this.car.transitionTo(TandemState);
+                this.car.transitionTo(ReturningState, { nextState: TandemState });
                 return;
             }
         }
 
         this.duration++;
         const targetGap = Car.pathDelta(this.car.position, this.target.position);
+        const forceReturn = this.duration > Car.OVERTAKE.MAX_DURATION * 2;
 
         if (targetGap < Car.GAP.OVERTAKE_COMPLETE || targetGap > Car.GAP.OVERTAKE_LOST) {
-            // 抜き切った or 離されすぎた → ライン戻し
-            this.car.transitionTo(ReturningState);
+            // 抜き切った or 離されすぎた → 戻り先が空くまでPASS継続
+            if (forceReturn || !this.car.isReturnPathBlocked(cars)) {
+                this.car.transitionTo(ReturningState);
+            }
         } else if (this.duration > Car.OVERTAKE.MAX_DURATION) {
-            // 時間切れ → TANDEM or ライン戻し
+            // 時間切れ → TANDEM or ライン戻し（戻り先チェック付き）
             if (aheadCar && aheadGap < Car.GAP.ENDTANDEM_PASS_START) {
                 this.car.transitionTo(TandemState);
-            } else {
+            } else if (forceReturn || !this.car.isReturnPathBlocked(cars)) {
                 this.car.transitionTo(ReturningState);
             }
         } else {
@@ -2153,13 +2283,13 @@ class PassState extends CarState {
             const turboProgress = Math.min(1.0, this.duration / Car.TURBO.DURATION);
             const slipBonus = this.slipstreamCharge * Car.TURBO.SLIPSTREAM_BONUS;
             const turboMultiplier = (Car.TURBO.INITIAL_MULT + slipBonus) - turboProgress * Car.TURBO.DECAY;
-            const boostSpeed = Math.min(
-                this.car.MAX_SPEED * (Car.TURBO.MAX_SPEED_RATIO + slipBonus),
-                this.target.speed * turboMultiplier
-            );
+            // 自車MAX_SPEEDベースとターゲット速度ベースの大きい方を採用
+            const boostFromMax = this.car.MAX_SPEED * (Car.TURBO.MAX_SPEED_RATIO + slipBonus);
+            const boostFromTarget = this.target.speed * turboMultiplier;
+            const boostSpeed = Math.min(boostFromMax, Math.max(boostFromTarget, this.car.MAX_SPEED * 1.10));
             // 立ち上がり: 現在速度からブースト速度へ素早くブレンド
             const rampRatio = Math.min(1.0, this.duration / Car.TURBO.RAMP_UP);
-            const blendFactor = rampRatio * 0.15;
+            const blendFactor = rampRatio * 0.3;
             const blendedSpeed = this.car.speed + (boostSpeed - this.car.speed) * blendFactor;
             this.car.speed = Math.max(this.car.speed, blendedSpeed);
             this.car.overtakeProgress = Math.min(1.0, this.car.overtakeProgress + Car.OVERTAKE.PHASE_SPEED);
@@ -2181,10 +2311,22 @@ class PassState extends CarState {
 class ReturningState extends CarState {
     get name() { return 'returning'; }
 
+    enter({ nextState = NormalState } = {}) {
+        this.blockedFrames = 0;
+        this.nextState = nextState;
+    }
+
     update(cars) {
+        // 戻り先に車がいる間はfadeを一時停止
+        if (this.car.isReturnPathBlocked(cars)) {
+            this.blockedFrames++;
+            // 長時間ブロックされたら強制fade（約5秒）
+            if (this.blockedFrames < 300) return;
+        }
+        this.blockedFrames = 0;
         this.car.fadeOvertakeOffset();
         if (this.car.overtakeProgress <= 0) {
-            this.car.transitionTo(NormalState);
+            this.car.transitionTo(this.nextState);
         }
     }
 }

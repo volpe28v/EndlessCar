@@ -393,7 +393,122 @@
         let timeSpeed = 0.01; // 時間の進み速度 (0.01 = 現実の100倍速)
         let isNight = false;
         let isNightMode = false;
-        let useRealTime = true; // デフォルトは現在時刻モード
+        // --- TimeModeState ステートパターン ---
+        class TimeModeState {
+            get name() { return ''; }
+            get icon() { return ''; }
+            get title() { return ''; }
+            enter() {}
+            exit() {}
+            getGameTime(gameTime, timeSpeed) { return gameTime; }
+            shouldAutoSwitch() { return false; }
+            shouldAutoChangeWeather() { return false; }
+            shouldShowWeatherText(isFromCurrentLocation) { return true; }
+            getTimeDisplayText(gameTime) { return ''; }
+            initWeather() {}
+        }
+
+        class RealtimeState extends TimeModeState {
+            get name() { return 'realtime'; }
+            get icon() { return '🕒'; }
+            get title() { return '現在の時刻に連動（クリックで切替）'; }
+            enter() {
+                lastWeatherChangeTime = Date.now();
+                weatherChangeInterval = 30000;
+                lastCameraChangeTime = Date.now();
+                cameraChangeInterval = 30000;
+                fetchCurrentWeather();
+            }
+            getGameTime(gameTime, timeSpeed) {
+                const now = new Date();
+                return now.getHours() + now.getMinutes() / 60;
+            }
+            shouldAutoSwitch() { return false; }
+            shouldShowWeatherText(isFromCurrentLocation) { return isFromCurrentLocation; }
+            getTimeDisplayText(gameTime) {
+                const now = new Date();
+                const hours = now.getHours().toString().padStart(2, '0');
+                const minutes = now.getMinutes().toString().padStart(2, '0');
+                return `${hours}:${minutes}`;
+            }
+            initWeather() {
+                fetchCurrentWeather();
+            }
+        }
+
+        class AutoModeState extends TimeModeState {
+            enter() {
+                updateWeatherDisplay(null, false);
+                lastWeatherChangeTime = Date.now();
+                weatherChangeInterval = 20000 + Math.random() * 20000;
+                lastCameraChangeTime = Date.now();
+                cameraChangeInterval = 10000 + Math.random() * 5000;
+                lastCarChangeTime = Date.now();
+                carChangeInterval = 20000 + Math.random() * 10000;
+            }
+            shouldAutoSwitch() { return true; }
+            shouldAutoChangeWeather() { return true; }
+            shouldShowWeatherText(isFromCurrentLocation) { return false; }
+            initWeather() {
+                const randomWeather = availableWeathers[Math.floor(Math.random() * availableWeathers.length)];
+                changeWeather(randomWeather);
+            }
+        }
+
+        class AutoState extends AutoModeState {
+            get name() { return 'auto'; }
+            get icon() { return '🔄'; }
+            get title() { return 'オート切替モード（クリックで切替）'; }
+            enter() {
+                super.enter();
+                fetchCurrentWeather();
+            }
+            shouldAutoChangeWeather() { return false; }
+            shouldShowWeatherText(isFromCurrentLocation) { return true; }
+            getGameTime(gameTime, timeSpeed) {
+                const now = new Date();
+                return now.getHours() + now.getMinutes() / 60;
+            }
+            getTimeDisplayText(gameTime) {
+                const now = new Date();
+                const hours = now.getHours().toString().padStart(2, '0');
+                const minutes = now.getMinutes().toString().padStart(2, '0');
+                return `${hours}:${minutes}`;
+            }
+        }
+
+        class FastForwardState extends AutoModeState {
+            get name() { return 'fastforward'; }
+            get icon() { return '⏩'; }
+            get title() { return '早送りモード（クリックで切替）'; }
+            getGameTime(gameTime, timeSpeed) {
+                return (gameTime + timeSpeed) % 24;
+            }
+            getTimeDisplayText(gameTime) {
+                const hours = Math.floor(gameTime).toString().padStart(2, '0');
+                const minutes = Math.floor((gameTime % 1) * 60).toString().padStart(2, '0');
+                return `${hours}:${minutes}`;
+            }
+        }
+
+        const TIME_MODE_CYCLE = [RealtimeState, AutoState, FastForwardState];
+
+        function transitionTimeTo(StateClass) {
+            timeModeState.exit();
+            timeModeState = new StateClass();
+            timeModeState.enter();
+        }
+
+        function toggleTimeMode() {
+            const currentIndex = TIME_MODE_CYCLE.findIndex(C => timeModeState instanceof C);
+            const nextIndex = (currentIndex + 1) % TIME_MODE_CYCLE.length;
+            transitionTimeTo(TIME_MODE_CYCLE[nextIndex]);
+            const btn = document.getElementById('timeToggleButton');
+            btn.textContent = timeModeState.icon;
+            btn.title = timeModeState.title;
+        }
+
+        let timeModeState = new RealtimeState();
         let lastCameraChangeTime = Date.now(); // 最後にカメラが変更された時刻
         let cameraChangeInterval = 30000; // カメラ変更の間隔（ミリ秒）
         let availableCameraModes = [0, 1, 2, 3, 4]; // 利用可能なカメラモード
@@ -420,14 +535,7 @@
         // 時間帯に応じた空の色と光の設定
         function updateDayNightCycle() {
             // 時間モードに応じて時間を更新
-            if (useRealTime) {
-                // 現在時刻を取得
-                const now = new Date();
-                gameTime = now.getHours() + now.getMinutes() / 60;
-            } else {
-                // アプリケーション内の時間を早回しで進める
-                gameTime = (gameTime + timeSpeed) % 24;
-            }
+            gameTime = timeModeState.getGameTime(gameTime, timeSpeed);
             
             updateTimeDisplay(); // 時刻表示を更新
             
@@ -1322,8 +1430,8 @@
             metrics.weather = performance.now() - lastCheck;
             lastCheck = performance.now();
             
-            // 早送りモード時の車の自動切り替え
-            if (!useRealTime && currentFrameTime - lastCarChangeTime > carChangeInterval) {
+            // オート・早送りモード時の車の自動切り替え
+            if (timeModeState.shouldAutoSwitch() && currentFrameTime - lastCarChangeTime > carChangeInterval) {
                 // 現在の車以外からランダムに選択
                 const availableCars = Array.from({length: cars.length}, (_, i) => i).filter(i => i !== currentCarIndex);
                 currentCarIndex = availableCars[Math.floor(Math.random() * availableCars.length)];
@@ -1621,36 +1729,9 @@
         // キーボードイベントを設定
         setupKeyboardControls();
 
-        // 時間モード切替ボタンのイベントリスナー
+        // 時間モード切替ボタンのイベントリスナー（3段階トグル: 🕒 → 🔄 → ⏩）
         document.getElementById('timeToggleButton').addEventListener('click', function() {
-            useRealTime = !useRealTime;
-            
-            // ボタンの表示を更新
-            if (useRealTime) {
-                this.textContent = '🕒';
-                this.title = '現在の時刻に連動（クリックで切替）';
-                
-                // 現実時間モードに戻ったら天気とカメラの自動変更をリセット
-                lastWeatherChangeTime = Date.now();
-                weatherChangeInterval = 30000;
-                lastCameraChangeTime = Date.now();
-                cameraChangeInterval = 30000;
-                
-                // 現在地点の天気を取得して反映
-                fetchCurrentWeather();
-            } else {
-                this.textContent = '⏩';
-                this.title = 'ゲーム内時間モード（クリックで切替）';
-                
-                // 早送りモードに入ったら天気表示を非表示に
-                updateWeatherDisplay(null, false);
-                
-                // 早送りモードに入ったら天気とカメラを自動更新開始
-                lastWeatherChangeTime = Date.now();
-                weatherChangeInterval = 20000 + Math.random() * 20000;
-                lastCameraChangeTime = Date.now();
-                cameraChangeInterval = 10000 + Math.random() * 5000;
-            }
+            toggleTimeMode();
         });
 
         // DOMContentLoadedイベントリスナーは削除（init関数に移動済み）
@@ -1702,14 +1783,7 @@
             scene.add(cloudParticles);
             
             // 初期天気の設定
-            if (useRealTime) {
-                // 現在地点の天気を取得して反映
-                fetchCurrentWeather();
-            } else {
-                // ランダムな天気を設定
-                const randomWeather = availableWeathers[Math.floor(Math.random() * availableWeathers.length)];
-                changeWeather(randomWeather);
-            }
+            timeModeState.initWeather();
         }
         
         // 天気を変更する関数
@@ -1835,11 +1909,10 @@
         
         // 天気の更新
         function updateWeather(deltaTime) {
-            // 早送りモード時の自動天気変更とカメラ切り替え
-            if (!useRealTime) {
-                const currentTime = Date.now();
-                
-                // 天気の自動変更
+            const currentTime = Date.now();
+
+            // 早送りモード時の天気自動変更
+            if (timeModeState.shouldAutoChangeWeather()) {
                 if (currentTime - lastWeatherChangeTime > weatherChangeInterval) {
                     const availableChoices = availableWeathers.filter(w => w !== currentWeather);
                     const nextWeather = availableChoices[Math.floor(Math.random() * availableChoices.length)];
@@ -1847,14 +1920,16 @@
                     lastWeatherChangeTime = currentTime;
                     weatherChangeInterval = 20000 + Math.random() * 20000;
                 }
-                
-                // カメラの自動切り替え
+            }
+
+            // オート・早送りモード時のカメラ自動切り替え
+            if (timeModeState.shouldAutoSwitch()) {
                 if (currentTime - lastCameraChangeTime > cameraChangeInterval) {
                     const availableViews = availableCameraModes.filter(mode => mode !== cameraMode);
                     const nextCameraMode = availableViews[Math.floor(Math.random() * availableViews.length)];
                     cameraMode = nextCameraMode;
                     updateCameraButtonState();
-                    
+
                     lastCameraChangeTime = currentTime;
                     cameraChangeInterval = 10000 + Math.random() * 5000;
                 }
@@ -2041,38 +2116,29 @@
         // 時刻表示を更新する関数
         function updateTimeDisplay() {
             const timeDisplay = document.getElementById('currentTime');
-            if (useRealTime) {
-                const now = new Date();
-                const hours = now.getHours().toString().padStart(2, '0');
-                const minutes = now.getMinutes().toString().padStart(2, '0');
-                timeDisplay.textContent = `${hours}:${minutes}`;
-            } else {
-                const hours = Math.floor(gameTime).toString().padStart(2, '0');
-                const minutes = Math.floor((gameTime % 1) * 60).toString().padStart(2, '0');
-                timeDisplay.textContent = `${hours}:${minutes}`;
-            }
+            timeDisplay.textContent = timeModeState.getTimeDisplayText(gameTime);
         }
 
         // 天気表示を更新する関数
         function updateWeatherDisplay(weather, isFromCurrentLocation = false, temperature = null, windSpeed = null) {
             const weatherDisplay = document.getElementById('currentWeatherText');
             
-            // 早送りモードまたは現在地からの天気でない場合は非表示
-            if (!useRealTime || !isFromCurrentLocation) {
+            // 各モードの表示判定に委譲
+            if (!timeModeState.shouldShowWeatherText(isFromCurrentLocation)) {
                 weatherDisplay.textContent = '-';
                 return;
             }
-            
+
             const weatherMap = {
                 'sunny': '☀️',
                 'cloudy': '☁️',
                 'rain': '🌧️',
                 'snow': '❄️'
             };
-            
+
             let displayText = weatherMap[weather] || '-';
-            displayText += ` ${Math.round(temperature)}℃`;
-            displayText += ` ${Math.round(windSpeed)}m/s `;
+            if (temperature !== null) displayText += ` ${Math.round(temperature)}℃`;
+            if (windSpeed !== null) displayText += ` ${Math.round(windSpeed)}m/s `;
             
             weatherDisplay.textContent = displayText;
         }

@@ -2307,7 +2307,17 @@ class TandemState extends CarState {
             this.slipstreamCharge = Math.min(1.0, this.slipstreamCharge + Car.SLIPSTREAM.CHARGE_RATE);
         }
 
-        // 時間切れ → 終了判定（PASS移行はここでのみ）
+        // スリップストリームMAX → 即PASS発動
+        if (this.slipstreamCharge >= 1.0 && ahead) {
+            this.car.transitionTo(PassState, {
+                target: ahead,
+                initialProgress: 0.3,
+                slipstreamCharge: this.slipstreamCharge,
+            });
+            return;
+        }
+
+        // 時間切れ → 終了判定
         if (this.duration > this.maxDuration) {
             this._endTandem(cars);
             return;
@@ -2403,19 +2413,21 @@ class PassState extends CarState {
                 this.car.transitionTo(ReturningState);
             }
         } else {
-            // 継続 → スリップストリームターボ（TANDEM蓄積量でブースト強化）
-            const turboProgress = Math.min(1.0, this.duration / Car.TURBO.DURATION);
-            const slipBonus = this.slipstreamCharge * Car.TURBO.SLIPSTREAM_BONUS;
-            const turboMultiplier = (Car.TURBO.INITIAL_MULT + slipBonus) - turboProgress * Car.TURBO.DECAY;
-            // 自車MAX_SPEEDベースとターゲット速度ベースの大きい方を採用
-            const boostFromMax = this.car.MAX_SPEED * (Car.TURBO.MAX_SPEED_RATIO + slipBonus);
-            const boostFromTarget = this.target.speed * turboMultiplier;
-            const boostSpeed = Math.min(boostFromMax, Math.max(boostFromTarget, this.car.MAX_SPEED * 1.10));
-            // 立ち上がり: 現在速度からブースト速度へ素早くブレンド
-            const rampRatio = Math.min(1.0, this.duration / Car.TURBO.RAMP_UP);
-            const blendFactor = rampRatio * 0.3;
-            const blendedSpeed = this.car.speed + (boostSpeed - this.car.speed) * blendFactor;
-            this.car.speed = Math.max(this.car.speed, blendedSpeed);
+            // 継続 → スリップストリーム蓄積量に応じたブースト
+            const slip = this.slipstreamCharge;
+            if (slip > 0.01) {
+                const turboProgress = Math.min(1.0, this.duration / Car.TURBO.DURATION);
+                // 蓄積量がブースト倍率を決める（0→等速、1→最大加速）
+                const boostMult = 1.0 + slip * Car.TURBO.SLIPSTREAM_BONUS - turboProgress * Car.TURBO.DECAY * slip;
+                const boostSpeed = Math.min(
+                    this.car.MAX_SPEED * (1.0 + slip * (Car.TURBO.MAX_SPEED_RATIO - 1.0)),
+                    this.target.speed * boostMult
+                );
+                const rampRatio = Math.min(1.0, this.duration / Car.TURBO.RAMP_UP);
+                const blendFactor = rampRatio * 0.3 * slip;
+                const blendedSpeed = this.car.speed + (boostSpeed - this.car.speed) * blendFactor;
+                this.car.speed = Math.max(this.car.speed, blendedSpeed);
+            }
             this.car.overtakeProgress = Math.min(1.0, this.car.overtakeProgress + Car.OVERTAKE.PHASE_SPEED);
         }
     }

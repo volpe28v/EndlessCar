@@ -460,6 +460,7 @@
             <div class="info-row">
                 <button id="timeToggleButton" title="現在の時刻に連動（クリックで切替）">🕒</button>
                 <span id="currentTime">--:--</span>
+                <span id="currentLocation"></span>
             </div>
             <div class="info-row">
                 <span id="currentWeatherText">-</span>
@@ -662,8 +663,8 @@
                     data.totalDistance = dist;
                 });
 
-                // Focus camera on pole position car
-                currentCarIndex = 0;
+                // Focus camera on last car (最後尾)
+                currentCarIndex = cars.length - 1;
                 this.predictedCar = null;
 
                 // Show prediction UI - let user pick a car before countdown
@@ -2070,7 +2071,7 @@
         
         // カメラモード（0: 俯瞰, 1: 追従, 2: 車載, 3: 斜め視点）
         let cameraMode = 3; // デフォルトを斜め視点モードに設定
-        let debugMode = true; // デバッグ表示（Dキーで切り替え）
+        let debugMode = false; // デバッグ表示（Dキーで切り替え）
         
         // カメラ位置の初期設定（斜め視点向け）
         camera.position.set(100, 70, 90); // 斜め視点の初期位置
@@ -2138,71 +2139,66 @@
                     ctx.clearRect(0, 0, 256, 96);
 
                     if (raceManager?.active) {
-                        // レース中: 順位表示
+                        // レース中: 順位は常に表示
                         const ranked = raceManager._cachedRanked || [];
                         const rank = ranked.findIndex(([c]) => c === car) + 1;
                         const colorHex = '#' + (car.bodyColor || 0xffffff).toString(16).padStart(6, '0');
                         const isPredicted = raceManager.predictedCar === car;
 
-                        // 1行目: 順位
                         ctx.font = 'bold 44px sans-serif';
                         ctx.textAlign = 'center';
                         ctx.fillStyle = rank <= 3 ? '#ffdd00' : '#ffffff';
-                        ctx.fillText('P' + rank, 128, 36);
+                        ctx.fillText('P' + rank, 128, debugMode ? 36 : 48);
 
-                        // 2行目: 状態/ライン戦略/速度 を詰めて中央表示
-                        let stateChar = 'N';
-                        let stateColor = '#888888';
-                        if (car.isOvertaking && !car.isReturning) { stateChar = 'P'; stateColor = '#ff8800'; }
-                        else if (car.isReturning) { stateChar = 'R'; stateColor = '#88aaff'; }
-                        else if (car.isTandemFollowing) { stateChar = 'T'; stateColor = '#00ff88'; }
+                        if (debugMode) {
+                            // デバッグ: 状態/ライン戦略/速度
+                            let stateChar = 'N';
+                            let stateColor = '#888888';
+                            if (car.isOvertaking && !car.isReturning) { stateChar = 'P'; stateColor = '#ff8800'; }
+                            else if (car.isReturning) { stateChar = 'R'; stateColor = '#88aaff'; }
+                            else if (car.isTandemFollowing) { stateChar = 'T'; stateColor = '#00ff88'; }
 
-                        const strategyLabels = { OUT_IN_OUT: 'OIO', LATE_APEX: 'LA', IN_IN_IN: 'III', WIDE_ENTRY: 'WE' };
-                        const strategyColors = { OUT_IN_OUT: '#44aaff', LATE_APEX: '#ffaa00', IN_IN_IN: '#ff4488', WIDE_ENTRY: '#aa44ff' };
-                        const strat = car.drivingStyle?.lineStrategy || '';
-                        const kmh = Math.round(car.speed * car.SPEED_TO_KMH);
-                        const infoText = stateChar + ' ' + (strategyLabels[strat] || '') + ' ' + kmh;
+                            const strategyLabels = { OUT_IN_OUT: 'OIO', LATE_APEX: 'LA', IN_IN_IN: 'III', WIDE_ENTRY: 'WE' };
+                            const strategyColors = { OUT_IN_OUT: '#44aaff', LATE_APEX: '#ffaa00', IN_IN_IN: '#ff4488', WIDE_ENTRY: '#aa44ff' };
+                            const strat = car.drivingStyle?.lineStrategy || '';
+                            const kmh = Math.round(car.speed * car.SPEED_TO_KMH);
+                            const infoText = stateChar + ' ' + (strategyLabels[strat] || '') + ' ' + kmh;
 
-                        ctx.font = 'bold 18px sans-serif';
-                        const totalW = ctx.measureText(infoText).width;
-                        let cx = 128 - totalW / 2;
-                        // 状態
-                        ctx.textAlign = 'left';
-                        ctx.fillStyle = stateColor;
-                        ctx.fillText(stateChar, cx, 56);
-                        cx += ctx.measureText(stateChar + ' ').width;
-                        // ライン戦略
-                        ctx.fillStyle = strategyColors[strat] || '#888888';
-                        const stratLabel = strategyLabels[strat] || '';
-                        ctx.fillText(stratLabel, cx, 56);
-                        cx += ctx.measureText(stratLabel + ' ').width;
-                        // 速度
-                        ctx.fillStyle = '#cccccc';
-                        ctx.fillText('' + kmh, cx, 56);
-                        ctx.textAlign = 'center';
+                            ctx.font = 'bold 18px sans-serif';
+                            const totalW = ctx.measureText(infoText).width;
+                            let cx = 128 - totalW / 2;
+                            ctx.textAlign = 'left';
+                            ctx.fillStyle = stateColor;
+                            ctx.fillText(stateChar, cx, 56);
+                            cx += ctx.measureText(stateChar + ' ').width;
+                            ctx.fillStyle = strategyColors[strat] || '#888888';
+                            const stratLabel = strategyLabels[strat] || '';
+                            ctx.fillText(stratLabel, cx, 56);
+                            cx += ctx.measureText(stratLabel + ' ').width;
+                            ctx.fillStyle = '#cccccc';
+                            ctx.fillText('' + kmh, cx, 56);
+                            ctx.textAlign = 'center';
 
-                        // スリップストリームバー（TANDEM/PASS中）
-                        const slip = car.slipstreamCharge;
-                        if (slip > 0) {
-                            const barX = 60, barY = 62, barW = 136, barH = 8;
-                            // 背景
-                            ctx.fillStyle = 'rgba(255,255,255,0.2)';
-                            ctx.fillRect(barX, barY, barW, barH);
-                            // ゲージ（蓄積量に応じて緑→黄→赤）
-                            const r = Math.floor(255 * slip);
-                            const g = Math.floor(255 * (1 - slip * 0.5));
-                            ctx.fillStyle = `rgb(${r},${g},0)`;
-                            ctx.fillRect(barX, barY, barW * slip, barH);
-                            // 枠
-                            ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-                            ctx.lineWidth = 1;
-                            ctx.strokeRect(barX, barY, barW, barH);
+                            // スリップストリームバー
+                            const slip = car.slipstreamCharge;
+                            if (slip > 0) {
+                                const barX = 60, barY = 62, barW = 136, barH = 8;
+                                ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                                ctx.fillRect(barX, barY, barW, barH);
+                                const r = Math.floor(255 * slip);
+                                const g = Math.floor(255 * (1 - slip * 0.5));
+                                ctx.fillStyle = `rgb(${r},${g},0)`;
+                                ctx.fillRect(barX, barY, barW * slip, barH);
+                                ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+                                ctx.lineWidth = 1;
+                                ctx.strokeRect(barX, barY, barW, barH);
+                            }
                         }
 
                         if (isPredicted) {
                             ctx.font = 'bold 18px sans-serif';
                             ctx.fillStyle = '#ffdd00';
-                            ctx.fillText('\u2605', 128, 82);
+                            ctx.fillText('\u2605', 128, debugMode ? 82 : 70);
                         }
                     } else if (debugMode) {
                         // 通常モード: レースと同様の表示（順位なし）
@@ -2963,9 +2959,14 @@
             if (currentHumidity !== null) displayText += ` 💧${currentHumidity}%`;
             if (windSpeed !== null) displayText += ` ${Math.round(windSpeed)}m/s`;
             if (currentPressure !== null) displayText += ` ${currentPressure}hPa`;
-            if (currentLocationName !== null) displayText += ` 📍${currentLocationName}`;
 
             weatherDisplay.textContent = displayText;
+
+            // 位置名は時間行に表示
+            const locEl = document.getElementById('currentLocation');
+            if (locEl) {
+                locEl.textContent = currentLocationName ? `📍${currentLocationName}` : '';
+            }
         }
 
         // 天気ボタンのイベントリスナーを修正

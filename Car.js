@@ -47,11 +47,18 @@ export class Car {
       WIDE_ENTRY: 0.06,   // やや長い
   };
 
+  // 接触回避定数
+  static COLLISION = {
+      AHEAD_DIST: 15.0,           // 前方チェック距離
+      LANE_WIDTH: 4.0,            // 同一ライン判定幅
+      BRAKE_DIST: 8.0,            // この距離以下で強く減速
+  };
+
   // 追い抜き定数
   static OVERTAKE = {
       DISTANCE: 40.0,             // 前方の車を検知する距離
       OFFSET: 5.0,                // 追い抜き時の横方向オフセット（車2台分）
-      PHASE_SPEED: 0.015,         // 追い越し進捗の更新速度
+      PHASE_SPEED: 0.008,         // 追い越し進捗の更新速度
       MAX_DURATION: 300,          // 追い抜き最大継続フレーム（約5秒）
   };
 
@@ -916,9 +923,12 @@ export class Car {
       // 追い抜き処理を実行（updateSpeedの後にブースト上乗せ）
       this.handleOvertaking(this.otherCars);
 
+      // 接触回避（速度制御）
+      this.avoidCollision(this.otherCars);
+
       const speedKmh = this.speed * this.SPEED_TO_KMH;
       const speedScalingFactor = this._calcDriftScalingFactor(speedKmh);
-      
+
       // 位置を更新
       this.position += this.speed * 0.001;
       if (this.position >= 1) this.position -= 1;
@@ -980,10 +990,13 @@ export class Car {
       // ライン取りを適用
       point.add(lineDirection.multiplyScalar(finalLineOffset));
       
-      // 追い抜き用の追加オフセットを計算
+      // 追い抜き用の追加オフセットを計算（イージングで滑らかに）
       if (this.isOvertaking || this.overtakeProgress > 0) {
           const overtakeVector = new THREE.Vector3(-flatTangent.z, 0, flatTangent.x).normalize();
-          point.add(overtakeVector.multiplyScalar(Car.OVERTAKE.OFFSET * this.overtakeDirection * this.overtakeProgress));
+          // smoothstep イージング: 出始めと到達時を緩やかに
+          const t = this.overtakeProgress;
+          const eased = t * t * (3 - 2 * t);
+          point.add(overtakeVector.multiplyScalar(Car.OVERTAKE.OFFSET * this.overtakeDirection * eased));
       }
       
       // 車の高さは道路の高さに合わせる
@@ -1801,6 +1814,45 @@ export class Car {
       return this._state instanceof PassState ? this._state.target : null;
   }
 
+  // 接触回避: 自分のライン前方に車がいたら減速
+  avoidCollision(otherCars) {
+      if (!this.object || !otherCars) return;
+
+      const myPos = this.object.position;
+      // パス接線から前方・横方向ベクトルを取得
+      const tangent = this.carPath.getTangentAt(this.position);
+      const fwd = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
+      const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+
+      for (const other of otherCars) {
+          if (!other.object) continue;
+
+          const dx = other.object.position.x - myPos.x;
+          const dz = other.object.position.z - myPos.z;
+
+          // 前方距離（負=後方）
+          const forwardDist = fwd.x * dx + fwd.z * dz;
+          if (forwardDist <= 0 || forwardDist > Car.COLLISION.AHEAD_DIST) continue;
+
+          // 横方向距離（自分のラインからのずれ）
+          const lateralDist = Math.abs(right.x * dx + right.z * dz);
+          if (lateralDist > Car.COLLISION.LANE_WIDTH) continue;
+
+          // 自分のライン上の前方に車がいる → 速い場合のみ減速
+          if (this.speed <= other.speed) continue;
+
+          if (forwardDist < Car.COLLISION.BRAKE_DIST) {
+              // 近い: 相手の速度に合わせる
+              this.speed = Math.min(this.speed, Math.max(other.speed, this.MIN_SPEED));
+          } else {
+              // 遠い: 距離に応じて段階的に
+              const t = 1.0 - (forwardDist - Car.COLLISION.BRAKE_DIST) / (Car.COLLISION.AHEAD_DIST - Car.COLLISION.BRAKE_DIST);
+              const limitSpeed = other.speed + (this.speed - other.speed) * (1.0 - t);
+              this.speed = Math.min(this.speed, Math.max(limitSpeed, this.MIN_SPEED));
+          }
+      }
+  }
+
   // 追い抜きオフセットを徐々に戻す
   fadeOvertakeOffset() {
       const returnSpeed = Math.max(0.003, this.overtakeProgress * 0.04);
@@ -2003,7 +2055,8 @@ class PassState extends CarState {
         this.target = target;
         this.duration = 0;
         this.slipstreamCharge = slipstreamCharge;
-        this.car.overtakeProgress = Math.min(1.0, initialProgress + Car.OVERTAKE.PHASE_SPEED);
+        // initialProgress は控えめに（滑らかな開始のため）
+        this.car.overtakeProgress = Math.min(1.0, Math.min(initialProgress, 0.1) + Car.OVERTAKE.PHASE_SPEED);
         this.car.overtakeDirection = this._calculateDirection(target);
     }
 

@@ -23,11 +23,28 @@ export class Car {
 
   // ターボブースト定数
   static TURBO = {
-      DURATION: 90,               // 持続フレーム（約1.5秒）
-      INITIAL_MULT: 1.12,         // 初期倍率
-      DECAY: 0.05,                // 減衰量（1.12→1.07）
-      MAX_SPEED_RATIO: 1.1,       // MAX_SPEEDに対する上限比
-      RAMP_UP: 30,                // ブースト立ち上がりフレーム（約0.5秒）
+      DURATION: 120,              // 持続フレーム（約2秒）
+      INITIAL_MULT: 1.18,         // 初期倍率
+      DECAY: 0.06,                // 減衰量（1.18→1.12）
+      MAX_SPEED_RATIO: 1.15,      // MAX_SPEEDに対する上限比
+      RAMP_UP: 20,                // ブースト立ち上がりフレーム（約0.33秒）
+      SLIPSTREAM_BONUS: 0.06,     // TANDEM時間に応じた追加倍率（最大）
+  };
+
+  // ライン戦略定数
+  static LINE_STRATEGY = {
+      OUT_IN_OUT: 'OUT_IN_OUT',   // 教科書ライン（アウト→イン→アウト）
+      LATE_APEX:  'LATE_APEX',    // レイトエイペックス（奥で切る、出口重視）
+      IN_IN_IN:   'IN_IN_IN',     // 最短距離／ブロックライン
+      WIDE_ENTRY: 'WIDE_ENTRY',   // ダイナミック（大きくアウトから急角度でイン）
+  };
+
+  // 戦略別の速度予測距離
+  static STRATEGY_LOOK_AHEAD = {
+      OUT_IN_OUT: 0.05,   // 標準
+      LATE_APEX:  0.03,   // 短い（遅めブレーキ）
+      IN_IN_IN:   0.07,   // 長い（早めブレーキ）
+      WIDE_ENTRY: 0.06,   // やや長い
   };
 
   // 追い抜き定数
@@ -136,7 +153,10 @@ export class Car {
           outInOutStrength: Math.random(),
 
           // 全車ドリフト
-          useDrift: true
+          useDrift: true,
+
+          // ライン戦略を割り当て
+          lineStrategy: this.selectLineStrategy(),
       };
 
       return style;
@@ -177,7 +197,7 @@ export class Car {
       ];
 
       const selectedColor = colorSets[carTypeIndex][Math.floor(Math.random() * colorSets[carTypeIndex].length)];
-      log(`車種: ${carTypeNames[carTypeIndex]} / カラー: ${selectedColor.name}`);
+      log(`車種: ${carTypeNames[carTypeIndex]} / カラー: ${selectedColor.name} / ライン: ${this.drivingStyle.lineStrategy}`);
 
       // === 共通マテリアル ===
       const bodyMat = new THREE.MeshPhongMaterial({ color: selectedColor.body, shininess: 120, specular: 0x444444 });
@@ -924,46 +944,40 @@ export class Car {
       const dirV2x = dirP2.x - dirP1.x, dirV2z = dirP2.z - dirP1.z;
       const curveTiltDirection = Math.sign(dirV1x * dirV2z - dirV1z * dirV2x) || 0;
       
-      // ラインどりの計算
-      const baseLineOffset = 0.5; // 基本のオフセット距離（メートル）
-      const linePreference = this.drivingStyle.linePreference; // 0: インコース、1: アウトコース
-      
-      // 次のカーブの方向を予測
-      const nextCurveData = this.calculateCurvature((this.position + 0.05) % 1);
-      const nextCurveDirection = nextCurveData.direction;
-      
-      // カーブの強さに応じたオフセット量の調整
+      // ラインどりの計算（戦略ベース）
+      const baseLineOffset = 2.5;
       const outInOutStrength = this.drivingStyle.outInOutStrength;
-      const lineOffset = baseLineOffset * (0.8 + outInOutStrength * 0.4);
-      
+      const lineOffset = baseLineOffset * (0.7 + outInOutStrength * 0.6);
+
       // カーブに応じたラインオフセットを計算
       const lineDirection = new THREE.Vector3().crossVectors(flatTangent, new THREE.Vector3(0, 1, 0)).normalize();
-      
-      // ラインの一貫性を考慮したオフセット量の計算
-      const consistencyFactor = 0.5 + this.drivingStyle.lineConsistency * 0.5;
-      const rawOffsetAmount = lineOffset * (linePreference * 2 - 1) * Math.min(1, curveAngle * 10);
-      const smoothedOffsetAmount = rawOffsetAmount * consistencyFactor;
-      
-      // カーブ進入時と出口でラインを調整
-      const transitionTiming = 0.05 + this.drivingStyle.lineTransitionTiming * 0.05;
-      const approachingCurve = this.predictUpcomingCurve(this.position, transitionTiming) > 0.1;
-      const exitingCurve = curveAngle < 0.1 && this.calculateCurvature((this.position - transitionTiming + 1) % 1).angle > 0.1;
-      
-      let finalLineOffset = smoothedOffsetAmount;
-      
-      if (approachingCurve) {
-          // カーブ進入時のライン取り
-          const transitionFactor = Math.min(1, curveAngle * (15 + this.drivingStyle.cornerEntryAggression * 10));
-          const entryOffset = lineOffset * nextCurveDirection * outInOutStrength;
-          finalLineOffset = entryOffset * (1 - transitionFactor) + smoothedOffsetAmount * transitionFactor;
-      } else if (exitingCurve) {
-          // カーブ出口でのライン取り
-          const exitFactor = Math.min(1, curveAngle * (10 + this.drivingStyle.cornerExitAggression * 10));
-          const exitOffset = -lineOffset * curveTiltDirection * outInOutStrength;
-          finalLineOffset = smoothedOffsetAmount * (1 - exitFactor) + exitOffset * exitFactor;
-      }
-      
-      // 通常のライン取りを適用
+
+      // 次のカーブの方向を予測（近方と遠方の2段階）
+      const nextCurveNear = this.calculateCurvature((this.position + 0.05) % 1);
+      const nextCurveFar = this.calculateCurvature((this.position + 0.10) % 1);
+      const nextCurveDirection = nextCurveNear.direction || nextCurveFar.direction;
+
+      // コーナーフェーズ判定
+      const cornerPhase = this.getCornerPhase(this.position, curveAngle);
+      this._currentPhase = cornerPhase.phase;
+
+      // 戦略別オフセット計算
+      const strategyOffset = this.calculateStrategyOffset(
+          cornerPhase.phase, curveAngle, curveTiltDirection, nextCurveDirection, lineOffset
+      );
+
+      // 前回のオフセットとスムーズに補間（急な切り替わりを防ぐ）
+      if (this._lastLineOffset === undefined) this._lastLineOffset = 0;
+      const diff = strategyOffset - this._lastLineOffset;
+      // 1フレームあたりの最大変化量を制限（大きな差でもゆっくり追従）
+      const maxChangePerFrame = 0.2;
+      const smoothed = Math.abs(diff) > maxChangePerFrame
+          ? this._lastLineOffset + Math.sign(diff) * maxChangePerFrame
+          : this._lastLineOffset + diff * 0.1;
+      this._lastLineOffset = smoothed;
+      const finalLineOffset = smoothed;
+
+      // ライン取りを適用
       point.add(lineDirection.multiplyScalar(finalLineOffset));
       
       // 追い抜き用の追加オフセットを計算
@@ -1463,8 +1477,9 @@ export class Car {
       // 現在のカーブ強度を取得
       const currentCurvature = this.calculateCurvature(this.position).angle;
       
-      // 前方のカーブ強度を予測
-      const upcomingCurvature = this.predictUpcomingCurve(this.position, 0.05);
+      // 前方のカーブ強度を予測（戦略によりlookAhead距離が異なる）
+      const lookAhead = Car.STRATEGY_LOOK_AHEAD[this.drivingStyle.lineStrategy] || 0.05;
+      const upcomingCurvature = this.predictUpcomingCurve(this.position, lookAhead);
       
       // カーブ強度に基づいて目標速度を計算
       // 現在の曲率と前方の曲率の大きい方を使う（ブレーキは早めに）
@@ -1547,7 +1562,133 @@ export class Car {
     const upcomingPos = (currentPosition + lookAheadDistance) % 1;
     const curvatureData = this.calculateCurvature(upcomingPos);
     return curvatureData.angle;
-}
+  }
+
+  // ライン戦略をランダムに選択
+  selectLineStrategy() {
+      const roll = Math.random();
+      if (roll < 0.35) return Car.LINE_STRATEGY.OUT_IN_OUT;
+      if (roll < 0.60) return Car.LINE_STRATEGY.LATE_APEX;
+      if (roll < 0.80) return Car.LINE_STRATEGY.IN_IN_IN;
+      return Car.LINE_STRATEGY.WIDE_ENTRY;
+  }
+
+  // コーナーフェーズを判定（approach / entry / mid / exit / straight）
+  getCornerPhase(position, curveAngle) {
+      const CURVE_THRESHOLD = 0.03;
+      const transitionTiming = 0.04 + this.drivingStyle.lineTransitionTiming * 0.06;
+
+      // 前方を2段階で見る（遠方と近方）
+      const aheadFar = this.predictUpcomingCurve(position, transitionTiming);
+      const aheadNear = this.predictUpcomingCurve(position, transitionTiming * 0.5);
+      const behindCurve = this.calculateCurvature((position - transitionTiming + 1) % 1).angle;
+
+      if (curveAngle < CURVE_THRESHOLD && aheadFar > CURVE_THRESHOLD) {
+          // 直線だが前方にカーブがある → approach
+          const progress = Math.min(1, aheadNear / 0.2);
+          return { phase: 'approach', progress };
+      }
+      if (curveAngle >= CURVE_THRESHOLD && behindCurve < CURVE_THRESHOLD) {
+          // カーブに入ったばかり → entry
+          const progress = Math.min(1, curveAngle / 0.2);
+          return { phase: 'entry', progress };
+      }
+      if (curveAngle >= CURVE_THRESHOLD) {
+          // カーブ中 → mid
+          const progress = Math.min(1, curveAngle / 0.2);
+          return { phase: 'mid', progress };
+      }
+      if (curveAngle < CURVE_THRESHOLD && behindCurve >= CURVE_THRESHOLD) {
+          // カーブを出たところ → exit
+          const progress = 1 - Math.min(1, behindCurve / 0.2);
+          return { phase: 'exit', progress };
+      }
+      return { phase: 'straight', progress: 0 };
+  }
+
+  // 戦略別のライン取りオフセットを計算
+  calculateStrategyOffset(phase, curveAngle, curveDirection, nextCurveDirection, lineOffset) {
+      const strategy = this.drivingStyle.lineStrategy;
+      // strength に最低保証（0.5〜1.0）で戦略差が埋もれないようにする
+      const strength = 0.5 + this.drivingStyle.outInOutStrength * 0.5;
+      const consistency = 0.5 + this.drivingStyle.lineConsistency * 0.5;
+      const pref = this.drivingStyle.linePreference;
+      // 基本オフセット（個体差、直線時に使用）
+      const baseOffset = lineOffset * (pref * 2 - 1) * Math.min(1, curveAngle * 10) * consistency * 0.3;
+      const dir = curveDirection || nextCurveDirection;
+
+      // カーブ強度に応じたスケーリング（緩いカーブでは控えめに）
+      const curveScale = Math.min(1, curveAngle / 0.08);
+
+      let rawOffset;
+      switch (strategy) {
+          case Car.LINE_STRATEGY.OUT_IN_OUT:
+              rawOffset = this._offsetOutInOut(phase, dir, lineOffset, strength, baseOffset);
+              break;
+          case Car.LINE_STRATEGY.LATE_APEX:
+              rawOffset = this._offsetLateApex(phase, dir, lineOffset, strength, baseOffset);
+              break;
+          case Car.LINE_STRATEGY.IN_IN_IN:
+              rawOffset = this._offsetInInIn(phase, dir, lineOffset, strength, baseOffset);
+              break;
+          case Car.LINE_STRATEGY.WIDE_ENTRY:
+              rawOffset = this._offsetWideEntry(phase, dir, lineOffset, strength, baseOffset);
+              break;
+          default:
+              rawOffset = baseOffset;
+      }
+
+      // approach/exit はカーブ手前・後なのでスケーリングせず、mid/entry はカーブ強度で調整
+      // IN_IN_IN は常にイン寄りなのでスケーリング不要
+      if ((phase === 'mid' || phase === 'entry') && strategy !== Car.LINE_STRATEGY.IN_IN_IN) {
+          return rawOffset * curveScale;
+      }
+      return rawOffset;
+  }
+
+  // OUT_IN_OUT: 教科書ライン（アウト→イン→アウト）
+  _offsetOutInOut(phase, dir, offset, strength, baseOffset) {
+      switch (phase) {
+          case 'approach': return -dir * offset * strength;         // アウト
+          case 'entry':    return -dir * offset * strength * 0.5;   // アウト→イン遷移
+          case 'mid':      return dir * offset * strength;          // イン
+          case 'exit':     return -dir * offset * strength * 0.6;   // アウトへ戻る
+          default:         return baseOffset;
+      }
+  }
+
+  // LATE_APEX: レイトエイペックス（アウト維持→奥で切る→直線的に加速）
+  _offsetLateApex(phase, dir, offset, strength, baseOffset) {
+      switch (phase) {
+          case 'approach': return -dir * offset * strength;         // アウト
+          case 'entry':    return -dir * offset * strength * 0.7;   // まだアウト寄り
+          case 'mid':      return dir * offset * strength;          // 奥で一気にイン
+          case 'exit':     return baseOffset * 0.3;                 // 直線的に戻る
+          default:         return baseOffset;
+      }
+  }
+
+  // IN_IN_IN: 最短距離／ブロックライン（常にイン寄り）
+  _offsetInInIn(phase, dir, offset, strength, baseOffset) {
+      switch (phase) {
+          case 'approach': return dir * offset * strength;          // イン
+          case 'entry':    return dir * offset * strength;          // イン
+          case 'mid':      return dir * offset * strength;          // イン
+          case 'exit':     return dir * offset * strength * 0.8;    // イン寄り維持
+          default:         return dir * offset * strength * 0.5;    // 直線でもイン寄り
+      }
+  }
+
+  // WIDE_ENTRY: ダイナミック（大きくアウトから急角度でイン）
+  _offsetWideEntry(phase, dir, offset, strength, baseOffset) {
+      switch (phase) {
+          case 'approach': return -dir * offset * strength * 1.5;   // 大きくアウト
+          case 'entry':    return -dir * offset * strength * 0.8;   // まだアウト
+          case 'mid':      return dir * offset * strength * 1.3;    // 急にイン
+          case 'exit':     return baseOffset * 0.4;                 // 自然に戻る
+          default:         return baseOffset;
+      }
+  }
 
   // ヘッドライトの制御
   updateHeadlights(isNight) {
@@ -1765,8 +1906,8 @@ class NormalState extends CarState {
             return;
         }
 
-        // 通常判定: TANDEM(60%) / PASS(40%)
-        if (Math.random() < 0.6) {
+        // 通常判定: TANDEM(40%) / PASS(60%)
+        if (Math.random() < 0.4) {
             this.car.transitionTo(TandemState, { from: aheadGap });
         } else {
             this.car.transitionTo(PassState, { target: aheadCar });
@@ -1779,24 +1920,47 @@ class TandemState extends CarState {
 
     enter() {
         this.duration = 0;
-        this.maxDuration = 600 + Math.floor(Math.random() * 900);
+        this.maxDuration = 300 + Math.floor(Math.random() * 600);
         this.targetGap = 0.003 + Math.random() * 0.002;
+        // スリップストリーム蓄積（PASS時のブースト強化に使用）
+        this.slipstreamCharge = 0;
+        // TANDEM中のPASS試行タイミング（最短120フレーム=2秒後から毎フレーム判定）
+        this.passAttemptMinFrames = 120 + Math.floor(Math.random() * 180);
     }
 
     update(cars) {
         this.duration++;
-
-        // 時間切れ → 終了判定
-        if (this.duration > this.maxDuration) {
-            this._endTandem(cars);
-            return;
-        }
 
         const { car: ahead, gap } = this.car.findCarAhead(cars);
 
         // 前方車なし or 距離異常 → NORMAL
         if (!ahead || gap < Car.GAP.TANDEM_BEHIND || gap > Car.GAP.TANDEM_FAR) {
             this.car.transitionTo(NormalState);
+            return;
+        }
+
+        // スリップストリーム蓄積（近いほど速く溜まる）
+        if (gap < this.targetGap * 2) {
+            this.slipstreamCharge = Math.min(1.0, this.slipstreamCharge + 0.003);
+        }
+
+        // TANDEM中にPASS試行（一定時間後から毎フレーム確率判定）
+        if (this.duration > this.passAttemptMinFrames && !this.car._isCarBusy(ahead)) {
+            // フレームあたり2%の確率でPASS発動（スリップ蓄積で確率アップ）
+            const passChance = 0.02 + this.slipstreamCharge * 0.03;
+            if (Math.random() < passChance) {
+                this.car.transitionTo(PassState, {
+                    target: ahead,
+                    initialProgress: 0.3,
+                    slipstreamCharge: this.slipstreamCharge,
+                });
+                return;
+            }
+        }
+
+        // 時間切れ → 終了判定
+        if (this.duration > this.maxDuration) {
+            this._endTandem(cars);
             return;
         }
 
@@ -1823,7 +1987,11 @@ class TandemState extends CarState {
         if (this.car._isCarBusy(aheadCar)) {
             this.car.transitionTo(TandemState);
         } else {
-            this.car.transitionTo(PassState, { target: aheadCar, initialProgress: 0.3 });
+            this.car.transitionTo(PassState, {
+                target: aheadCar,
+                initialProgress: 0.3,
+                slipstreamCharge: this.slipstreamCharge,
+            });
         }
     }
 }
@@ -1831,9 +1999,10 @@ class TandemState extends CarState {
 class PassState extends CarState {
     get name() { return 'pass'; }
 
-    enter({ target, initialProgress = 0 } = {}) {
+    enter({ target, initialProgress = 0, slipstreamCharge = 0 } = {}) {
         this.target = target;
         this.duration = 0;
+        this.slipstreamCharge = slipstreamCharge;
         this.car.overtakeProgress = Math.min(1.0, initialProgress + Car.OVERTAKE.PHASE_SPEED);
         this.car.overtakeDirection = this._calculateDirection(target);
     }
@@ -1870,16 +2039,18 @@ class PassState extends CarState {
                 this.car.transitionTo(ReturningState);
             }
         } else {
-            // 継続 → スリップストリームターボ（立ち上がり期間あり）
+            // 継続 → スリップストリームターボ（TANDEM蓄積量でブースト強化）
             const turboProgress = Math.min(1.0, this.duration / Car.TURBO.DURATION);
-            const turboMultiplier = Car.TURBO.INITIAL_MULT - turboProgress * Car.TURBO.DECAY;
+            const slipBonus = this.slipstreamCharge * Car.TURBO.SLIPSTREAM_BONUS;
+            const turboMultiplier = (Car.TURBO.INITIAL_MULT + slipBonus) - turboProgress * Car.TURBO.DECAY;
             const boostSpeed = Math.min(
-                this.car.MAX_SPEED * Car.TURBO.MAX_SPEED_RATIO,
+                this.car.MAX_SPEED * (Car.TURBO.MAX_SPEED_RATIO + slipBonus),
                 this.target.speed * turboMultiplier
             );
-            // 立ち上がり: 現在速度からブースト速度へ徐々にブレンド
+            // 立ち上がり: 現在速度からブースト速度へ素早くブレンド
             const rampRatio = Math.min(1.0, this.duration / Car.TURBO.RAMP_UP);
-            const blendedSpeed = this.car.speed + (boostSpeed - this.car.speed) * rampRatio * 0.1;
+            const blendFactor = rampRatio * 0.15;
+            const blendedSpeed = this.car.speed + (boostSpeed - this.car.speed) * blendFactor;
             this.car.speed = Math.max(this.car.speed, blendedSpeed);
             this.car.overtakeProgress = Math.min(1.0, this.car.overtakeProgress + Car.OVERTAKE.PHASE_SPEED);
         }

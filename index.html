@@ -1450,11 +1450,11 @@
                     if (!car._debugLabel) {
                         const canvas = document.createElement('canvas');
                         canvas.width = 256;
-                        canvas.height = 64;
+                        canvas.height = 96;
                         const texture = new THREE.CanvasTexture(canvas);
                         const material = new THREE.SpriteMaterial({ map: texture, depthTest: false });
                         const sprite = new THREE.Sprite(material);
-                        sprite.scale.set(10, 2.5, 1);
+                        sprite.scale.set(10, 3.75, 1);
                         scene.add(sprite);
                         car._debugLabel = sprite;
                         car._debugCanvas = canvas;
@@ -1463,7 +1463,24 @@
                     car._debugLabel.visible = true;
                     // ラベル更新
                     const ctx = car._debugCanvas.getContext('2d');
-                    ctx.clearRect(0, 0, 256, 64);
+                    ctx.clearRect(0, 0, 256, 96);
+
+                    // 1行目: ライン戦略 + 現在のフェーズ
+                    const strategy = car.drivingStyle.lineStrategy || '';
+                    const strategyColors = {
+                        'OUT_IN_OUT': '#44aaff',
+                        'LATE_APEX':  '#ffaa00',
+                        'IN_IN_IN':   '#ff4488',
+                        'WIDE_ENTRY': '#aa44ff',
+                    };
+                    const phase = car._currentPhase || '';
+                    const phaseLabel = phase && phase !== 'straight' ? ' [' + phase + ']' : '';
+                    ctx.font = 'bold 22px sans-serif';
+                    ctx.fillStyle = strategyColors[strategy] || '#ffffff';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(strategy + phaseLabel, 128, 24);
+
+                    // 2行目: 状態（TANDEM/PASS）
                     let label = '';
                     let color = '';
                     if (car.isTandemFollowing) {
@@ -1478,7 +1495,7 @@
                         ctx.font = 'bold 28px sans-serif';
                         ctx.fillStyle = color;
                         ctx.textAlign = 'center';
-                        ctx.fillText(label, 128, 42);
+                        ctx.fillText(label, 128, 60);
                     }
                     car._debugTexture.needsUpdate = true;
                     car._debugLabel.position.copy(car.object.position);

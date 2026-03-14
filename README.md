@@ -20,6 +20,32 @@ GitHub Pagesでホストしています：
 
 ブラウザでindex.htmlを開くだけで動作します。特別な操作は必要ありません。
 
+## ローカルでの立ち上げ方
+
+### 方法1: ローカルサーバーを使用（推奨）
+
+Python 3がインストールされている場合：
+
+```bash
+git clone https://github.com/volpe28v/EndlessCar.git
+cd EndlessCar
+python3 -m http.server 8000
+```
+
+ブラウザで http://localhost:8000 にアクセスしてください。
+
+### 方法2: Node.jsを使用
+
+```bash
+git clone https://github.com/volpe28v/EndlessCar.git
+cd EndlessCar
+npx serve .
+```
+
+### 方法3: ファイルを直接開く
+
+`index.html` をブラウザにドラッグ＆ドロップ、またはダブルクリックで開くこともできます。
+
 ## デプロイ方法
 
 GitHub Pagesを使用してデプロイするには：

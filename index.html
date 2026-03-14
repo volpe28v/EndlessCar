@@ -2066,15 +2066,21 @@
                 
                 const data = await response.json();
                 
-                // 気温と風速を取得
+                // 気象データを取得
                 const temperature = data.main.temp;
                 const windSpeed = data.wind.speed;
-                
-                // 気温と風速を保存
+                const humidity = data.main.humidity;
+                const pressure = data.main.pressure;
+                const locationName = data.name;
+
+                // 気象データを保存
                 currentTemperature = temperature;
                 currentWindSpeed = windSpeed;
-                
-                log(`気温: ${temperature}℃, 風速: ${windSpeed}m/s`);
+                currentHumidity = humidity;
+                currentPressure = pressure;
+                currentLocationName = locationName;
+
+                log(`${locationName} 気温: ${temperature}℃, 風速: ${windSpeed}m/s, 湿度: ${humidity}%, 気圧: ${pressure}hPa`);
                 
                 // 天気コードに基づいて天気を設定
                 const weatherCode = data.weather[0].id;
@@ -2122,7 +2128,7 @@
         // 天気表示を更新する関数
         function updateWeatherDisplay(weather, isFromCurrentLocation = false, temperature = null, windSpeed = null) {
             const weatherDisplay = document.getElementById('currentWeatherText');
-            
+
             // 各モードの表示判定に委譲
             if (!timeModeState.shouldShowWeatherText(isFromCurrentLocation)) {
                 weatherDisplay.textContent = '-';
@@ -2138,8 +2144,11 @@
 
             let displayText = weatherMap[weather] || '-';
             if (temperature !== null) displayText += ` ${Math.round(temperature)}℃`;
-            if (windSpeed !== null) displayText += ` ${Math.round(windSpeed)}m/s `;
-            
+            if (currentHumidity !== null) displayText += ` 💧${currentHumidity}%`;
+            if (windSpeed !== null) displayText += ` ${Math.round(windSpeed)}m/s`;
+            if (currentPressure !== null) displayText += ` ${currentPressure}hPa`;
+            if (currentLocationName !== null) displayText += ` 📍${currentLocationName}`;
+
             weatherDisplay.textContent = displayText;
         }
 
@@ -2177,6 +2186,9 @@
         // グローバル変数に気温と風速を追加
         let currentTemperature = null;
         let currentWindSpeed = null;
+        let currentHumidity = null;
+        let currentPressure = null;
+        let currentLocationName = null;
 
         // 雨のパーティクルシステムを作成
         function createRainParticles() {

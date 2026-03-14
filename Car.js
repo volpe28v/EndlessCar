@@ -57,8 +57,6 @@ export class Car {
   // スリップストリーム定数
   static SLIPSTREAM = {
       CHARGE_RATE: 0.003,         // TANDEM中の蓄積速度
-      PASS_BASE_CHANCE: 0.02,     // TANDEM中のPASS基本確率（/frame）
-      PASS_CHARGE_BONUS: 0.03,    // 蓄積による追加確率（/frame）
   };
 
   // 接触回避定数
@@ -66,6 +64,7 @@ export class Car {
       AHEAD_DIST: 15.0,           // 前方チェック距離
       LANE_WIDTH: 4.0,            // 同一ライン判定幅
       BRAKE_DIST: 8.0,            // この距離以下で強く減速
+      FORCE_TANDEM_3D: 8.0,       // この3D距離以下でNORMALなら強制TANDEM
   };
 
   // 追い抜き定数
@@ -172,6 +171,9 @@ export class Car {
 
           // 追加: アウトインアウトの強さ（0: 控えめ、1: 大胆）
           outInOutStrength: Math.random(),
+
+          // TANDEM忍耐度（0: せっかち=短め、1: 辛抱強い=長め）
+          tandemPatience: Math.random(),
 
           // 全車ドリフト
           useDrift: true,
@@ -1917,10 +1919,21 @@ class NormalState extends CarState {
         // 接近判定（1回限り）
         this._updateApproachJudgement(cars, aheadCar, aheadGap, carsCloselyBehind);
 
-        // 超接近 → 強制TANDEM
+        // 超接近 → 強制TANDEM（パス距離ベース）
         if (aheadGap < Car.GAP.FORCE_TANDEM) {
             this.car.transitionTo(TandemState, { from: aheadGap });
             return;
+        }
+
+        // 3D距離で超接近 → 強制TANDEM（パス距離では検知できないケースを補完）
+        if (aheadCar.object && this.car.object) {
+            const dx = aheadCar.object.position.x - this.car.object.position.x;
+            const dz = aheadCar.object.position.z - this.car.object.position.z;
+            const dist3D = Math.sqrt(dx * dx + dz * dz);
+            if (dist3D < Car.COLLISION.FORCE_TANDEM_3D) {
+                this.car.transitionTo(TandemState);
+                return;
+            }
         }
         // 減速は avoidCollision() に一本化（ここでは状態遷移のみ）
     }
@@ -1984,12 +1997,15 @@ class TandemState extends CarState {
 
     enter() {
         this.duration = 0;
-        this.maxDuration = 300 + Math.floor(Math.random() * 600);
+        // tandemPatience に応じて TANDEM 維持時間を設定
+        // せっかち(0): 120-300f (2-5秒) / 普通(0.5): 300-600f (5-10秒) / 辛抱強い(1): 480-900f (8-15秒)
+        const patience = this.car.drivingStyle.tandemPatience;
+        const baseMin = 120 + Math.floor(patience * 360);
+        const baseRange = 180 + Math.floor(patience * 420);
+        this.maxDuration = baseMin + Math.floor(Math.random() * baseRange);
         this.targetGap = 0.003 + Math.random() * 0.002;
-        // スリップストリーム蓄積（PASS時のブースト強化に使用）
+        // スリップストリーム蓄積（TANDEM完了→PASS時のブースト強化に使用）
         this.slipstreamCharge = 0;
-        // TANDEM中のPASS試行タイミング（最短120フレーム=2秒後から毎フレーム判定）
-        this.passAttemptMinFrames = 120 + Math.floor(Math.random() * 180);
     }
 
     update(cars) {
@@ -2008,20 +2024,7 @@ class TandemState extends CarState {
             this.slipstreamCharge = Math.min(1.0, this.slipstreamCharge + Car.SLIPSTREAM.CHARGE_RATE);
         }
 
-        // TANDEM中にPASS試行（一定時間後から毎フレーム確率判定）
-        if (this.duration > this.passAttemptMinFrames && !this.car._isCarBusy(ahead)) {
-            const passChance = Car.SLIPSTREAM.PASS_BASE_CHANCE + this.slipstreamCharge * Car.SLIPSTREAM.PASS_CHARGE_BONUS;
-            if (Math.random() < passChance) {
-                this.car.transitionTo(PassState, {
-                    target: ahead,
-                    initialProgress: 0.3,
-                    slipstreamCharge: this.slipstreamCharge,
-                });
-                return;
-            }
-        }
-
-        // 時間切れ → 終了判定
+        // 時間切れ → 終了判定（PASS移行はここでのみ）
         if (this.duration > this.maxDuration) {
             this._endTandem(cars);
             return;

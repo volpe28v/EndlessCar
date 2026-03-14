@@ -118,6 +118,11 @@ export class Car {
 
       // ステートパターン
       this._state = new NormalState(this);
+
+      this.frozen = false;
+      this.gridLateralOffset = 0; // グリッド配置時の横オフセット（走行開始後に減衰）
+      this.raceRank = 0; // レース中の順位（0=レース外, 1=1位...）
+      this.totalCars = 0; // レース参加台数
   }
   
   setOtherCars(otherCars) {
@@ -220,6 +225,8 @@ export class Car {
       ];
 
       const selectedColor = colorSets[carTypeIndex][Math.floor(Math.random() * colorSets[carTypeIndex].length)];
+      this.bodyColor = selectedColor.body;
+      this.carName = selectedColor.name;
       log(`車種: ${carTypeNames[carTypeIndex]} / カラー: ${selectedColor.name} / ライン: ${this.drivingStyle.lineStrategy}`);
 
       // === 共通マテリアル ===
@@ -930,6 +937,7 @@ export class Car {
   update(deltaTime, isNight = false) {
       // ヘッドライトは処理が重いので一旦オフ
       isNight = false;
+      if (this.frozen) { this.updateHeadlights(isNight); return; }
       // ヘッドライトの更新
       this.updateHeadlights(isNight);
 
@@ -1007,7 +1015,16 @@ export class Car {
 
       // ライン取りを適用
       point.add(lineDirection.multiplyScalar(finalLineOffset));
-      
+
+      // グリッド配置の横オフセット（走行開始後に減衰）
+      if (Math.abs(this.gridLateralOffset) > 0.01) {
+          const gridLineDir = new THREE.Vector3().crossVectors(flatTangent, new THREE.Vector3(0, 1, 0)).normalize();
+          point.add(gridLineDir.multiplyScalar(this.gridLateralOffset));
+          this.gridLateralOffset *= 0.97; // 徐々に減衰
+      } else {
+          this.gridLateralOffset = 0;
+      }
+
       // 追い抜き用の追加オフセットを計算（イージングで滑らかに）
       if (this.isOvertaking || this.overtakeProgress > 0) {
           const overtakeVector = new THREE.Vector3(-flatTangent.z, 0, flatTangent.x).normalize();
@@ -1785,6 +1802,9 @@ export class Car {
   get isOvertaking() {
       return this._state instanceof PassState || this._state instanceof ReturningState;
   }
+  get isReturning() {
+      return this._state instanceof ReturningState;
+  }
   get isTandemFollowing() {
       return this._state instanceof TandemState;
   }
@@ -1842,6 +1862,11 @@ export class Car {
       const fwd = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
       const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
 
+      // ReturningState（ライン復帰中）のみ判定幅を広げる（戻り中の交差を検知）
+      const laneWidth = this.isReturning
+          ? Car.COLLISION.LANE_WIDTH + Car.OVERTAKE.OFFSET * this.overtakeProgress
+          : Car.COLLISION.LANE_WIDTH;
+
       for (const other of otherCars) {
           if (!other.object) continue;
 
@@ -1854,7 +1879,7 @@ export class Car {
 
           // 横方向距離（自分のラインからのずれ）
           const lateralDist = Math.abs(right.x * dx + right.z * dz);
-          if (lateralDist > Car.COLLISION.LANE_WIDTH) continue;
+          if (lateralDist > laneWidth) continue;
 
           // 自分のライン上の前方に車がいる → 速い場合のみ減速
           if (this.speed <= other.speed) continue;
@@ -1873,7 +1898,7 @@ export class Car {
 
   // 追い抜きオフセットを徐々に戻す
   fadeOvertakeOffset() {
-      const returnSpeed = Math.max(0.003, this.overtakeProgress * 0.04);
+      const returnSpeed = Math.max(0.015, this.overtakeProgress * 0.08);
       this.overtakeProgress = Math.max(0, this.overtakeProgress - returnSpeed);
       if (this.overtakeProgress <= 0) {
           this.overtakeDirection = 0;
@@ -1998,10 +2023,10 @@ class TandemState extends CarState {
     enter() {
         this.duration = 0;
         // tandemPatience に応じて TANDEM 維持時間を設定
-        // せっかち(0): 120-300f (2-5秒) / 普通(0.5): 300-600f (5-10秒) / 辛抱強い(1): 480-900f (8-15秒)
+        // せっかち(0): 60-150f (1-2.5秒) / 普通(0.5): 150-300f (2.5-5秒) / 辛抱強い(1): 240-450f (4-7.5秒)
         const patience = this.car.drivingStyle.tandemPatience;
-        const baseMin = 120 + Math.floor(patience * 360);
-        const baseRange = 180 + Math.floor(patience * 420);
+        const baseMin = 60 + Math.floor(patience * 180);
+        const baseRange = 90 + Math.floor(patience * 210);
         this.maxDuration = baseMin + Math.floor(Math.random() * baseRange);
         this.targetGap = 0.003 + Math.random() * 0.002;
         // スリップストリーム蓄積（TANDEM完了→PASS時のブースト強化に使用）
@@ -2014,7 +2039,12 @@ class TandemState extends CarState {
         const { car: ahead, gap } = this.car.findCarAhead(cars);
 
         // 前方車なし or 距離異常 → NORMAL
-        if (!ahead || gap < Car.GAP.TANDEM_BEHIND || gap > Car.GAP.TANDEM_FAR) {
+        // 下位ほどTANDEM維持距離を広げる（1位: 0.08, 最下位: 0.14）
+        const rank = this.car.raceRank || 0;
+        const total = this.car.totalCars || 1;
+        const rf = rank > 0 ? (rank - 1) / Math.max(1, total - 1) : 0;
+        const tandemFar = Car.GAP.TANDEM_FAR + rf * 0.06;
+        if (!ahead || gap < Car.GAP.TANDEM_BEHIND || gap > tandemFar) {
             this.car.transitionTo(NormalState);
             return;
         }
@@ -2039,18 +2069,31 @@ class TandemState extends CarState {
     }
 
     _endTandem(cars) {
+        // 順位ベースのアグレッシブ度（0=1位, 1=最下位）
+        const rank = this.car.raceRank || 0;
+        const total = this.car.totalCars || 1;
+        const rankFactor = rank > 0 ? (rank - 1) / Math.max(1, total - 1) : 0;
+
         // 前方車を再チェックして即座に次のモードへ遷移
         const { car: aheadCar, gap: aheadGap } = this.car.findCarAhead(cars);
-        if (!aheadCar || aheadGap > Car.GAP.ENDTANDEM_CHECK) {
+        // 下位ほどgapチェックを緩和（1位: 0.02, 最下位: 0.06）
+        const endTandemCheck = Car.GAP.ENDTANDEM_CHECK + rankFactor * 0.04;
+        if (!aheadCar || aheadGap > endTandemCheck) {
             this.car.transitionTo(NormalState);
             return;
         }
-        if (aheadCar.speed > this.car.speed * 1.05) {
+        // 下位ほど速度差があってもPASSを仕掛ける（1位: 1.10, 最下位: 1.25）
+        const speedThreshold = 1.10 + rankFactor * 0.15;
+        if (aheadCar.speed > this.car.speed * speedThreshold) {
             this.car.transitionTo(NormalState);
             return;
         }
 
-        if (this.car._isCarBusy(aheadCar)) {
+        // 順位に応じたPASS確率（busy/non-busy問わず適用）
+        // 1位: 10%, 最下位: 95%
+        const passChance = 0.1 + rankFactor * 0.85;
+
+        if (Math.random() > passChance) {
             this.car.transitionTo(TandemState);
         } else {
             this.car.transitionTo(PassState, {

@@ -230,6 +230,193 @@
             width: 80px;
             margin: 0 5px;
         }
+
+        /* レースモード */
+        #race-ui {
+            position: absolute;
+            top: 140px;
+            left: 10px;
+            z-index: 10;
+        }
+        #race-position-board {
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 4px 6px;
+            border-radius: 5px;
+            font-size: 11px;
+            font-family: 'Helvetica', monospace;
+            width: 130px;
+        }
+        #race-position-board table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        #race-position-board th, #race-position-board td {
+            padding: 1px 3px;
+            text-align: left;
+        }
+        #race-position-board th {
+            border-bottom: 1px solid rgba(255,255,255,0.3);
+            font-size: 9px;
+            color: #aaa;
+        }
+        #race-position-board tr.current-car {
+            background-color: rgba(100, 100, 255, 0.3);
+        }
+        #race-lap-counter {
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 3px 6px;
+            border-radius: 5px;
+            font-size: 13px;
+            font-weight: bold;
+            margin-top: 3px;
+            text-align: center;
+            width: 130px;
+            box-sizing: border-box;
+        }
+        #race-countdown {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 120px;
+            font-weight: bold;
+            font-family: 'Helvetica', sans-serif;
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            text-shadow: 0 0 30px rgba(255,255,255,0.5);
+        }
+        #race-results {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            z-index: 1000;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Helvetica', sans-serif;
+        }
+        #race-results h2 {
+            font-size: 36px;
+            margin-bottom: 20px;
+        }
+        #race-results table {
+            border-collapse: collapse;
+            font-size: 16px;
+            min-width: 400px;
+        }
+        #race-results th, #race-results td {
+            padding: 6px 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+        #race-results th {
+            color: #aaa;
+            font-size: 13px;
+        }
+        #race-results .result-buttons {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        #race-results .result-buttons button {
+            background-color: rgba(100, 100, 255, 0.7);
+            color: white;
+            border: 1px solid white;
+            border-radius: 5px;
+            padding: 10px 24px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #race-results .result-buttons button:hover {
+            background-color: rgba(130, 130, 255, 0.9);
+        }
+        .fastest-lap {
+            color: #ff00ff;
+        }
+        #race-predict {
+            position: fixed;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            text-align: center;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-family: 'Helvetica', sans-serif;
+        }
+        #race-predict-text {
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+        #race-predict-confirm {
+            background-color: rgba(100, 100, 255, 0.7);
+            color: white;
+            border: 1px solid white;
+            border-radius: 5px;
+            padding: 8px 20px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        #race-predict-confirm:hover {
+            background-color: rgba(130, 130, 255, 0.9);
+        }
+        .predicted-car-marker {
+            color: #ffdd00;
+            font-weight: bold;
+        }
+        .race-auto-btn {
+            width: 130px;
+            box-sizing: border-box;
+            margin-top: 3px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: 1px solid white;
+            border-radius: 5px;
+            padding: 3px 6px;
+            font-size: 11px;
+            cursor: pointer;
+            text-align: center;
+        }
+        .race-auto-btn.active {
+            background-color: rgba(100, 100, 255, 0.7);
+        }
+        .race-auto-btn:hover {
+            background-color: rgba(50, 50, 50, 0.7);
+        }
+        #race-position-board {
+            pointer-events: auto;
+        }
+        #race-position-board tr:hover {
+            background-color: rgba(255, 255, 255, 0.15);
+        }
+        @media (max-width: 480px) {
+            #race-ui {
+                top: 110px;
+                left: 10px;
+            }
+            #race-position-board {
+                font-size: 10px;
+                width: 104px;
+            }
+            #race-lap-counter {
+                width: 104px;
+                font-size: 11px;
+            }
+            #race-countdown {
+                font-size: 80px;
+            }
+            #race-results table {
+                font-size: 13px;
+                min-width: auto;
+            }
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
     <script src="https://unpkg.com/picoaudio/dist/browser/PicoAudio.min.js"></script>
@@ -250,6 +437,10 @@
             <button class="viewButton weather-button" data-weather="rain" title="雨">🌧️</button>
             <button class="viewButton weather-button" data-weather="snow" title="雪">❄️</button>
         </div>
+        <div class="button-separator"></div>
+        <div class="button-group">
+            <button class="viewButton" id="raceButton" title="レースモード">Race</button>
+        </div>
     </div>
     <div id="bgmControl">
         <input type="range" id="bgmVolume" min="0" max="100" value="20" title="音量">
@@ -267,6 +458,17 @@
             <span id="currentWeatherText">-</span>
         </div>
     </div>
+    <div id="race-ui" style="display:none;">
+        <div id="race-position-board"></div>
+        <div id="race-lap-counter"></div>
+        <button id="race-auto-camera" class="race-auto-btn active" title="カメラ自動切替">Auto</button>
+    </div>
+    <div id="race-predict" style="display:none;">
+        <div id="race-predict-text">TAB / クリックで優勝予想を選択</div>
+        <button id="race-predict-confirm">この車に決定!</button>
+    </div>
+    <div id="race-countdown" style="display:none;"></div>
+    <div id="race-results" style="display:none;"></div>
     <script type="module">
         import { Car } from './Car.js';
         
@@ -360,6 +562,11 @@
                 if (car.object) {
                     scene.remove(car.object);
                 }
+                // デバッグラベルも削除
+                if (car._debugLabel) {
+                    scene.remove(car._debugLabel);
+                    car._debugLabel = null;
+                }
             }
             cars.length = 0;
             
@@ -378,6 +585,442 @@
             log(`${count}台の車を作成しました`);
         }
         
+        // === レースマネージャー ===
+        let raceManager = null;
+
+        class RaceManager {
+            constructor() {
+                this.phase = 'idle'; // 'idle' | 'grid' | 'countdown' | 'racing' | 'finished'
+                this.carData = new Map();
+                this.totalLaps = 3;
+                this.fastestLap = { time: Infinity, car: null };
+                this.raceStartTime = 0;
+                this.active = false;
+                this.autoCameraInterval = null;
+                this.autoCameraMode = true;
+                this.predictedCar = null;
+            }
+
+            get isActive() {
+                return this.active;
+            }
+
+            startRace() {
+                this.active = true;
+                this.phase = 'grid';
+                this.carData.clear();
+                this.fastestLap = { time: Infinity, car: null };
+
+                // Hide normal info, show race UI
+                document.getElementById('info').style.display = 'none';
+                document.getElementById('race-ui').style.display = 'block';
+                document.getElementById('race-results').style.display = 'none';
+
+                // Create 16 cars for race
+                createCars(16);
+
+                // Place cars on grid
+                this.placeOnGrid();
+
+                // Freeze all cars
+                for (const car of cars) {
+                    car.frozen = true;
+                    this.carData.set(car, {
+                        laps: 0,
+                        lapTimes: [],
+                        lapStartTime: 0,
+                        lastPosition: car.position,
+                        finished: false,
+                        finishTime: 0,
+                        gridPosition: 0,
+                        totalDistance: 0,
+                    });
+                }
+
+                // Set grid positions and initial totalDistance based on grid order
+                const polePosition = cars[0].position;
+                cars.forEach((car, i) => {
+                    const data = this.carData.get(car);
+                    data.gridPosition = i + 1;
+                    // Front cars get higher initial distance so grid order = ranking order
+                    let dist = car.position - polePosition;
+                    if (dist > 0.5) dist -= 1;
+                    if (dist < -0.5) dist += 1;
+                    data.totalDistance = dist;
+                });
+
+                // Focus camera on pole position car
+                currentCarIndex = 0;
+                this.predictedCar = null;
+
+                // Show prediction UI - let user pick a car before countdown
+                document.getElementById('race-predict').style.display = 'block';
+            }
+
+            confirmPrediction() {
+                this.predictedCar = cars[currentCarIndex];
+                document.getElementById('race-predict').style.display = 'none';
+                // Start countdown after prediction confirmed
+                setTimeout(() => this.startCountdown(), 500);
+            }
+
+            placeOnGrid() {
+                // Grid: 2 columns, 8 rows, staggered (F1-style)
+                const startPosition = 0.05;
+                const rowSpacing = 0.005;
+                const staggerOffset = 0.002; // right column slightly behind
+                const lateralOffset = 2.5; // meters left/right from center
+
+                for (let i = 0; i < cars.length; i++) {
+                    const row = Math.floor(i / 2);
+                    const col = i % 2; // 0 = left, 1 = right
+
+                    const car = cars[i];
+                    car.position = startPosition - row * rowSpacing - col * staggerOffset;
+                    if (car.position < 0) car.position += 1.0;
+
+                    // Set 3D position from path
+                    const point = car.carPath.getPointAt(car.position);
+                    const tangent = car.carPath.getTangentAt(car.position);
+
+                    // Calculate lateral offset and apply to 3D position
+                    const right = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+                    const offsetSign = (col === 0 ? -1 : 1);
+                    const offset = offsetSign * lateralOffset;
+
+                    car.object.position.set(
+                        point.x + right.x * offset,
+                        point.y,
+                        point.z + right.z * offset
+                    );
+
+                    // Store lateral offset so update() can maintain it initially
+                    car.gridLateralOffset = offset;
+
+                    // Face the car in the direction of the path
+                    const forward = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
+                    const up = new THREE.Vector3(0, 1, 0);
+                    const rightDir = new THREE.Vector3().crossVectors(forward, up).normalize();
+                    const rotMatrix = new THREE.Matrix4().makeBasis(rightDir, up, forward.clone().negate());
+                    car.object.quaternion.setFromRotationMatrix(rotMatrix);
+                }
+            }
+
+            startCountdown() {
+                this.phase = 'countdown';
+                const countdownEl = document.getElementById('race-countdown');
+                countdownEl.style.display = 'flex';
+
+                const steps = ['3', '2', '1', 'GO!'];
+                let step = 0;
+
+                const doStep = () => {
+                    if (step < steps.length) {
+                        countdownEl.textContent = steps[step];
+                        countdownEl.style.color = step < 3 ? '#ff4444' : '#44ff44';
+                        countdownEl.style.fontSize = step < 3 ? '120px' : '100px';
+                        step++;
+
+                        if (step <= steps.length) {
+                            setTimeout(doStep, 1000);
+                        }
+                    } else {
+                        // Hide countdown
+                        countdownEl.style.display = 'none';
+                    }
+                };
+
+                doStep();
+
+                // After "GO!" (3 seconds for 3,2,1 + show GO for 1 sec)
+                setTimeout(() => {
+                    this.phase = 'racing';
+                    this.raceStartTime = performance.now();
+
+                    // Unfreeze all cars and record lap start time
+                    for (const car of cars) {
+                        car.frozen = false;
+                        // Vary initial speed slightly to prevent bunching
+                        car.speed = car.MIN_SPEED + Math.random() * (car.MAX_SPEED - car.MIN_SPEED) * 0.3;
+                        const data = this.carData.get(car);
+                        data.lapStartTime = this.raceStartTime;
+                        data.lastPosition = car.position;
+                    }
+
+                    // Start auto camera switching
+                    this.startAutoCamera();
+                }, 3000);
+            }
+
+            updateRace() {
+                if (this.phase !== 'racing') return;
+
+                const now = performance.now();
+                let allFinished = true;
+
+                for (const car of cars) {
+                    const data = this.carData.get(car);
+                    if (data.finished) continue;
+                    allFinished = false;
+
+                    // Track cumulative distance
+                    const prev = data.lastPosition;
+                    const curr = car.position;
+                    let delta = curr - prev;
+                    if (delta < -0.5) delta += 1; // wrap around 0
+                    if (delta > 0.5) delta -= 1;  // backwards safety
+                    data.totalDistance += delta;
+
+                    if (prev > 0.8 && curr < 0.2) {
+                        // Completed a lap
+                        data.laps++;
+                        const lapTime = now - data.lapStartTime;
+                        data.lapTimes.push(lapTime);
+                        data.lapStartTime = now;
+
+                        // Check fastest lap
+                        if (lapTime < this.fastestLap.time) {
+                            this.fastestLap = { time: lapTime, car: car };
+                        }
+
+                        // Check if finished
+                        if (data.laps >= this.totalLaps) {
+                            data.finished = true;
+                            data.finishTime = now - this.raceStartTime;
+                        }
+                    }
+
+                    data.lastPosition = curr;
+                }
+
+                // Update race rank on each car (for aggressive PASS logic)
+                const ranked = this.getRankedCars();
+                ranked.forEach(([car], i) => {
+                    car.raceRank = i + 1;
+                    car.totalCars = cars.length;
+                });
+
+                // Check if all cars finished
+                if (allFinished || this.getFinishedCount() >= cars.length) {
+                    this.finishRace();
+                }
+            }
+
+            getFinishedCount() {
+                let count = 0;
+                for (const [, data] of this.carData) {
+                    if (data.finished) count++;
+                }
+                return count;
+            }
+
+            getRankedCars() {
+                const entries = Array.from(this.carData.entries());
+                return entries.sort((a, b) => {
+                    const da = a[1], db = b[1];
+                    // Finished cars first, sorted by finish time
+                    if (da.finished && db.finished) return da.finishTime - db.finishTime;
+                    if (da.finished) return -1;
+                    if (db.finished) return 1;
+                    // Sort by cumulative distance (accounts for grid position naturally)
+                    return db.totalDistance - da.totalDistance;
+                });
+            }
+
+            updateUI() {
+                if (!this.active) return;
+
+                const ranked = this.getRankedCars();
+                this._cachedRanked = ranked; // cache for 3D label rendering
+                const board = document.getElementById('race-position-board');
+                const lapCounter = document.getElementById('race-lap-counter');
+
+                // Position board
+                let html = '<table><tr><th>P</th><th>Car</th><th>Lap</th><th>Gap</th></tr>';
+                const leaderData = ranked[0]?.[1];
+
+                ranked.forEach(([car, data], i) => {
+                    const pos = i + 1;
+                    const colorHex = '#' + (car.bodyColor || 0xffffff).toString(16).padStart(6, '0');
+                    const isCurrent = cars.indexOf(car) === currentCarIndex;
+                    const rowClass = isCurrent ? ' class="current-car"' : '';
+
+                    let gap = '';
+                    if (i === 0) {
+                        gap = this.phase === 'racing' ? this.formatTime(performance.now() - this.raceStartTime) : '--';
+                    } else if (data.finished && leaderData?.finished) {
+                        gap = '+' + this.formatTime(data.finishTime - leaderData.finishTime);
+                    } else {
+                        const lapDiff = (leaderData?.laps || 0) - data.laps;
+                        if (lapDiff > 0) {
+                            gap = '+' + lapDiff + 'L';
+                        } else {
+                            // Position difference on same lap
+                            const posDiff = ((ranked[0]?.[0]?.position || 0) - car.position + 1) % 1;
+                            gap = '+' + (posDiff * 100).toFixed(1) + '%';
+                        }
+                    }
+
+                    const fastestMark = (this.fastestLap.car === car && data.lapTimes.length > 0) ? ' class="fastest-lap"' : '';
+                    const predictMark = (this.predictedCar === car) ? '<span class="predicted-car-marker">★</span>' : '';
+
+                    const carIdx = cars.indexOf(car);
+                    html += `<tr${rowClass} data-car-index="${carIdx}" style="cursor:pointer;"><td>${pos}</td><td>${predictMark}<span style="color:${colorHex};">■</span></td><td${fastestMark}>${data.laps}/${this.totalLaps}</td><td>${gap}</td></tr>`;
+                });
+
+                html += '</table>';
+                board.innerHTML = html;
+
+                // Lap counter - show current car's lap
+                const currentCar = cars[currentCarIndex];
+                if (currentCar) {
+                    const currentData = this.carData.get(currentCar);
+                    if (currentData) {
+                        lapCounter.textContent = `LAP ${Math.min(currentData.laps + 1, this.totalLaps)} / ${this.totalLaps}`;
+                    }
+                }
+            }
+
+            formatTime(ms) {
+                const totalSec = ms / 1000;
+                const min = Math.floor(totalSec / 60);
+                const sec = Math.floor(totalSec % 60);
+                const msec = Math.floor((totalSec % 1) * 1000);
+                if (min > 0) {
+                    return `${min}:${sec.toString().padStart(2, '0')}.${msec.toString().padStart(3, '0')}`;
+                }
+                return `${sec}.${msec.toString().padStart(3, '0')}`;
+            }
+
+            finishRace() {
+                this.phase = 'finished';
+                this.stopAutoCamera();
+
+                // Freeze all cars
+                for (const car of cars) {
+                    car.frozen = true;
+                }
+
+                // Show results
+                const results = document.getElementById('race-results');
+                const ranked = this.getRankedCars();
+
+                let html = '<h2>RACE RESULTS</h2>';
+                html += '<table><tr><th>Pos</th><th>Car</th><th>Time</th><th>Best Lap</th></tr>';
+
+                ranked.forEach(([car, data], i) => {
+                    const pos = i + 1;
+                    const colorHex = '#' + (car.bodyColor || 0xffffff).toString(16).padStart(6, '0');
+                    const time = data.finished ? this.formatTime(data.finishTime) : `DNF (${data.laps}L)`;
+                    const bestLap = data.lapTimes.length > 0 ? this.formatTime(Math.min(...data.lapTimes)) : '--';
+                    const isFastest = this.fastestLap.car === car && data.lapTimes.length > 0;
+                    const bestLapClass = isFastest ? ' class="fastest-lap"' : '';
+
+                    const resPredictMark = (this.predictedCar === car) ? '<span class="predicted-car-marker">★</span>' : '';
+                    html += `<tr><td>${pos}</td><td>${resPredictMark}<span style="color:${colorHex};">■</span> ${car.carName || ''}</td><td>${time}</td><td${bestLapClass}>${bestLap}</td></tr>`;
+                });
+
+                html += '</table>';
+                html += '<div class="result-buttons">';
+                html += '<button id="raceAgainBtn">Race Again</button>';
+                html += '<button id="normalModeBtn">Normal Mode</button>';
+                html += '</div>';
+
+                // Fastest lap info
+                if (this.fastestLap.car) {
+                    const flCar = this.fastestLap.car;
+                    const flColor = '#' + (flCar.bodyColor || 0xffffff).toString(16).padStart(6, '0');
+                    html += `<div style="margin-top:15px;" class="fastest-lap">Fastest Lap: <span style="color:${flColor};">■</span> ${this.formatTime(this.fastestLap.time)}</div>`;
+                }
+
+                results.innerHTML = html;
+                results.style.display = 'flex';
+
+                // Button handlers
+                document.getElementById('raceAgainBtn').addEventListener('click', () => {
+                    results.style.display = 'none';
+                    this.startRace();
+                });
+                document.getElementById('normalModeBtn').addEventListener('click', () => {
+                    this.endRaceMode();
+                });
+            }
+
+            endRaceMode() {
+                this.active = false;
+                this.phase = 'idle';
+                this.stopAutoCamera();
+
+                // Hide race UI
+                document.getElementById('race-ui').style.display = 'none';
+                document.getElementById('race-results').style.display = 'none';
+                document.getElementById('race-countdown').style.display = 'none';
+                document.getElementById('race-predict').style.display = 'none';
+
+                // Show normal info
+                document.getElementById('info').style.display = 'block';
+
+                // Unfreeze and recreate cars normally
+                for (const car of cars) {
+                    car.frozen = false;
+                }
+                createCars(16);
+                currentCarIndex = 0;
+            }
+
+            startAutoCamera() {
+                this.autoCameraMode = true;
+                this.autoCameraInterval = setInterval(() => {
+                    if (!this.autoCameraMode || this.phase !== 'racing') return;
+                    // Switch to a random car, preferring cars near the front
+                    const ranked = this.getRankedCars();
+                    // Pick from top 5 with higher probability
+                    const topN = Math.min(5, ranked.length);
+                    const idx = Math.random() < 0.7
+                        ? Math.floor(Math.random() * topN)
+                        : Math.floor(Math.random() * ranked.length);
+                    const targetCar = ranked[idx][0];
+                    currentCarIndex = cars.indexOf(targetCar);
+
+                    // Randomly switch camera view (0-4)
+                    cameraMode = Math.floor(Math.random() * 5);
+                    updateButtonActiveState();
+                }, 8000);
+            }
+
+            stopAutoCamera() {
+                if (this.autoCameraInterval) {
+                    clearInterval(this.autoCameraInterval);
+                    this.autoCameraInterval = null;
+                }
+            }
+
+            toggleAutoCamera() {
+                this.autoCameraMode = !this.autoCameraMode;
+                if (this.autoCameraMode && this.phase === 'racing') {
+                    this.startAutoCamera();
+                } else {
+                    this.stopAutoCamera();
+                }
+                this.updateAutoCameraButton();
+            }
+
+            updateAutoCameraButton() {
+                const btn = document.getElementById('race-auto-camera');
+                if (btn) {
+                    if (this.autoCameraMode) {
+                        btn.classList.add('active');
+                        btn.textContent = 'Auto';
+                    } else {
+                        btn.classList.remove('active');
+                        btn.textContent = 'Manual';
+                    }
+                }
+            }
+        }
+
+        raceManager = new RaceManager();
+
         // 初期状態では3台の車を作成
         createCars(16);
         
@@ -1431,7 +2074,7 @@
             lastCheck = performance.now();
             
             // オート・早送りモード時の車の自動切り替え
-            if (timeModeState.shouldAutoSwitch() && currentFrameTime - lastCarChangeTime > carChangeInterval) {
+            if (timeModeState.shouldAutoSwitch() && !raceManager?.active && currentFrameTime - lastCarChangeTime > carChangeInterval) {
                 // 現在の車以外からランダムに選択
                 const availableCars = Array.from({length: cars.length}, (_, i) => i).filter(i => i !== currentCarIndex);
                 currentCarIndex = availableCars[Math.floor(Math.random() * availableCars.length)];
@@ -1445,8 +2088,8 @@
                 const car = cars[i];
                 car.update(deltaTime, isNight);
 
-                // デバッグ: 追走/追い抜きモードの可視化（Dキーで切り替え）
-                if (debugMode) {
+                // 車の上のラベル表示（レース中: 順位 / 通常: デバッグ）
+                if (debugMode || raceManager?.active) {
                     if (!car._debugLabel) {
                         const canvas = document.createElement('canvas');
                         canvas.width = 256;
@@ -1461,50 +2104,85 @@
                         car._debugTexture = texture;
                     }
                     car._debugLabel.visible = true;
-                    // ラベル更新
                     const ctx = car._debugCanvas.getContext('2d');
                     ctx.clearRect(0, 0, 256, 96);
 
-                    // 1行目: ライン戦略 + 現在のフェーズ
-                    const strategy = car.drivingStyle.lineStrategy || '';
-                    const strategyColors = {
-                        'OUT_IN_OUT': '#44aaff',
-                        'LATE_APEX':  '#ffaa00',
-                        'IN_IN_IN':   '#ff4488',
-                        'WIDE_ENTRY': '#aa44ff',
-                    };
-                    const phase = car._currentPhase || '';
-                    const phaseLabel = phase && phase !== 'straight' ? ' [' + phase + ']' : '';
-                    ctx.font = 'bold 22px sans-serif';
-                    ctx.fillStyle = strategyColors[strategy] || '#ffffff';
-                    ctx.textAlign = 'center';
-                    ctx.fillText(strategy + phaseLabel, 128, 24);
+                    if (raceManager?.active) {
+                        // レース中: 順位表示
+                        const ranked = raceManager._cachedRanked || [];
+                        const rank = ranked.findIndex(([c]) => c === car) + 1;
+                        const colorHex = '#' + (car.bodyColor || 0xffffff).toString(16).padStart(6, '0');
+                        const isPredicted = raceManager.predictedCar === car;
 
-                    // 2行目: 状態（TANDEM/PASS）
-                    let label = '';
-                    let color = '';
-                    if (car.isTandemFollowing) {
-                        const remainSec = Math.max(0, Math.ceil((car.tandemMaxDuration - car.tandemDuration) / 60));
-                        label = 'TANDEM ' + remainSec + 's';
-                        color = '#00ff88';
-                    } else if (car.isOvertaking) {
-                        label = 'PASS';
-                        color = '#ff8800';
-                    }
-                    if (label) {
-                        ctx.font = 'bold 28px sans-serif';
-                        ctx.fillStyle = color;
+                        ctx.font = 'bold 48px sans-serif';
                         ctx.textAlign = 'center';
-                        ctx.fillText(label, 128, 60);
+                        ctx.fillStyle = rank <= 3 ? '#ffdd00' : '#ffffff';
+                        ctx.fillText('P' + rank, 128, 42);
+
+                        // 状態表示: P=Pass T=Tandem R=Returning N=Normal
+                        let stateChar = 'N';
+                        let stateColor = '#888888';
+                        if (car.isOvertaking && !car.isReturning) { stateChar = 'P'; stateColor = '#ff8800'; }
+                        else if (car.isReturning) { stateChar = 'R'; stateColor = '#88aaff'; }
+                        else if (car.isTandemFollowing) { stateChar = 'T'; stateColor = '#00ff88'; }
+                        ctx.font = 'bold 24px sans-serif';
+                        ctx.fillStyle = stateColor;
+                        ctx.fillText(stateChar, 128, 70);
+
+                        if (isPredicted) {
+                            ctx.font = 'bold 20px sans-serif';
+                            ctx.fillStyle = '#ffdd00';
+                            ctx.fillText('\u2605', 128, 90);
+                        }
+                    } else if (debugMode) {
+                        // 通常モード: デバッグ表示
+                        const strategy = car.drivingStyle.lineStrategy || '';
+                        const strategyColors = {
+                            'OUT_IN_OUT': '#44aaff',
+                            'LATE_APEX':  '#ffaa00',
+                            'IN_IN_IN':   '#ff4488',
+                            'WIDE_ENTRY': '#aa44ff',
+                        };
+                        const phase = car._currentPhase || '';
+                        const phaseLabel = phase && phase !== 'straight' ? ' [' + phase + ']' : '';
+                        ctx.font = 'bold 22px sans-serif';
+                        ctx.fillStyle = strategyColors[strategy] || '#ffffff';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(strategy + phaseLabel, 128, 24);
+
+                        let label = '';
+                        let color = '';
+                        if (car.isTandemFollowing) {
+                            const remainSec = Math.max(0, Math.ceil((car.tandemMaxDuration - car.tandemDuration) / 60));
+                            label = 'TANDEM ' + remainSec + 's';
+                            color = '#00ff88';
+                        } else if (car.isOvertaking) {
+                            label = 'PASS';
+                            color = '#ff8800';
+                        }
+                        if (label) {
+                            ctx.font = 'bold 28px sans-serif';
+                            ctx.fillStyle = color;
+                            ctx.textAlign = 'center';
+                            ctx.fillText(label, 128, 60);
+                        }
                     }
                     car._debugTexture.needsUpdate = true;
                     car._debugLabel.position.copy(car.object.position);
                     car._debugLabel.position.y += 5;
                 }
             }
+            // レース更新
+            if (raceManager?.active && raceManager.phase === 'racing') {
+                raceManager.updateRace();
+            }
+            if (raceManager?.active) {
+                raceManager.updateUI();
+            }
+
             metrics.carUpdates = performance.now() - lastCheck;
             lastCheck = performance.now();
-            
+
             // 速度表示の更新
             const currentCar = cars[currentCarIndex];
             if (currentCar) {
@@ -1694,11 +2372,49 @@
             
             // 天気システムの初期化
             initWeatherSystem();
+
+            // レースボタンの設定
+            document.getElementById('raceButton').addEventListener('click', () => {
+                if (raceManager.active) {
+                    raceManager.endRaceMode();
+                } else {
+                    raceManager.startRace();
+                }
+            });
+
+            // 予想確定ボタン
+            document.getElementById('race-predict-confirm').addEventListener('click', () => {
+                if (raceManager.active && raceManager.phase === 'grid') {
+                    raceManager.confirmPrediction();
+                }
+            });
+
+            // オートカメラ切替ボタン
+            document.getElementById('race-auto-camera').addEventListener('click', () => {
+                if (raceManager.active) {
+                    raceManager.toggleAutoCamera();
+                }
+            });
+
         }
 
         // ページ読み込み完了時に初期化を実行
         window.onload = init;
 
+        // 順位表クリック（イベント委譲 - DOMが毎フレーム書き換わるため）
+        document.getElementById('race-position-board').addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+            const row = e.target.closest('tr[data-car-index]');
+            if (row && raceManager?.active) {
+                const idx = parseInt(row.getAttribute('data-car-index'));
+                if (!isNaN(idx)) {
+                    currentCarIndex = idx;
+                    raceManager.autoCameraMode = false;
+                    raceManager.stopAutoCamera();
+                    raceManager.updateAutoCameraButton();
+                }
+            }
+        });
 
         // キーボードイベントを設定
         function setupKeyboardControls() {

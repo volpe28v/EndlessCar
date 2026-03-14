@@ -47,6 +47,20 @@ export class Car {
       WIDE_ENTRY: 0.06,   // やや長い
   };
 
+  // ライン取り定数
+  static LINE = {
+      BASE_OFFSET: 2.5,           // 基本オフセット距離（メートル）
+      MAX_CHANGE_PER_FRAME: 0.2,  // 1フレームあたりの最大変化量
+      SMOOTH_FACTOR: 0.1,         // 小変化時の補間係数
+  };
+
+  // スリップストリーム定数
+  static SLIPSTREAM = {
+      CHARGE_RATE: 0.003,         // TANDEM中の蓄積速度
+      PASS_BASE_CHANCE: 0.02,     // TANDEM中のPASS基本確率（/frame）
+      PASS_CHARGE_BONUS: 0.03,    // 蓄積による追加確率（/frame）
+  };
+
   // 接触回避定数
   static COLLISION = {
       AHEAD_DIST: 15.0,           // 前方チェック距離
@@ -917,6 +931,9 @@ export class Car {
       // ヘッドライトの更新
       this.updateHeadlights(isNight);
 
+      // フレーム単位の curvature キャッシュをリセット
+      this._curvatureCache = {};
+
       // 速度を更新（カーブに応じて）→ その後に追い抜き処理（ブースト上乗せ）
       this.updateSpeed();
 
@@ -955,7 +972,7 @@ export class Car {
       const curveTiltDirection = Math.sign(dirV1x * dirV2z - dirV1z * dirV2x) || 0;
       
       // ラインどりの計算（戦略ベース）
-      const baseLineOffset = 2.5;
+      const baseLineOffset = Car.LINE.BASE_OFFSET;
       const outInOutStrength = this.drivingStyle.outInOutStrength;
       const lineOffset = baseLineOffset * (0.7 + outInOutStrength * 0.6);
 
@@ -971,19 +988,18 @@ export class Car {
       const cornerPhase = this.getCornerPhase(this.position, curveAngle);
       this._currentPhase = cornerPhase.phase;
 
-      // 戦略別オフセット計算
+      // 戦略別オフセット計算（フェーズ progress で補間）
       const strategyOffset = this.calculateStrategyOffset(
-          cornerPhase.phase, curveAngle, curveTiltDirection, nextCurveDirection, lineOffset
+          cornerPhase.phase, cornerPhase.progress, curveAngle, curveTiltDirection, nextCurveDirection, lineOffset
       );
 
       // 前回のオフセットとスムーズに補間（急な切り替わりを防ぐ）
       if (this._lastLineOffset === undefined) this._lastLineOffset = 0;
       const diff = strategyOffset - this._lastLineOffset;
       // 1フレームあたりの最大変化量を制限（大きな差でもゆっくり追従）
-      const maxChangePerFrame = 0.2;
-      const smoothed = Math.abs(diff) > maxChangePerFrame
-          ? this._lastLineOffset + Math.sign(diff) * maxChangePerFrame
-          : this._lastLineOffset + diff * 0.1;
+      const smoothed = Math.abs(diff) > Car.LINE.MAX_CHANGE_PER_FRAME
+          ? this._lastLineOffset + Math.sign(diff) * Car.LINE.MAX_CHANGE_PER_FRAME
+          : this._lastLineOffset + diff * Car.LINE.SMOOTH_FACTOR;
       this._lastLineOffset = smoothed;
       const finalLineOffset = smoothed;
 
@@ -1527,6 +1543,12 @@ export class Car {
   }
 
   calculateCurvature(t, samplePoints = 15, sampleDistance = 0.005) {
+    // フレーム内キャッシュ（同じ t に対する再計算を防ぐ）
+    const key = t.toFixed(4);
+    if (this._curvatureCache && this._curvatureCache[key]) {
+        return this._curvatureCache[key];
+    }
+
     const angles = [];
     
     // 複数のサンプル点で角度を計算し平均を取る
@@ -1567,7 +1589,9 @@ export class Car {
     const crossProduct = vec1.x * vec2.y - vec1.y * vec2.x;
     const tiltDirection = Math.sign(crossProduct);
     
-    return { angle: avgAngle, direction: tiltDirection };
+    const result = { angle: avgAngle, direction: tiltDirection };
+    if (this._curvatureCache) this._curvatureCache[key] = result;
+    return result;
   }
 
   predictUpcomingCurve(currentPosition, lookAheadDistance = 0.05) {
@@ -1620,7 +1644,7 @@ export class Car {
   }
 
   // 戦略別のライン取りオフセットを計算
-  calculateStrategyOffset(phase, curveAngle, curveDirection, nextCurveDirection, lineOffset) {
+  calculateStrategyOffset(phase, progress, curveAngle, curveDirection, nextCurveDirection, lineOffset) {
       const strategy = this.drivingStyle.lineStrategy;
       // strength に最低保証（0.5〜1.0）で戦略差が埋もれないようにする
       const strength = 0.5 + this.drivingStyle.outInOutStrength * 0.5;
@@ -1633,74 +1657,66 @@ export class Car {
       // カーブ強度に応じたスケーリング（緩いカーブでは控えめに）
       const curveScale = Math.min(1, curveAngle / 0.08);
 
-      let rawOffset;
-      switch (strategy) {
-          case Car.LINE_STRATEGY.OUT_IN_OUT:
-              rawOffset = this._offsetOutInOut(phase, dir, lineOffset, strength, baseOffset);
-              break;
-          case Car.LINE_STRATEGY.LATE_APEX:
-              rawOffset = this._offsetLateApex(phase, dir, lineOffset, strength, baseOffset);
-              break;
-          case Car.LINE_STRATEGY.IN_IN_IN:
-              rawOffset = this._offsetInInIn(phase, dir, lineOffset, strength, baseOffset);
-              break;
-          case Car.LINE_STRATEGY.WIDE_ENTRY:
-              rawOffset = this._offsetWideEntry(phase, dir, lineOffset, strength, baseOffset);
-              break;
-          default:
-              rawOffset = baseOffset;
-      }
+      // 戦略ごとのフェーズ定義を取得
+      const phaseOffsets = this._getStrategyPhaseOffsets(strategy, dir, lineOffset, strength, baseOffset);
 
-      // approach/exit はカーブ手前・後なのでスケーリングせず、mid/entry はカーブ強度で調整
-      // IN_IN_IN は常にイン寄りなのでスケーリング不要
+      // 現在フェーズと次フェーズ間を progress で補間
+      const currentOffset = phaseOffsets[phase] ?? baseOffset;
+      const nextPhase = this._getNextPhase(phase);
+      const nextOffset = phaseOffsets[nextPhase] ?? baseOffset;
+      const rawOffset = currentOffset + (nextOffset - currentOffset) * progress;
+
+      // mid/entry はカーブ強度で調整（IN_IN_IN は常にイン寄りなので除外）
       if ((phase === 'mid' || phase === 'entry') && strategy !== Car.LINE_STRATEGY.IN_IN_IN) {
           return rawOffset * curveScale;
       }
       return rawOffset;
   }
 
-  // OUT_IN_OUT: 教科書ライン（アウト→イン→アウト）
-  _offsetOutInOut(phase, dir, offset, strength, baseOffset) {
-      switch (phase) {
-          case 'approach': return -dir * offset * strength;         // アウト
-          case 'entry':    return -dir * offset * strength * 0.5;   // アウト→イン遷移
-          case 'mid':      return dir * offset * strength;          // イン
-          case 'exit':     return -dir * offset * strength * 0.6;   // アウトへ戻る
-          default:         return baseOffset;
+  // 戦略ごとの各フェーズのオフセット値を返す
+  _getStrategyPhaseOffsets(strategy, dir, offset, strength, baseOffset) {
+      switch (strategy) {
+          case Car.LINE_STRATEGY.OUT_IN_OUT:
+              return {
+                  straight: baseOffset,
+                  approach: -dir * offset * strength,
+                  entry:    -dir * offset * strength * 0.5,
+                  mid:       dir * offset * strength,
+                  exit:     -dir * offset * strength * 0.6,
+              };
+          case Car.LINE_STRATEGY.LATE_APEX:
+              return {
+                  straight: baseOffset,
+                  approach: -dir * offset * strength,
+                  entry:    -dir * offset * strength * 0.7,
+                  mid:       dir * offset * strength,
+                  exit:      baseOffset * 0.3,
+              };
+          case Car.LINE_STRATEGY.IN_IN_IN:
+              return {
+                  straight:  dir * offset * strength * 0.5,
+                  approach:  dir * offset * strength,
+                  entry:     dir * offset * strength,
+                  mid:       dir * offset * strength,
+                  exit:      dir * offset * strength * 0.8,
+              };
+          case Car.LINE_STRATEGY.WIDE_ENTRY:
+              return {
+                  straight: baseOffset,
+                  approach: -dir * offset * strength * 1.5,
+                  entry:    -dir * offset * strength * 0.8,
+                  mid:       dir * offset * strength * 1.3,
+                  exit:      baseOffset * 0.4,
+              };
+          default:
+              return { straight: baseOffset, approach: baseOffset, entry: baseOffset, mid: baseOffset, exit: baseOffset };
       }
   }
 
-  // LATE_APEX: レイトエイペックス（アウト維持→奥で切る→直線的に加速）
-  _offsetLateApex(phase, dir, offset, strength, baseOffset) {
-      switch (phase) {
-          case 'approach': return -dir * offset * strength;         // アウト
-          case 'entry':    return -dir * offset * strength * 0.7;   // まだアウト寄り
-          case 'mid':      return dir * offset * strength;          // 奥で一気にイン
-          case 'exit':     return baseOffset * 0.3;                 // 直線的に戻る
-          default:         return baseOffset;
-      }
-  }
-
-  // IN_IN_IN: 最短距離／ブロックライン（常にイン寄り）
-  _offsetInInIn(phase, dir, offset, strength, baseOffset) {
-      switch (phase) {
-          case 'approach': return dir * offset * strength;          // イン
-          case 'entry':    return dir * offset * strength;          // イン
-          case 'mid':      return dir * offset * strength;          // イン
-          case 'exit':     return dir * offset * strength * 0.8;    // イン寄り維持
-          default:         return dir * offset * strength * 0.5;    // 直線でもイン寄り
-      }
-  }
-
-  // WIDE_ENTRY: ダイナミック（大きくアウトから急角度でイン）
-  _offsetWideEntry(phase, dir, offset, strength, baseOffset) {
-      switch (phase) {
-          case 'approach': return -dir * offset * strength * 1.5;   // 大きくアウト
-          case 'entry':    return -dir * offset * strength * 0.8;   // まだアウト
-          case 'mid':      return dir * offset * strength * 1.3;    // 急にイン
-          case 'exit':     return baseOffset * 0.4;                 // 自然に戻る
-          default:         return baseOffset;
-      }
+  // フェーズの遷移順
+  _getNextPhase(phase) {
+      const order = { straight: 'approach', approach: 'entry', entry: 'mid', mid: 'exit', exit: 'straight' };
+      return order[phase] || 'straight';
   }
 
   // ヘッドライトの制御
@@ -1906,11 +1922,7 @@ class NormalState extends CarState {
             this.car.transitionTo(TandemState, { from: aheadGap });
             return;
         }
-
-        // やや接近 → 減速
-        if (aheadGap < Car.GAP.SLOW_DOWN) {
-            this.car.speed += (aheadCar.speed * 0.95 - this.car.speed) * 0.05;
-        }
+        // 減速は avoidCollision() に一本化（ここでは状態遷移のみ）
     }
 
     // 接近時のTANDEM/PASS判定（1回限り評価）
@@ -1993,13 +2005,12 @@ class TandemState extends CarState {
 
         // スリップストリーム蓄積（近いほど速く溜まる）
         if (gap < this.targetGap * 2) {
-            this.slipstreamCharge = Math.min(1.0, this.slipstreamCharge + 0.003);
+            this.slipstreamCharge = Math.min(1.0, this.slipstreamCharge + Car.SLIPSTREAM.CHARGE_RATE);
         }
 
         // TANDEM中にPASS試行（一定時間後から毎フレーム確率判定）
         if (this.duration > this.passAttemptMinFrames && !this.car._isCarBusy(ahead)) {
-            // フレームあたり2%の確率でPASS発動（スリップ蓄積で確率アップ）
-            const passChance = 0.02 + this.slipstreamCharge * 0.03;
+            const passChance = Car.SLIPSTREAM.PASS_BASE_CHANCE + this.slipstreamCharge * Car.SLIPSTREAM.PASS_CHARGE_BONUS;
             if (Math.random() < passChance) {
                 this.car.transitionTo(PassState, {
                     target: ahead,

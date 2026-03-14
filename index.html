@@ -1820,7 +1820,387 @@
             // 岩肌の構造物を配置
             createRockFormations();
 
+            // トンネルを配置
+            createTunnels();
+
+            // 斜張橋を配置
+            createCableStayedBridges();
+
             log("環境オブジェクトの配置完了");
+        }
+
+        // モナコ風トンネルを作成（ジオメトリ結合で軽量化）
+        function createTunnels() {
+            const tunnelGroup = new THREE.Group();
+            roadGroup.add(tunnelGroup);
+
+            const tunnelSections = [
+                { start: 0.12, length: 0.06 },
+            ];
+
+            const tunnelHeight = 7.0;
+            const tunnelWidth = roadWidth + 4;
+            const wallThickness = 0.8;
+            const segmentSpacing = 0.004; // 間隔を広げて軽量化
+
+            // ジオメトリ結合ヘルパー: 個別Meshの位置・回転を焼き込んで1つのジオメトリに
+            function mergeGeos(entries) {
+                const merged = new THREE.BufferGeometry();
+                let totalVerts = 0, totalIdx = 0;
+                for (const e of entries) { totalVerts += e.geo.attributes.position.count; totalIdx += (e.geo.index ? e.geo.index.count : 0); }
+                const pos = new Float32Array(totalVerts * 3);
+                const nrm = new Float32Array(totalVerts * 3);
+                const idx = totalIdx > 0 ? new Uint32Array(totalIdx) : null;
+                let vOff = 0, iOff = 0, vBase = 0;
+                const m4 = new THREE.Matrix4();
+                const n3 = new THREE.Matrix3();
+                for (const e of entries) {
+                    m4.compose(e.pos, e.quat, new THREE.Vector3(1,1,1));
+                    n3.getNormalMatrix(m4);
+                    const gp = e.geo.attributes.position;
+                    const gn = e.geo.attributes.normal;
+                    const v = new THREE.Vector3();
+                    for (let i = 0; i < gp.count; i++) {
+                        v.set(gp.getX(i), gp.getY(i), gp.getZ(i)).applyMatrix4(m4);
+                        pos[vOff] = v.x; pos[vOff+1] = v.y; pos[vOff+2] = v.z;
+                        if (gn) { v.set(gn.getX(i), gn.getY(i), gn.getZ(i)).applyMatrix3(n3).normalize(); nrm[vOff] = v.x; nrm[vOff+1] = v.y; nrm[vOff+2] = v.z; }
+                        vOff += 3;
+                    }
+                    if (e.geo.index && idx) {
+                        for (let i = 0; i < e.geo.index.count; i++) { idx[iOff++] = e.geo.index.array[i] + vBase; }
+                    }
+                    vBase += gp.count;
+                }
+                merged.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+                merged.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+                if (idx) merged.setIndex(new THREE.BufferAttribute(idx, 1));
+                merged.computeBoundingSphere();
+                return merged;
+            }
+
+            function fwdQuat(fwd) {
+                const q = new THREE.Quaternion();
+                q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), fwd);
+                return q;
+            }
+
+            for (const section of tunnelSections) {
+                const wallEntries = [];
+                const ceilEntries = [];
+                const lightEntries = [];
+                const stripeEntries = [];
+
+                // 壁・天井用の共有ジオメトリ
+                const segLen = 6.0;
+                const wallGeo = new THREE.BoxGeometry(wallThickness, tunnelHeight, segLen);
+                const ceilGeo = new THREE.BoxGeometry(tunnelWidth + wallThickness * 2, 0.6, segLen);
+                const lightGeo = new THREE.BoxGeometry(0.3, 0.08, 6.0);
+                const stripeGeo = new THREE.BoxGeometry(0.15, 0.15, 6.0);
+
+                // 壁・天井セグメント
+                for (let t = section.start; t < section.start + section.length; t += segmentSpacing) {
+                    const point = carPath.getPointAt(t % 1);
+                    const tangent = carPath.getTangentAt(t % 1);
+                    const fwd = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
+                    const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+                    const q = fwdQuat(fwd);
+
+                    // 左壁
+                    wallEntries.push({ geo: wallGeo, pos: new THREE.Vector3(
+                        point.x - right.x * (tunnelWidth / 2 + wallThickness / 2),
+                        point.y + tunnelHeight / 2,
+                        point.z - right.z * (tunnelWidth / 2 + wallThickness / 2)
+                    ), quat: q });
+                    // 右壁
+                    wallEntries.push({ geo: wallGeo, pos: new THREE.Vector3(
+                        point.x + right.x * (tunnelWidth / 2 + wallThickness / 2),
+                        point.y + tunnelHeight / 2,
+                        point.z + right.z * (tunnelWidth / 2 + wallThickness / 2)
+                    ), quat: q });
+                    // 天井
+                    ceilEntries.push({ geo: ceilGeo, pos: new THREE.Vector3(
+                        point.x, point.y + tunnelHeight + 0.3, point.z
+                    ), quat: q });
+                    // 照明ライン
+                    lightEntries.push({ geo: lightGeo, pos: new THREE.Vector3(
+                        point.x, point.y + tunnelHeight - 0.1, point.z
+                    ), quat: q });
+                    // ストライプ左右
+                    [-1, 1].forEach(side => {
+                        stripeEntries.push({ geo: stripeGeo, pos: new THREE.Vector3(
+                            point.x + right.x * side * (tunnelWidth / 2 - 0.2),
+                            point.y + 1.5,
+                            point.z + right.z * side * (tunnelWidth / 2 - 0.2)
+                        ), quat: q });
+                    });
+                }
+
+                // マテリアル
+                const wallMat = new THREE.MeshPhongMaterial({ color: 0x888888, shininess: 20, specular: 0x222222 });
+                const ceilingMat = new THREE.MeshPhongMaterial({ color: 0x666666, shininess: 10 });
+                const lightMat = new THREE.MeshPhongMaterial({ color: 0xFFFFDD, emissive: 0xFFFFDD, emissiveIntensity: 0.8 });
+                const stripeMat = new THREE.MeshPhongMaterial({ color: 0xFFAA00, emissive: 0xFFAA00, emissiveIntensity: 0.3 });
+
+                // 結合してメッシュ化（4ドローコールに）
+                if (wallEntries.length) tunnelGroup.add(new THREE.Mesh(mergeGeos(wallEntries), wallMat));
+                if (ceilEntries.length) tunnelGroup.add(new THREE.Mesh(mergeGeos(ceilEntries), ceilingMat));
+                if (lightEntries.length) tunnelGroup.add(new THREE.Mesh(mergeGeos(lightEntries), lightMat));
+                if (stripeEntries.length) tunnelGroup.add(new THREE.Mesh(mergeGeos(stripeEntries), stripeMat));
+
+                // ポイントライトは入口と出口の2つだけ
+                [section.start, (section.start + section.length) % 1].forEach(t => {
+                    const point = carPath.getPointAt(t);
+                    const pLight = new THREE.PointLight(0xFFFFCC, 3.0, 40, 1.5);
+                    pLight.position.set(point.x, point.y + tunnelHeight - 1, point.z);
+                    tunnelGroup.add(pLight);
+                });
+
+                // トンネル入口・出口のアーチ
+                const archMat = new THREE.MeshPhongMaterial({ color: 0x555555, shininess: 15 });
+                [section.start, (section.start + section.length) % 1].forEach(t => {
+                    const point = carPath.getPointAt(t);
+                    const tangent = carPath.getTangentAt(t);
+                    const fwd = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
+                    const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+                    const q = fwdQuat(fwd);
+
+                    const archTop = new THREE.Mesh(new THREE.BoxGeometry(tunnelWidth + wallThickness * 2 + 1, 1.2, 1.5), archMat);
+                    archTop.position.set(point.x, point.y + tunnelHeight + 0.8, point.z);
+                    archTop.quaternion.copy(q);
+                    tunnelGroup.add(archTop);
+
+                    [-1, 1].forEach(side => {
+                        const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.2, tunnelHeight + 2, 1.5), archMat);
+                        pillar.position.set(
+                            point.x + right.x * side * (tunnelWidth / 2 + wallThickness),
+                            point.y + tunnelHeight / 2,
+                            point.z + right.z * side * (tunnelWidth / 2 + wallThickness)
+                        );
+                        pillar.quaternion.copy(q);
+                        tunnelGroup.add(pillar);
+                    });
+                });
+            }
+
+            log(`トンネル作成完了: ${tunnelSections.length}箇所`);
+        }
+
+        // リッジレーサー風 斜張橋を作成（ジオメトリ結合で軽量化）
+        function createCableStayedBridges() {
+            const bridgeGroup = new THREE.Group();
+            roadGroup.add(bridgeGroup);
+
+            // 橋の区間定義（パス上の位置）
+            const bridgeSections = [
+                { center: 0.72, span: 0.05 }, // 主塔の位置と橋の半径
+            ];
+
+            const concreteMat = new THREE.MeshPhongMaterial({ color: 0xCCCCCC, shininess: 30, specular: 0x333333 });
+            const cableMat = new THREE.MeshPhongMaterial({ color: 0xAAAAAAA, shininess: 80, specular: 0x666666 });
+            const towerMat = new THREE.MeshPhongMaterial({ color: 0xDDDDDD, shininess: 40, specular: 0x444444 });
+
+            const bridgeWidth = roadWidth + 6;
+            const towerHeight = 55;
+            const cableRadius = 0.08;
+
+            for (const section of bridgeSections) {
+                const towerPoint = carPath.getPointAt(section.center);
+                const towerTangent = carPath.getTangentAt(section.center);
+                const towerFwd = new THREE.Vector3(towerTangent.x, 0, towerTangent.z).normalize();
+                const towerRight = new THREE.Vector3(-towerFwd.z, 0, towerFwd.x);
+
+                // === 主塔（左右2本のA型タワー） ===
+                [-1, 1].forEach(side => {
+                    const baseX = towerPoint.x + towerRight.x * side * (bridgeWidth / 2 + 1);
+                    const baseZ = towerPoint.z + towerRight.z * side * (bridgeWidth / 2 + 1);
+                    const baseY = towerPoint.y;
+
+                    // 主柱（やや内側に傾斜するA型）
+                    const pillarGeo = new THREE.BoxGeometry(1.5, towerHeight, 2.0);
+                    const pillar = new THREE.Mesh(pillarGeo, towerMat);
+                    pillar.position.set(baseX, baseY + towerHeight / 2, baseZ);
+                    const q = new THREE.Quaternion();
+                    q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), towerFwd);
+                    pillar.quaternion.copy(q);
+                    bridgeGroup.add(pillar);
+
+                    // 主塔上部の横梁
+                    const beamGeo = new THREE.BoxGeometry(3.0, 1.5, 2.0);
+                    const beam = new THREE.Mesh(beamGeo, towerMat);
+                    beam.position.set(baseX, baseY + towerHeight - 2, baseZ);
+                    beam.quaternion.copy(q);
+                    bridgeGroup.add(beam);
+                });
+
+                // === ケーブル（主塔頂部から道路面へ放射状） ===
+                const cableCount = 8; // 片側のケーブル本数
+                [-1, 1].forEach(side => {
+                    const towerTopX = towerPoint.x + towerRight.x * side * (bridgeWidth / 2 + 1);
+                    const towerTopZ = towerPoint.z + towerRight.z * side * (bridgeWidth / 2 + 1);
+                    const towerTopY = towerPoint.y + towerHeight - 3;
+
+                    // 前後にケーブルを張る
+                    [-1, 1].forEach(dir => {
+                        for (let i = 1; i <= cableCount; i++) {
+                            const ratio = i / cableCount;
+                            const anchorT = (section.center + dir * ratio * section.span + 1) % 1;
+                            const anchorPoint = carPath.getPointAt(anchorT);
+                            const anchorRight = new THREE.Vector3(
+                                -carPath.getTangentAt(anchorT).z, 0, carPath.getTangentAt(anchorT).x
+                            ).normalize();
+
+                            // ケーブルの下端（道路端のアンカー位置）
+                            const anchorX = anchorPoint.x + anchorRight.x * side * (bridgeWidth / 2 - 1);
+                            const anchorY = anchorPoint.y + 2.0;
+                            const anchorZ = anchorPoint.z + anchorRight.z * side * (bridgeWidth / 2 - 1);
+
+                            // ケーブルの長さと方向を計算
+                            const dx = anchorX - towerTopX;
+                            const dy = anchorY - towerTopY;
+                            const dz = anchorZ - towerTopZ;
+                            const cableLen = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+                            const cableGeo = new THREE.CylinderGeometry(cableRadius, cableRadius, cableLen, 4);
+                            const cable = new THREE.Mesh(cableGeo, cableMat);
+
+                            // 中点に配置
+                            cable.position.set(
+                                (towerTopX + anchorX) / 2,
+                                (towerTopY + anchorY) / 2,
+                                (towerTopZ + anchorZ) / 2
+                            );
+
+                            // ケーブルの方向に回転
+                            const cableDir = new THREE.Vector3(dx, dy, dz).normalize();
+                            const cableQ = new THREE.Quaternion();
+                            cableQ.setFromUnitVectors(new THREE.Vector3(0, 1, 0), cableDir);
+                            cable.quaternion.copy(cableQ);
+
+                            bridgeGroup.add(cable);
+                        }
+                    });
+                });
+
+                // === 橋桁（道路の両側の壁・欄干）===
+                const railEntries = [];
+                const railGeo = new THREE.BoxGeometry(0.4, 1.8, 5.0);
+                const railSpacing = 0.003;
+                const startT = (section.center - section.span + 1) % 1;
+                const endT = (section.center + section.span) % 1;
+
+                for (let t = startT; t !== endT; t = (t + railSpacing) % 1) {
+                    if (Math.abs(t - endT) < railSpacing) break;
+                    const p = carPath.getPointAt(t);
+                    const tg = carPath.getTangentAt(t);
+                    const f = new THREE.Vector3(tg.x, 0, tg.z).normalize();
+                    const r = new THREE.Vector3(-f.z, 0, f.x);
+                    const q = new THREE.Quaternion();
+                    q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), f);
+
+                    [-1, 1].forEach(side => {
+                        railEntries.push({
+                            geo: railGeo,
+                            pos: new THREE.Vector3(
+                                p.x + r.x * side * (bridgeWidth / 2),
+                                p.y + 0.9,
+                                p.z + r.z * side * (bridgeWidth / 2)
+                            ),
+                            quat: q
+                        });
+                    });
+                }
+
+                // 欄干をジオメトリ結合
+                if (railEntries.length) {
+                    // mergeGeosはcreateTunnelsで定義済みなのでスコープ外 → インライン結合
+                    const merged = new THREE.BufferGeometry();
+                    let totalVerts = 0, totalIdx = 0;
+                    for (const e of railEntries) { totalVerts += e.geo.attributes.position.count; totalIdx += (e.geo.index ? e.geo.index.count : 0); }
+                    const pos = new Float32Array(totalVerts * 3);
+                    const nrm = new Float32Array(totalVerts * 3);
+                    const idx = totalIdx > 0 ? new Uint32Array(totalIdx) : null;
+                    let vOff = 0, iOff = 0, vBase = 0;
+                    const m4 = new THREE.Matrix4();
+                    const n3 = new THREE.Matrix3();
+                    for (const e of railEntries) {
+                        m4.compose(e.pos, e.quat, new THREE.Vector3(1,1,1));
+                        n3.getNormalMatrix(m4);
+                        const gp = e.geo.attributes.position;
+                        const gn = e.geo.attributes.normal;
+                        const v = new THREE.Vector3();
+                        for (let i = 0; i < gp.count; i++) {
+                            v.set(gp.getX(i), gp.getY(i), gp.getZ(i)).applyMatrix4(m4);
+                            pos[vOff] = v.x; pos[vOff+1] = v.y; pos[vOff+2] = v.z;
+                            if (gn) { v.set(gn.getX(i), gn.getY(i), gn.getZ(i)).applyMatrix3(n3).normalize(); nrm[vOff] = v.x; nrm[vOff+1] = v.y; nrm[vOff+2] = v.z; }
+                            vOff += 3;
+                        }
+                        if (e.geo.index && idx) { for (let i = 0; i < e.geo.index.count; i++) { idx[iOff++] = e.geo.index.array[i] + vBase; } }
+                        vBase += gp.count;
+                    }
+                    merged.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+                    merged.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+                    if (idx) merged.setIndex(new THREE.BufferAttribute(idx, 1));
+                    merged.computeBoundingSphere();
+                    bridgeGroup.add(new THREE.Mesh(merged, concreteMat));
+                }
+            }
+
+            // === 川の生成（橋の下を横切る） ===
+            for (const section of bridgeSections) {
+                const centerPoint = carPath.getPointAt(section.center);
+                const centerTangent = carPath.getTangentAt(section.center);
+                const roadDir = new THREE.Vector3(centerTangent.x, 0, centerTangent.z).normalize();
+                // 川は道路と直交する方向に流れる
+                const riverDir = new THREE.Vector3(-roadDir.z, 0, roadDir.x);
+
+                const riverWidth = 60;
+                const riverLength = 300;
+                const riverY = centerPoint.y - 6; // 道路面より少し下
+
+                // 川の水面
+                const riverGeo = new THREE.PlaneGeometry(riverWidth, riverLength, 1, 1);
+                const riverMat = new THREE.MeshPhongMaterial({
+                    color: 0x225588,
+                    shininess: 120,
+                    specular: 0x88AACC,
+                    transparent: true,
+                    opacity: 0.7,
+                });
+                const river = new THREE.Mesh(riverGeo, riverMat);
+                river.rotation.x = -Math.PI / 2;
+                river.position.set(centerPoint.x, riverY, centerPoint.z);
+                // 川を道路と直交する方向に向ける
+                const riverAngle = Math.atan2(riverDir.z, riverDir.x);
+                river.rotation.z = -riverAngle + Math.PI / 2;
+                bridgeGroup.add(river);
+
+                // 川底（少し暗い色の平面）
+                const bedGeo = new THREE.PlaneGeometry(riverWidth + 10, riverLength + 20, 1, 1);
+                const bedMat = new THREE.MeshPhongMaterial({ color: 0x334422, shininess: 5 });
+                const bed = new THREE.Mesh(bedGeo, bedMat);
+                bed.rotation.x = -Math.PI / 2;
+                bed.position.set(centerPoint.x, riverY - 1.5, centerPoint.z);
+                bed.rotation.z = river.rotation.z;
+                bridgeGroup.add(bed);
+
+                // 川岸（左右の土手）
+                const bankMat = new THREE.MeshPhongMaterial({ color: 0x556633, shininess: 10 });
+                [-1, 1].forEach(side => {
+                    const bankGeo = new THREE.BoxGeometry(8, 4, riverLength + 20);
+                    const bank = new THREE.Mesh(bankGeo, bankMat);
+                    bank.position.set(
+                        centerPoint.x + riverDir.x * side * (riverWidth / 2 + 4),
+                        riverY - 0.5,
+                        centerPoint.z + riverDir.z * side * (riverWidth / 2 + 4)
+                    );
+                    const bankQ = new THREE.Quaternion();
+                    bankQ.setFromUnitVectors(new THREE.Vector3(0, 0, 1), riverDir);
+                    bank.quaternion.copy(bankQ);
+                    bridgeGroup.add(bank);
+                });
+            }
+
+            log(`斜張橋作成完了: ${bridgeSections.length}箇所`);
         }
 
         // コース全周の連続地形メッシュを作成（リッジレーサー風）

@@ -575,6 +575,11 @@
                     scene.remove(car._debugLabel);
                     car._debugLabel = null;
                 }
+                // スピードラインも削除
+                if (car._speedLines) {
+                    scene.remove(car._speedLines);
+                    car._speedLines = null;
+                }
             }
             cars.length = 0;
             

@@ -969,8 +969,102 @@ export class Car {
       this.lastRotation.copy(this.object.quaternion);
       
       scene.add(this.object);
+      this.createSpeedLines(scene);
   }
   
+  // スピードライン生成
+  createSpeedLines(scene) {
+      const LINE_COUNT = 12;
+      const geo = new THREE.BufferGeometry();
+      const positions = new Float32Array(LINE_COUNT * 6); // 2頂点 × 3座標
+      const colors = new Float32Array(LINE_COUNT * 6);    // 2頂点 × RGB
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      const mat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.6 });
+      const lines = new THREE.LineSegments(geo, mat);
+      lines.frustumCulled = false;
+      scene.add(lines);
+      this._speedLines = lines;
+      this._speedLineData = Array.from({ length: LINE_COUNT }, () => ({
+          offset: new THREE.Vector3(), life: 0, maxLife: 0,
+      }));
+  }
+
+  // スピードライン更新
+  updateSpeedLines() {
+      if (!this._speedLines || !this.object) return;
+      const isPassing = this.isPassing;
+      const isTandem = this.isTandemFollowing;
+      const active = isPassing || isTandem;
+
+      const positions = this._speedLines.geometry.attributes.position.array;
+      const colors = this._speedLines.geometry.attributes.color.array;
+      const data = this._speedLineData;
+
+      // 車の後方向き
+      const fwd = new THREE.Vector3();
+      this.object.getWorldDirection(fwd);
+      const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+      const carPos = this.object.position;
+
+      const lineLength = isPassing ? 6 + this.speed * 15 : 3 + this.speed * 8;
+      const spawnRate = isPassing ? 0.5 : 0.15;
+
+      for (let i = 0; i < data.length; i++) {
+          const d = data[i];
+          const idx = i * 6;
+
+          if (d.life <= 0) {
+              // スポーン判定
+              if (active && Math.random() < spawnRate) {
+                  const side = (Math.random() - 0.5) * 5;
+                  const height = 0.3 + Math.random() * 1.5;
+                  d.offset.set(
+                      right.x * side,
+                      height,
+                      right.z * side
+                  );
+                  d.maxLife = 8 + Math.floor(Math.random() * 12);
+                  d.life = d.maxLife;
+              } else {
+                  // 非表示
+                  for (let j = 0; j < 6; j++) positions[idx + j] = 0;
+                  for (let j = 0; j < 6; j++) colors[idx + j] = 0;
+                  continue;
+              }
+          }
+
+          const alpha = d.life / d.maxLife;
+          d.life--;
+
+          // 先端: 車の後方近く（fwdは-Z=後方を向くため、+fwdが後方）
+          const startX = carPos.x + d.offset.x + fwd.x * 2;
+          const startY = carPos.y + d.offset.y;
+          const startZ = carPos.z + d.offset.z + fwd.z * 2;
+          // 末端: さらに後方
+          const len = lineLength * alpha;
+          positions[idx]     = startX;
+          positions[idx + 1] = startY;
+          positions[idx + 2] = startZ;
+          positions[idx + 3] = startX + fwd.x * len;
+          positions[idx + 4] = startY;
+          positions[idx + 5] = startZ + fwd.z * len;
+
+          // 色: PASS=オレンジ→黄, TANDEM=水色
+          if (isPassing) {
+              colors[idx]     = 1.0; colors[idx + 1] = 0.6 * alpha; colors[idx + 2] = 0.0;
+              colors[idx + 3] = 1.0; colors[idx + 4] = 0.9;         colors[idx + 5] = 0.2 * alpha;
+          } else {
+              colors[idx]     = 0.3 * alpha; colors[idx + 1] = 0.8 * alpha; colors[idx + 2] = 1.0 * alpha;
+              colors[idx + 3] = 0.1 * alpha; colors[idx + 4] = 0.5 * alpha; colors[idx + 5] = 0.8 * alpha;
+          }
+      }
+
+      this._speedLines.geometry.attributes.position.needsUpdate = true;
+      this._speedLines.geometry.attributes.color.needsUpdate = true;
+      this._speedLines.material.opacity = active ? 0.6 : 0;
+  }
+
   update(deltaTime, isNight = false) {
       // ヘッドライトは処理が重いので一旦オフ
       isNight = false;
@@ -1568,6 +1662,9 @@ export class Car {
       }
       
       // 注：急カーブ時に追加の車体傾斜は不要（既に回転行列で処理）
+
+      // スピードライン更新
+      this.updateSpeedLines();
   }
   
   updateSpeed() {
@@ -1850,6 +1947,9 @@ export class Car {
   }
 
   // index.html 互換 getter
+  get isPassing() {
+      return this._state instanceof PassState;
+  }
   get isOvertaking() {
       return this._state instanceof PassState || this._state instanceof ReturningState;
   }

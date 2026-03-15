@@ -1,11 +1,38 @@
 // CarModelBuilder.js
 import { pickDriverName } from './CarConstants.js';
+import { CarModelLoader } from './CarModelLoader.js';
 
 function log(message) {
   console.log(`[${new Date().toISOString()}] ${message}`);
 }
 
 export function buildCarModel(car) {
+    // OBJモデルが利用可能ならそちらを使用
+    if (CarModelLoader.isLoaded()) {
+        const result = CarModelLoader.getCarModel();
+        if (result) {
+            return buildFromOBJ(car, result);
+        }
+    }
+
+    // フォールバック: プロシージャル生成
+    return buildProceduralCar(car);
+}
+
+function buildFromOBJ(car, { model, bodyColor, carName }) {
+    const carGroup = model;
+
+    car.bodyColor = bodyColor;
+    car.driverName = pickDriverName();
+    log(`OBJモデル使用: ${carName} / ライン: ${car.drivingStyle.lineStrategy}`);
+
+    const upVector = new THREE.Vector3(0, 1, 0);
+
+    // 位置・向きは createObject() で設定されるため、ここでは不要
+    return { car: carGroup, wheels: [], wheelGroups: [], upVector, leftHeadlight: null, rightHeadlight: null };
+}
+
+function buildProceduralCar(car) {
     const carGroup = new THREE.Group();
 
     // === 車種選択 ===

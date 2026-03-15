@@ -415,6 +415,8 @@
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/MTLLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/OBJLoader.js"></script>
     <script src="https://unpkg.com/picoaudio/dist/browser/PicoAudio.min.js"></script>
 </head>
 <body>
@@ -482,6 +484,7 @@
         import { updateCamera, setupViewButtons, updateButtonActiveState } from './CameraSystem.js';
         import { RealtimeState, toggleTimeMode } from './TimeModeStates.js';
         import { RaceManager } from './RaceManager.js';
+        import { CarModelLoader } from './CarModelLoader.js';
 
         function log(message) {
             console.log(`[${new Date().toISOString()}] ${message}`);
@@ -586,9 +589,17 @@
         createCurbstones();
         log("道路の作成完了");
 
-        // === 車の初期作成 ===
-        createCars(10);
-        log("車の作成完了");
+        // === OBJモデルのプリロード & 車の初期作成 ===
+        (async () => {
+            try {
+                await CarModelLoader.preload();
+                log("OBJモデルのプリロード完了");
+            } catch(e) {
+                console.warn("OBJモデルロード失敗、プロシージャルにフォールバック:", e);
+            }
+            createCars(10);
+            log("車の作成完了");
+        })();
 
         // === カメラ初期位置 ===
         camera.position.set(100, 70, 90);

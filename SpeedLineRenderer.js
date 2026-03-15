@@ -103,9 +103,9 @@ export class SpeedLineRenderer {
             positions[idx]     = startX;
             positions[idx + 1] = startY;
             positions[idx + 2] = startZ;
-            positions[idx + 3] = startX + fwd.x * len;
+            positions[idx + 3] = startX - fwd.x * len;
             positions[idx + 4] = startY;
-            positions[idx + 5] = startZ + fwd.z * len;
+            positions[idx + 5] = startZ - fwd.z * len;
 
             // 色: PASS=オレンジ→黄, TANDEM=水色
             if (isPassing) {

@@ -510,6 +510,10 @@
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
+        const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        if (isMobile) {
+            renderer.setPixelRatio(0.75);
+        }
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setClearColor(0x646464);
         document.body.appendChild(renderer.domElement);

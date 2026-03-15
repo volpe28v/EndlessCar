@@ -108,11 +108,7 @@ export function updateStreetLights(isNight) {
 }
 
 // 時刻表示を更新する関数
-let _lastTimeText = '';
 function updateTimeDisplay() {
-    const text = ctx.timeModeState.getTimeDisplayText(ctx.gameTime);
-    if (text !== _lastTimeText) {
-        _lastTimeText = text;
-        document.getElementById('currentTime').textContent = text;
-    }
+    const timeDisplay = document.getElementById('currentTime');
+    timeDisplay.textContent = ctx.timeModeState.getTimeDisplayText(ctx.gameTime);
 }

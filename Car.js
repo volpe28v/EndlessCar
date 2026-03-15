@@ -335,7 +335,7 @@ export class Car {
       }
   }
 
-  calculateCurvature(t, samplePoints = 8, sampleDistance = 0.005) {
+  calculateCurvature(t, samplePoints = 15, sampleDistance = 0.005) {
     const key = Math.round(t * 10000);
     if (this._curvatureCache && this._curvatureCache.has(key)) {
         return this._curvatureCache.get(key);
@@ -507,8 +507,8 @@ export class Car {
       const maxFutureCurvature = Math.max(...farCurves);
       const hasSharpCurveAhead = maxFutureCurvature > sharpCurveThreshold * C.DRIFT.SHARP_AHEAD_RATIO;
 
-      const nearFutureCurvatureGradient = (farCurves[1] - curveAngle) / C.DRIFT.NEAR_GRADIENT_DIST;
-      const farFutureCurvatureGradient = (farCurves[3] - curveAngle) / C.DRIFT.FAR_GRADIENT_DIST;
+      const nearFutureCurvatureGradient = (farCurves[5] - curveAngle) / C.DRIFT.NEAR_GRADIENT_DIST;
+      const farFutureCurvatureGradient = (farCurves[8] - curveAngle) / C.DRIFT.FAR_GRADIENT_DIST;
       const isApproachingSharpCurve = (nearFutureCurvatureGradient > C.DRIFT.APPROACH_NEAR_GRADIENT || farFutureCurvatureGradient > C.DRIFT.APPROACH_FAR_GRADIENT) &&
                                      maxFutureCurvature > mildCurveThreshold * C.DRIFT.APPROACH_CURVE_RATIO;
 
@@ -835,13 +835,11 @@ export class Car {
   }
 
   _countCarsCloselyBehind(cars) {
-      let count = 0;
-      for (const c of cars) {
-          if (c === this) continue;
+      return cars.filter(c => {
+          if (c === this) return false;
           const behindGap = Car.pathDelta(c.position, this.position);
-          if (behindGap > 0 && behindGap < C.GAP.BEHIND_CHECK) count++;
-      }
-      return count;
+          return behindGap > 0 && behindGap < C.GAP.BEHIND_CHECK;
+      }).length;
   }
 
   isReturnPathBlocked(cars) {

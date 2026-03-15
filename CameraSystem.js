@@ -29,7 +29,7 @@ export function updateCamera() {
             break;
         }
         case 2: { // 車載（ドライバー視点）
-            const fpvOffset = new THREE.Vector3(0, 1.2, 0.0);
+            const fpvOffset = new THREE.Vector3(0, 1.8, 0.0);
             const rotatedFpvOffset = fpvOffset.clone().applyQuaternion(currentCar.object.quaternion);
             ctx.camera.position.copy(currentCar.object.position).add(rotatedFpvOffset);
             const fpvLookAheadOffset = new THREE.Vector3(0, 0.5, -30).applyQuaternion(currentCar.object.quaternion);

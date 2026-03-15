@@ -1,0 +1,261 @@
+// CarConstants.js - Car クラスの全 static 定数
+
+export const DRIVER_NAMES = [
+    'SCH', 'HAM', 'SEN', 'VET', 'RAI',
+    'ALN', 'MAN', 'PRO', 'LAU', 'CLK',
+    'FIT', 'HAK', 'RIC', 'PIQ', 'STW',
+    'HIL', 'VER', 'LEC', 'NOR', 'VIL',
+    'BAR', 'COU', 'BER', 'AND', 'ROS',
+    'BOT', 'SAI', 'GAS', 'OCO', 'TSU',
+    'PER', 'MAG', 'RUS', 'PIA', 'MAS',
+    'KUB', 'BUT', 'NAK', 'SAT', 'KOB',
+];
+
+let _usedDriverNames = [];
+
+export function pickDriverName() {
+    if (_usedDriverNames.length >= DRIVER_NAMES.length) {
+        _usedDriverNames = [];
+    }
+    const available = DRIVER_NAMES.filter(n => !_usedDriverNames.includes(n));
+    const name = available[Math.floor(Math.random() * available.length)];
+    _usedDriverNames.push(name);
+    return name;
+}
+
+export function resetUsedDriverNames() {
+    _usedDriverNames = [];
+}
+
+// 距離閾値定数
+export const GAP = {
+    OVERTAKE_COMPLETE: -0.01,
+    OVERTAKE_LOST: 0.06,
+    TANDEM_BEHIND: -0.002,
+    TANDEM_FAR: 0.08,
+    AHEAD_BUSY: 0.02,
+    APPROACH: 0.018,
+    FORCE_TANDEM: 0.01,
+    SLOW_DOWN: 0.015,
+    BEHIND_CHECK: 0.015,
+    FIND_AHEAD_MIN: 0.002,
+    FIND_AHEAD_MAX: 0.04,
+    ENDTANDEM_CHECK: 0.02,
+    ENDTANDEM_PASS_START: 0.03,
+};
+
+// ターボブースト定数
+export const TURBO = {
+    DURATION: 300,
+    INITIAL_MULT: 1.20,
+    DECAY: 0.05,
+    MAX_SPEED_RATIO: 1.20,
+    RAMP_UP: 10,
+    SLIPSTREAM_BONUS: 0.15,
+};
+
+// ライン戦略定数
+export const LINE_STRATEGY = {
+    OUT_IN_OUT: 'OUT_IN_OUT',
+    LATE_APEX:  'LATE_APEX',
+    IN_IN_IN:   'IN_IN_IN',
+    WIDE_ENTRY: 'WIDE_ENTRY',
+};
+
+// 戦略別の速度予測距離
+export const STRATEGY_LOOK_AHEAD = {
+    OUT_IN_OUT: 0.05,
+    LATE_APEX:  0.03,
+    IN_IN_IN:   0.07,
+    WIDE_ENTRY: 0.06,
+};
+
+// ライン取り定数
+export const LINE = {
+    BASE_OFFSET: 2.5,
+    MAX_CHANGE_PER_FRAME: 0.2,
+    SMOOTH_FACTOR: 0.1,
+};
+
+// ドリフト関連定数
+export const DRIFT = {
+    // カーブ閾値
+    MILD_CURVE_THRESHOLD: 0.038,
+    SHARP_CURVE_THRESHOLD: 0.065,
+
+    // サンプリング距離
+    DIR_SAMPLE_DIST: 0.002,
+    PREV_NEXT_DIST: 0.01,
+    FUTURE_DIST: 0.02,
+    SAMPLE_DISTANCES: [0.005, 0.011, 0.018, 0.028],
+
+    // 前方カーブ検出
+    SHARP_AHEAD_RATIO: 0.85,
+    APPROACH_NEAR_GRADIENT: 0.65,
+    APPROACH_FAR_GRADIENT: 0.5,
+    APPROACH_CURVE_RATIO: 1.2,
+    RAPID_INCREASE_THRESHOLD: 0.9,
+
+    // ドリフト開始倍率
+    START_CURRENT_RATIO: 2.0,
+    START_AHEAD_CURVE_RATIO: 2.2,
+    START_AHEAD_CURRENT_RATIO: 1.6,
+    START_APPROACH_RATIO: 1.7,
+
+    // コーナー進行度の補正係数
+    PEAK_FACTOR: 0.8,
+    EXIT_FACTOR: 0.7,
+    ENTRY_BASE_FACTOR: 0.15,
+    ENTRY_SUPPRESSION: 0.6,
+    ENTRY_PROGRESS_FACTOR: 0.25,
+    ENTRY_SUPPRESSION_MULT: 7,
+    AHEAD_RAPID_FACTOR: 0.1,
+    AHEAD_MILD_FACTOR: 0.03,
+
+    // ドリフト強度の計算
+    CURRENT_START_RATIO: 1.8,
+    FUTURE_START_RATIO: 2.0,
+    FUTURE_RAPID_FACTOR: 0.15,
+    FUTURE_MILD_FACTOR: 0.03,
+    EXTREME_CURVE_DIVISOR: 0.6,
+    EXTREME_CURVE_BASE: 0.4,
+    STRENGTH_MULTIPLIER: 1.3,
+
+    // 速度によるドリフト補正
+    MIN_DRIFT_SPEED_RATIO: 0.25,
+    FULL_DRIFT_SPEED_RATIO: 0.5,
+    NO_DRIFT_SPEED_RATIO: 0.2,
+
+    // 減衰率
+    DECAY_STRAIGHT_AFTER: 0.995,
+    DECAY_TRANSITIONING: 0.998,
+    DECAY_STRAIGHT: 0.93,
+
+    // 直線判定の倍率
+    STRAIGHT_CURRENT_RATIO: 0.75,
+    STRAIGHT_FUTURE_RATIO: 0.85,
+    STRAIGHT_PREV_RATIO: 0.8,
+    STRAIGHT_AFTER_RATIO: 1.1,
+    STRAIGHT_AFTER_PREV_RATIO: 0.25,
+    STRAIGHT_AFTER_DRIFT_MIN: 0.04,
+    TRANSITION_RATIO: 0.9,
+    TRANSITION_PREV_RATIO: 0.1,
+    TRANSITION_DRIFT_MIN: 0.015,
+    FINISHED_CORNER_RATIO1: 0.5,
+    FINISHED_CORNER_PREV_RATIO1: 0.6,
+    FINISHED_CORNER_RATIO2: 0.3,
+    FINISHED_CORNER_PREV_RATIO2: 0.4,
+    STRONG_DRIFT_THRESHOLD: 0.2,
+    STRONG_DRIFT_CURVE_RATIO: 0.4,
+    MAINTAIN_DRIFT_MIN: 0.05,
+    MAINTAIN_STRONG_MIN: 0.1,
+
+    // ドリフト補間速度
+    ENTER_SPEED_MULT: 0.2,
+    EXIT_SPEED_BASE: 0.005,
+    EXIT_WEAK_THRESHOLD: 0.35,
+    EXIT_WEAK_SPEED: 0.002,
+    EXIT_VERY_WEAK_THRESHOLD: 0.2,
+    EXIT_VERY_WEAK_SPEED: 0.001,
+    EXIT_STRAIGHT_MULT: 5.0,
+    EXIT_APPROACHING_MULT: 0.1,
+    EXIT_TRANSITION_MULT: 0.1,
+    STRENGTH_ZERO_THRESHOLD: 0.003,
+
+    // 方向補間
+    DIRECTION_CHANGE_SPEED: 0.12,
+    DIRECTION_STRAIGHT_DECAY: 0.8,
+    DIRECTION_WEAK_DECAY: 0.9,
+    DIRECTION_WEAK_THRESHOLD: 0.15,
+    DIRECTION_ZERO_THRESHOLD: 0.05,
+    DIRECTION_NEAR_ZERO: 0.1,
+    DIRECTION_CLEAR_DIFF: 0.1,
+    DIRECTION_REVERSE_NEAR: 0.2,
+    DIRECTION_REVERSE_INIT: 0.2,
+    DIRECTION_REVERSE_DECAY: 0.8,
+    DIRECTION_SUSTAIN_MIN: 0.08,
+    DIRECTION_NEAR_FUTURE_DIST: 0.008,
+    DIRECTION_NEAR_CURVE_RATIO: 1.5,
+    DIRECTION_CURVE_THRESHOLD: 0.5,
+    DIRECTION_SUSTAIN_THRESHOLD: 0.1,
+
+    // 角度関連
+    BASE_MAX_ANGLE: 0.65,
+    ANGLE_INTERP_BASE: 0.15,
+    ANGLE_INTERP_SLOW: 0.6,
+    ANGLE_LARGE_DIFF: 0.2,
+    SIDE_MULTIPLIER: 1.1,
+    ANGLE_RESET_DECAY: 0.9,
+    ANGLE_ZERO_THRESHOLD: 0.01,
+    DRIFT_VISUAL_MIN: 0.001,
+
+    // 傾き関連
+    TILT_BASE_DRIFT: 0.03,
+    TILT_BASE_NORMAL: 0.013,
+    TILT_DRIFT_BOOST: 0.07,
+    TILT_SPEED_SCALE_MIN: 0.65,
+    TILT_SPEED_SCALE_MULT: 0.85,
+    TILT_BASE_MULT: 0.035,
+    TILT_DRIFT_MULT: 0.09,
+    TILT_SPEED_MULT: 1.1,
+    TILT_DRIFT_FINAL: 1.0,
+    TILT_CURVE_MULT: 1.1,
+    TILT_DRIFT_THRESHOLD: 0.1,
+
+    // タイヤ関連
+    COUNTER_STEER_THRESHOLD: 0.08,
+    COUNTER_STEER_BASE: 1.2,
+    COUNTER_STEER_DRIFT: 0.3,
+    REAR_OFFSET_THRESHOLD: 0.15,
+    REAR_OFFSET_MULT: 0.18,
+    TILT_OFFSET_BASE: 0.2,
+    TILT_OFFSET_DRIFT: 0.25,
+
+    // 出口判定
+    EXIT_CURVE_CHANGE: -0.15,
+    EXIT_CURVE_RATIO: 0.6,
+    APPROACHING_EXIT_MIN: 0.08,
+    TRANSITION_EXIT_MIN: 0.015,
+
+    // 曲率勾配の除算距離
+    NEAR_GRADIENT_DIST: 0.07,
+    FAR_GRADIENT_DIST: 0.028,
+};
+
+// 速度と表示用速度（km/h）の変換係数
+export const SPEED_TO_KMH = 360;
+
+// スリップストリーム定数
+export const SLIPSTREAM = {
+    CHARGE_RATE: 0.001,
+};
+
+// 接触回避定数
+export const COLLISION = {
+    AHEAD_DIST: 15.0,
+    LANE_WIDTH: 4.0,
+    BRAKE_DIST: 8.0,
+    FORCE_TANDEM_3D: 8.0,
+    SIDE_FORWARD: 6.0,
+    SIDE_LATERAL: 6.0,
+    SIDE_BRAKE: 0.97,
+    BODY_LENGTH: 6.0,
+    BODY_WIDTH: 3.0,
+    EMERGENCY_DIST: 4.0,
+};
+
+export const AVOIDANCE = {
+    RADIUS: 5.0,
+    MAX_PUSH: 0.25,
+    PATH_DIST_MAX: 0.08,
+    SMOOTH_FACTOR: 0.4,
+    OVERTAKE_DAMPING: 0.3,
+};
+
+// 追い抜き定数
+export const OVERTAKE = {
+    DISTANCE: 40.0,
+    OFFSET: 5.0,
+    PHASE_SPEED: 0.008,
+    MAX_DURATION: 720,
+};

@@ -3,6 +3,118 @@ function log(message) {
   console.log(`[${new Date().toISOString()}] ${message}`);
 }
 
+class SpeedLineRenderer {
+    constructor() {
+        this._lines = null;
+        this._data = null;
+        this._fwd = new THREE.Vector3();
+    }
+
+    create(scene) {
+        const LINE_COUNT = 12;
+        const geo = new THREE.BufferGeometry();
+        const positions = new Float32Array(LINE_COUNT * 6); // 2頂点 × 3座標
+        const colors = new Float32Array(LINE_COUNT * 6);    // 2頂点 × RGB
+        geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        const mat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.6 });
+        const lines = new THREE.LineSegments(geo, mat);
+        lines.frustumCulled = false;
+        scene.add(lines);
+        this._lines = lines;
+        this._data = Array.from({ length: LINE_COUNT }, () => ({
+            offset: new THREE.Vector3(), life: 0, maxLife: 0,
+        }));
+    }
+
+    update(car) {
+        if (!this._lines || !car.object) return;
+        const slip = car.slipstreamCharge;
+        const isPassing = car.isPassing;
+        const isTandem = car.isTandemFollowing;
+        // PASS中はスリップストリーム蓄積がある場合のみ表示
+        const active = (isPassing && slip > 0.01) || isTandem;
+
+        const positions = this._lines.geometry.attributes.position.array;
+        const colors = this._lines.geometry.attributes.color.array;
+        const data = this._data;
+
+        // 車の後方向き（getWorldDirectionで実際の車体方向を取得）
+        const fwd = this._fwd;
+        car.object.getWorldDirection(fwd);
+        const right = car._frameRight;
+        const carPos = car.object.position;
+
+        // PASS時: スリップストリーム蓄積量に応じてライン長・密度が変化
+        const lineLength = isPassing ? slip * (4 + car.speed * 12) : 2 + car.speed * 6;
+        const spawnRate = isPassing ? slip * 0.5 : 0.12;
+
+        for (let i = 0; i < data.length; i++) {
+            const d = data[i];
+            const idx = i * 6;
+
+            if (d.life <= 0) {
+                // スポーン判定
+                if (active && Math.random() < spawnRate) {
+                    const side = (Math.random() - 0.5) * 2.5;
+                    const height = 0.3 + Math.random() * 1.5;
+                    d.offset.set(
+                        right.x * side,
+                        height,
+                        right.z * side
+                    );
+                    d.maxLife = 8 + Math.floor(Math.random() * 12);
+                    d.life = d.maxLife;
+                } else {
+                    // 非表示
+                    for (let j = 0; j < 6; j++) positions[idx + j] = 0;
+                    for (let j = 0; j < 6; j++) colors[idx + j] = 0;
+                    continue;
+                }
+            }
+
+            const alpha = d.life / d.maxLife;
+            d.life--;
+
+            // 先端: 車の後方近く（fwdは-Z=後方を向くため、+fwdが後方）
+            const startX = carPos.x + d.offset.x + fwd.x * 2;
+            const startY = carPos.y + d.offset.y;
+            const startZ = carPos.z + d.offset.z + fwd.z * 2;
+            // 末端: さらに後方
+            const len = lineLength * alpha;
+            positions[idx]     = startX;
+            positions[idx + 1] = startY;
+            positions[idx + 2] = startZ;
+            positions[idx + 3] = startX + fwd.x * len;
+            positions[idx + 4] = startY;
+            positions[idx + 5] = startZ + fwd.z * len;
+
+            // 色: PASS=オレンジ→黄, TANDEM=水色
+            if (isPassing) {
+                colors[idx]     = 1.0; colors[idx + 1] = 0.6 * alpha; colors[idx + 2] = 0.0;
+                colors[idx + 3] = 1.0; colors[idx + 4] = 0.9;         colors[idx + 5] = 0.2 * alpha;
+            } else {
+                colors[idx]     = 0.3 * alpha; colors[idx + 1] = 0.8 * alpha; colors[idx + 2] = 1.0 * alpha;
+                colors[idx + 3] = 0.1 * alpha; colors[idx + 4] = 0.5 * alpha; colors[idx + 5] = 0.8 * alpha;
+            }
+        }
+
+        this._lines.geometry.attributes.position.needsUpdate = true;
+        this._lines.geometry.attributes.color.needsUpdate = true;
+        this._lines.material.opacity = active ? 0.6 : 0;
+    }
+
+    dispose(scene) {
+        if (this._lines) {
+            this._lines.geometry.dispose();
+            this._lines.material.dispose();
+            scene.remove(this._lines);
+        }
+        this._lines = null;
+        this._data = null;
+    }
+}
+
 export class Car {
   static DRIVER_NAMES = [
       'SCH', 'HAM', 'SEN', 'VET', 'RAI',
@@ -15,7 +127,8 @@ export class Car {
       'KUB', 'BUT', 'NAK', 'SAT', 'KOB',
   ];
   static _usedDriverNames = [];
-  // calculateCurvature用の再利用Vector2
+  // 全インスタンスで共有（calculateCurvature()は同期実行のため安全）
+  // Worker化する場合はインスタンスに移動すること
   static _tmpVec2_0 = new THREE.Vector2();
   static _tmpVec2_1 = new THREE.Vector2();
   // 共通の上方向ベクトル
@@ -311,17 +424,24 @@ export class Car {
       this._frameFwd = new THREE.Vector3(0, 0, -1); // フレームキャッシュ（update()で更新）
       this._frameRight = new THREE.Vector3(1, 0, 0); // フレームキャッシュ（update()で更新）
       // update()用の一時オブジェクトプール
-      this._tmpVec3_0 = new THREE.Vector3();
-      this._tmpVec3_1 = new THREE.Vector3();
-      this._tmpVec3_2 = new THREE.Vector3();
-      this._tmpVec3_3 = new THREE.Vector3();
-      this._tmpVec3_4 = new THREE.Vector3();
-      this._tmpVec3_5 = new THREE.Vector3();
-      this._tmpDriftFwd = new THREE.Vector3();
-      this._tmpDriftSide = new THREE.Vector3();
-      this._speedLineFwd = new THREE.Vector3();
-      this._tmpMat4 = new THREE.Matrix4();
-      this._tmpQuat = new THREE.Quaternion();
+      this._pool = {
+          v3: [
+              new THREE.Vector3(), // [0] calcTargetPos: flatTangent / PassState: myDirection
+              new THREE.Vector3(), // [1] calcTargetPos: lineDir / updateRotation: rightVec
+              new THREE.Vector3(), // [2] calcTargetPos: gridLineDir / updateRotation: correctedUp
+              new THREE.Vector3(), // [3] calcTargetPos: overtakeVec / updateRotation: adjRight
+              new THREE.Vector3(), // [4] calcTargetPos: avoidVec / updateRotation: adjUp
+              new THREE.Vector3(), // [5] calcTargetPos: pushVec
+          ],
+          mat4: new THREE.Matrix4(),
+          quat: new THREE.Quaternion(),
+      };
+      this._driftForward = new THREE.Vector3();
+      this._driftSide = new THREE.Vector3();
+      this._speedLineRenderer = new SpeedLineRenderer();
+      // フレーム内曲率キャッシュ: update()冒頭でclear、calculateCurvature()内で設定
+      // 同一フレーム内で同じパス位置の曲率を複数回計算するのを防ぐ
+      this._curvatureCache = new Map();
       this.raceRank = 0; // レース中の順位（0=レース外, 1=1位...）
       this.totalCars = 0; // レース参加台数
   }
@@ -1439,98 +1559,12 @@ export class Car {
   
   // スピードライン生成
   createSpeedLines(scene) {
-      const LINE_COUNT = 12;
-      const geo = new THREE.BufferGeometry();
-      const positions = new Float32Array(LINE_COUNT * 6); // 2頂点 × 3座標
-      const colors = new Float32Array(LINE_COUNT * 6);    // 2頂点 × RGB
-      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-      const mat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.6 });
-      const lines = new THREE.LineSegments(geo, mat);
-      lines.frustumCulled = false;
-      scene.add(lines);
-      this._speedLines = lines;
-      this._speedLineData = Array.from({ length: LINE_COUNT }, () => ({
-          offset: new THREE.Vector3(), life: 0, maxLife: 0,
-      }));
+      this._speedLineRenderer.create(scene);
   }
 
   // スピードライン更新
   updateSpeedLines() {
-      if (!this._speedLines || !this.object) return;
-      const slip = this.slipstreamCharge;
-      const isPassing = this.isPassing;
-      const isTandem = this.isTandemFollowing;
-      // PASS中はスリップストリーム蓄積がある場合のみ表示
-      const active = (isPassing && slip > 0.01) || isTandem;
-
-      const positions = this._speedLines.geometry.attributes.position.array;
-      const colors = this._speedLines.geometry.attributes.color.array;
-      const data = this._speedLineData;
-
-      // 車の後方向き（getWorldDirectionで実際の車体方向を取得、プール済みVector3を再利用）
-      const fwd = this._speedLineFwd;
-      this.object.getWorldDirection(fwd);
-      const right = this._frameRight;
-      const carPos = this.object.position;
-
-      // PASS時: スリップストリーム蓄積量に応じてライン長・密度が変化
-      const lineLength = isPassing ? slip * (4 + this.speed * 12) : 2 + this.speed * 6;
-      const spawnRate = isPassing ? slip * 0.5 : 0.12;
-
-      for (let i = 0; i < data.length; i++) {
-          const d = data[i];
-          const idx = i * 6;
-
-          if (d.life <= 0) {
-              // スポーン判定
-              if (active && Math.random() < spawnRate) {
-                  const side = (Math.random() - 0.5) * 2.5;
-                  const height = 0.3 + Math.random() * 1.5;
-                  d.offset.set(
-                      right.x * side,
-                      height,
-                      right.z * side
-                  );
-                  d.maxLife = 8 + Math.floor(Math.random() * 12);
-                  d.life = d.maxLife;
-              } else {
-                  // 非表示
-                  for (let j = 0; j < 6; j++) positions[idx + j] = 0;
-                  for (let j = 0; j < 6; j++) colors[idx + j] = 0;
-                  continue;
-              }
-          }
-
-          const alpha = d.life / d.maxLife;
-          d.life--;
-
-          // 先端: 車の後方近く（fwdは-Z=後方を向くため、+fwdが後方）
-          const startX = carPos.x + d.offset.x + fwd.x * 2;
-          const startY = carPos.y + d.offset.y;
-          const startZ = carPos.z + d.offset.z + fwd.z * 2;
-          // 末端: さらに後方
-          const len = lineLength * alpha;
-          positions[idx]     = startX;
-          positions[idx + 1] = startY;
-          positions[idx + 2] = startZ;
-          positions[idx + 3] = startX + fwd.x * len;
-          positions[idx + 4] = startY;
-          positions[idx + 5] = startZ + fwd.z * len;
-
-          // 色: PASS=オレンジ→黄, TANDEM=水色
-          if (isPassing) {
-              colors[idx]     = 1.0; colors[idx + 1] = 0.6 * alpha; colors[idx + 2] = 0.0;
-              colors[idx + 3] = 1.0; colors[idx + 4] = 0.9;         colors[idx + 5] = 0.2 * alpha;
-          } else {
-              colors[idx]     = 0.3 * alpha; colors[idx + 1] = 0.8 * alpha; colors[idx + 2] = 1.0 * alpha;
-              colors[idx + 3] = 0.1 * alpha; colors[idx + 4] = 0.5 * alpha; colors[idx + 5] = 0.8 * alpha;
-          }
-      }
-
-      this._speedLines.geometry.attributes.position.needsUpdate = true;
-      this._speedLines.geometry.attributes.color.needsUpdate = true;
-      this._speedLines.material.opacity = active ? 0.6 : 0;
+      this._speedLineRenderer.update(this);
   }
 
   update(deltaTime) {
@@ -1539,8 +1573,7 @@ export class Car {
       this.updateHeadlights();
 
       // フレーム単位の curvature キャッシュをリセット
-      if (!this._curvatureCache) this._curvatureCache = new Map();
-      else this._curvatureCache.clear();
+      this._curvatureCache.clear();
 
       // 速度を更新（カーブに応じて）→ その後に追い抜き処理（ブースト上乗せ）
       this.updateSpeed();
@@ -1561,7 +1594,7 @@ export class Car {
       // パスの接線ベクトルを取得（進行方向）
       const tangent = this.carPath.getTangentAt(this.position).normalize();
       // XZ平面上の接線ベクトル（高さを無視）
-      const flatTangent = this._tmpVec3_0.set(tangent.x, 0, tangent.z).normalize();
+      const flatTangent = this._pool.v3[0].set(tangent.x, 0, tangent.z).normalize();
 
       // フレーム単位の fwd/right キャッシュ（calcLateralAvoidance で使用）
       this._frameFwd.copy(flatTangent);
@@ -1589,7 +1622,7 @@ export class Car {
       const lineOffset = baseLineOffset * (0.7 + outInOutStrength * 0.6);
 
       // カーブに応じたラインオフセットを計算
-      const lineDirection = this._tmpVec3_1.crossVectors(flatTangent, Car._UP).normalize();
+      const lineDirection = this._pool.v3[1].crossVectors(flatTangent, Car._UP).normalize();
 
       // 次のカーブの方向を予測（近方と遠方の2段階）
       const nextCurveNear = this.calculateCurvature((this.position + 0.05) % 1);
@@ -1620,7 +1653,7 @@ export class Car {
 
       // グリッド配置の横オフセット（走行開始後に減衰）
       if (Math.abs(this.gridLateralOffset) > 0.01) {
-          const gridLineDir = this._tmpVec3_2.crossVectors(flatTangent, Car._UP).normalize();
+          const gridLineDir = this._pool.v3[2].crossVectors(flatTangent, Car._UP).normalize();
           point.add(gridLineDir.multiplyScalar(this.gridLateralOffset));
           this.gridLateralOffset *= 0.97; // 徐々に減衰
       } else {
@@ -1629,7 +1662,7 @@ export class Car {
 
       // 追い抜き用の追加オフセットを計算（イージングで滑らかに）
       if (this.isOvertaking || this.overtakeProgress > 0) {
-          const overtakeVector = this._tmpVec3_3.set(-flatTangent.z, 0, flatTangent.x).normalize();
+          const overtakeVector = this._pool.v3[3].set(-flatTangent.z, 0, flatTangent.x).normalize();
           // smoothstep イージング: 出始めと到達時を緩やかに
           const t = this.overtakeProgress;
           const eased = t * t * (3 - 2 * t);
@@ -1639,13 +1672,13 @@ export class Car {
       // 横方向回避オフセット
       const avoidanceOffset = this.calcLateralAvoidance();
       if (Math.abs(avoidanceOffset) > 0.001) {
-          const avoidVec = this._tmpVec3_4.set(-flatTangent.z, 0, flatTangent.x);
+          const avoidVec = this._pool.v3[4].set(-flatTangent.z, 0, flatTangent.x);
           point.add(avoidVec.multiplyScalar(avoidanceOffset));
       }
 
       // 緊急押し出し（3Dボックス重なり時）
       if (this._emergencyPush && Math.abs(this._emergencyPush) > 0.01) {
-          const pushVec = this._tmpVec3_5.set(-flatTangent.z, 0, flatTangent.x);
+          const pushVec = this._pool.v3[5].set(-flatTangent.z, 0, flatTangent.x);
           point.add(pushVec.multiplyScalar(this._emergencyPush));
       }
       this._emergencyPush = 0;
@@ -1665,27 +1698,27 @@ export class Car {
       const upVector = Car._UP;
 
       // 3. 右向きベクトル（進行方向と上向きの外積）
-      const rightVector = this._tmpVec3_1.crossVectors(forwardVector, upVector).normalize();
+      const rightVector = this._pool.v3[1].crossVectors(forwardVector, upVector).normalize();
 
       // 4. 最終的な上向きベクトル（右向きと進行方向の外積で再計算）
-      const correctedUpVector = this._tmpVec3_2.crossVectors(rightVector, forwardVector).normalize();
+      const correctedUpVector = this._pool.v3[2].crossVectors(rightVector, forwardVector).normalize();
       
       // ドリフト計算（強度・方向・角度の更新、調整済み進行方向ベクトルを返す）
       const adjustedForwardVector = this.updateDrift(curveAngle, curveTiltDirection, forwardVector, speedScalingFactor);
       
       // 調整した進行方向ベクトルに基づいて、新しい右向きベクトルと上向きベクトルを計算
-      const adjustedRightVector = this._tmpVec3_3.crossVectors(adjustedForwardVector, upVector).normalize();
-      const adjustedUpVector = this._tmpVec3_4.crossVectors(adjustedRightVector, adjustedForwardVector).normalize();
+      const adjustedRightVector = this._pool.v3[3].crossVectors(adjustedForwardVector, upVector).normalize();
+      const adjustedUpVector = this._pool.v3[4].crossVectors(adjustedRightVector, adjustedForwardVector).normalize();
 
       // 5. 回転行列を作成（3つの直交ベクトルから）
-      const rotationMatrix = this._tmpMat4.makeBasis(
+      const rotationMatrix = this._pool.mat4.makeBasis(
           adjustedRightVector,
           adjustedUpVector,
           adjustedForwardVector.clone().negate() // THREE.jsの車モデルはZ-方向が前方なので反転
       );
       
       // 6. 回転行列からクォータニオンに変換
-      const targetRotation = this._tmpQuat.setFromRotationMatrix(rotationMatrix);
+      const targetRotation = this._pool.quat.setFromRotationMatrix(rotationMatrix);
       
       // 7. 回転を直接適用
       this.object.quaternion.copy(targetRotation);
@@ -2231,12 +2264,12 @@ export class Car {
       }
 
       // 調整された進行方向ベクトル（ドリフト時に使用、プール済みVector3を再利用）
-      let adjustedForwardVector = this._tmpDriftFwd.copy(forwardVector);
+      let adjustedForwardVector = this._driftForward.copy(forwardVector);
 
       // 現在のドリフト強度に応じてドリフト効果を適用
       if (this.currentDriftStrength > Car.DRIFT.DRIFT_VISUAL_MIN) { // 非常に小さな値でも効果を適用（滑らかな終了のため）
           // 側方向ベクトル（カーブの方向）を取得
-          const sideVector = this._tmpDriftSide.set(-forwardVector.z, 0, forwardVector.x).normalize();
+          const sideVector = this._driftSide.set(-forwardVector.z, 0, forwardVector.x).normalize();
 
           // 目標ドリフト角度を計算
           const baseMaxDriftAngle = Car.DRIFT.BASE_MAX_ANGLE;
@@ -2600,6 +2633,7 @@ export class Car {
 
   // THREE.jsリソースを解放する
   dispose(scene) {
+      // THREE.js mesh resources
       if (this.object) {
           this.object.traverse(child => {
               if (child.geometry) child.geometry.dispose();
@@ -2617,15 +2651,18 @@ export class Car {
       // SpotLight dispose
       if (this.leftHeadlight) this.leftHeadlight.dispose();
       if (this.rightHeadlight) this.rightHeadlight.dispose();
-      // SpeedLines
-      if (this._speedLines) {
-          this._speedLines.geometry.dispose();
-          this._speedLines.material.dispose();
-          scene.remove(this._speedLines);
-      }
+      // SpeedLine
+      if (this._speedLineRenderer) this._speedLineRenderer.dispose(scene);
       // 参照クリア
-      this.otherCars = null;
+      this._pool = null;
+      this._speedLineRenderer = null;
+      this._frameFwd = null;
+      this._frameRight = null;
+      this._driftForward = null;
+      this._driftSide = null;
       this._curvatureCache = null;
+      this.otherCars = null;
+      this._state = null;
   }
 }
 
@@ -2905,12 +2942,12 @@ class PassState extends CarState {
 
     // 追い抜き方向を計算（-1: 左, 1: 右）
     _calculateDirection(targetCar) {
-        const myDirection = this.car._tmpVec3_0;
+        const myDirection = this.car._pool.v3[0];
         this.car.object.getWorldDirection(myDirection);
-        const rightVector = this.car._tmpVec3_1.set(-myDirection.z, 0, myDirection.x);
+        const rightVector = this.car._pool.v3[1].set(-myDirection.z, 0, myDirection.x);
         const dx = targetCar.object.position.x - this.car.object.position.x;
         const dz = targetCar.object.position.z - this.car.object.position.z;
-        const lateralDot = rightVector.dot(this.car._tmpVec3_2.set(dx, 0, dz));
+        const lateralDot = rightVector.dot(this.car._pool.v3[2].set(dx, 0, dz));
         return lateralDot > 0 ? -1 : 1;
     }
 }

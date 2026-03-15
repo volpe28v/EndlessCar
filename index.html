@@ -512,7 +512,7 @@
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
         if (isMobile) {
-            renderer.setPixelRatio(0.75);
+            renderer.setPixelRatio(0.8);
         }
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setClearColor(0x646464);

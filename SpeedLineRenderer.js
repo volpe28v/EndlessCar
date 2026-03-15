@@ -73,12 +73,15 @@ export class SpeedLineRenderer {
             const alpha = d.life / d.maxLife;
             d.life--;
 
-            // 先端: 車の後方近く（fwdは-Z=後方を向くため、+fwdが後方）
-            const startX = carPos.x + d.offset.x + fwd.x * 2;
-            const startY = carPos.y + d.offset.y;
-            const startZ = carPos.z + d.offset.z + fwd.z * 2;
-            // 末端: さらに後方
+            // ライフの進行度（0→1で車から離れていく）
+            const progress = 1 - alpha;
+            const dist = 2 + lineLength * progress;
             const len = lineLength * alpha;
+            // 先端: 車から離れていく（fwd方向に流れる）
+            const startX = carPos.x + d.offset.x + fwd.x * dist;
+            const startY = carPos.y + d.offset.y;
+            const startZ = carPos.z + d.offset.z + fwd.z * dist;
+            // 末端: さらに先へ
             positions[idx]     = startX;
             positions[idx + 1] = startY;
             positions[idx + 2] = startZ;

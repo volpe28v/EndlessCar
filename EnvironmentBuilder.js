@@ -18,6 +18,9 @@ export function placeEnvironmentObjects() {
     // 斜張橋を配置
     createCableStayedBridges();
 
+    // スタートアーチを配置
+    createStartArch();
+
     log("環境オブジェクトの配置完了");
 }
 
@@ -574,4 +577,120 @@ function createStreetlights() {
 
         streetlightGroup.add(light);
     }
+}
+
+// スタート/フィニッシュアーチを作成（サーキットのゲートリー風）
+function createStartArch() {
+    const archGroup = new THREE.Group();
+    ctx.roadGroup.add(archGroup);
+
+    const t = 0.0;
+    const point = ctx.carPath.getPointAt(t);
+    const tangent = ctx.carPath.getTangentAt(t);
+    const fwd = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
+    const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+    const q = new THREE.Quaternion();
+    q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), fwd);
+
+    const archWidth = ctx.roadWidth + 4;
+    const archHeight = 9.0;
+    const pillarWidth = 1.0;
+    const pillarDepth = 0.8;
+
+    // メインカラー（白＋赤のサーキットカラー）
+    const whiteMat = new THREE.MeshPhongMaterial({ color: 0xEEEEEE, shininess: 40, specular: 0x333333 });
+    const redMat = new THREE.MeshPhongMaterial({ color: 0xCC2222, shininess: 30 });
+    const darkMat = new THREE.MeshPhongMaterial({ color: 0x333333, shininess: 20 });
+    const checkerMat = new THREE.MeshPhongMaterial({ color: 0x111111 });
+
+    // 左右の支柱
+    [-1, 1].forEach(side => {
+        const pillarGeo = new THREE.BoxGeometry(pillarWidth, archHeight, pillarDepth);
+        const pillar = new THREE.Mesh(pillarGeo, whiteMat);
+        pillar.position.set(
+            point.x + right.x * side * (archWidth / 2 + pillarWidth / 2),
+            point.y + archHeight / 2,
+            point.z + right.z * side * (archWidth / 2 + pillarWidth / 2)
+        );
+        pillar.quaternion.copy(q);
+        archGroup.add(pillar);
+
+        // 支柱の赤いアクセントライン
+        const accentGeo = new THREE.BoxGeometry(pillarWidth + 0.1, 0.5, pillarDepth + 0.1);
+        const accent = new THREE.Mesh(accentGeo, redMat);
+        accent.position.set(
+            pillar.position.x,
+            point.y + archHeight - 1.0,
+            pillar.position.z
+        );
+        accent.quaternion.copy(q);
+        archGroup.add(accent);
+
+        // 支柱のベース（台座）
+        const baseGeo = new THREE.BoxGeometry(pillarWidth + 0.6, 0.8, pillarDepth + 0.6);
+        const base = new THREE.Mesh(baseGeo, darkMat);
+        base.position.set(
+            pillar.position.x,
+            point.y + 0.4,
+            pillar.position.z
+        );
+        base.quaternion.copy(q);
+        archGroup.add(base);
+    });
+
+    // 上部の横梁（メインビーム）
+    const beamGeo = new THREE.BoxGeometry(archWidth + pillarWidth * 2, 1.8, pillarDepth + 0.4);
+    const beam = new THREE.Mesh(beamGeo, whiteMat);
+    beam.position.set(
+        point.x,
+        point.y + archHeight + 0.9,
+        point.z
+    );
+    beam.quaternion.copy(q);
+    archGroup.add(beam);
+
+    // 横梁の上部に赤いライン
+    const topAccentGeo = new THREE.BoxGeometry(archWidth + pillarWidth * 2 + 0.2, 0.3, pillarDepth + 0.5);
+    const topAccent = new THREE.Mesh(topAccentGeo, redMat);
+    topAccent.position.set(
+        point.x,
+        point.y + archHeight + 1.85,
+        point.z
+    );
+    topAccent.quaternion.copy(q);
+    archGroup.add(topAccent);
+
+    // 横梁の下部に赤いライン
+    const bottomAccentGeo = new THREE.BoxGeometry(archWidth + pillarWidth * 2 + 0.2, 0.3, pillarDepth + 0.5);
+    const bottomAccent = new THREE.Mesh(bottomAccentGeo, redMat);
+    bottomAccent.position.set(
+        point.x,
+        point.y + archHeight + 0.0,
+        point.z
+    );
+    bottomAccent.quaternion.copy(q);
+    archGroup.add(bottomAccent);
+
+    // チェッカーフラッグパターン（横梁の前面に装飾）
+    const checkerSize = 0.45;
+    const cols = Math.floor(archWidth / checkerSize);
+    const rows = 2;
+    for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+            if ((row + col) % 2 === 0) continue; // 白マスはスキップ（横梁が白なので）
+            const checkerGeo = new THREE.BoxGeometry(checkerSize, checkerSize, 0.05);
+            const checker = new THREE.Mesh(checkerGeo, checkerMat);
+            const localX = (col - cols / 2 + 0.5) * checkerSize;
+            const localY = point.y + archHeight + 0.3 + (row + 0.5) * checkerSize;
+            checker.position.set(
+                point.x + right.x * localX + fwd.x * (pillarDepth / 2 + 0.03),
+                localY,
+                point.z + right.z * localX + fwd.z * (pillarDepth / 2 + 0.03)
+            );
+            checker.quaternion.copy(q);
+            archGroup.add(checker);
+        }
+    }
+
+    log("スタートアーチ作成完了");
 }

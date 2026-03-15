@@ -11,6 +11,11 @@ const OBJ_CAR_NAMES = [
     'Car_07', 'Car_08', 'Car_09',        // セダン
 ];
 
+// 単体OBJ: 1ファイル1車種
+const SINGLE_OBJ_CARS = [
+    { obj: 'RedCar.obj', mtl: 'RedCar.mtl', name: 'OBJ_RedCar', bodyColor: 0xCC0404, rotationY: 0 },  // 赤いローポリ車
+];
+
 // FBX: 追加車種
 const FBX_CARS = [
     { file: 'car_1.fbx', name: 'FBX_car_1', bodyColor: 0xFF6633, texture: 'tex/Car Texture 1.png' },  // レーシングカー（オレンジ）
@@ -118,6 +123,33 @@ function loadOBJ() {
 }
 
 /**
+ * 単体OBJモデルを1台ロード
+ */
+function loadSingleOBJ(carDef) {
+    return new Promise((resolve, reject) => {
+        const mtlLoader = new THREE.MTLLoader();
+        mtlLoader.setPath(CAR_MODEL_PATH);
+        mtlLoader.load(carDef.mtl, (materials) => {
+            materials.preload();
+            const objLoader = new THREE.OBJLoader();
+            objLoader.setMaterials(materials);
+            objLoader.setPath(CAR_MODEL_PATH);
+            objLoader.load(carDef.obj, (object) => {
+                normalizeAndCache(object, carDef.name, carDef.bodyColor, carDef.rotationY !== undefined ? carDef.rotationY : Math.PI / 2);
+                log(`単体OBJロード完了: ${carDef.name}`);
+                resolve();
+            }, null, (error) => {
+                log(`単体OBJロードエラー(${carDef.obj}): ${error}`);
+                reject(error);
+            });
+        }, null, (error) => {
+            log(`単体OBJ MTLロードエラー(${carDef.mtl}): ${error}`);
+            reject(error);
+        });
+    });
+}
+
+/**
  * FBXモデルを1台ロード
  */
 function loadFBX(carDef) {
@@ -180,6 +212,9 @@ async function preload() {
     // OBJとFBXを並列ロード
     const tasks = [
         loadOBJ().catch(e => { log(`OBJロード失敗: ${e}`); }),
+        ...SINGLE_OBJ_CARS.map(car =>
+            loadSingleOBJ(car).catch(e => { log(`単体OBJロード失敗(${car.obj}): ${e}`); })
+        ),
         ...FBX_CARS.map(car =>
             loadFBX(car).catch(e => { log(`FBXロード失敗(${car.file}): ${e}`); })
         ),

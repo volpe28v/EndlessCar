@@ -267,7 +267,7 @@ export class Car {
           const pushVec = this._pool.v3[5].set(-flatTangent.z, 0, flatTangent.x);
           point.add(pushVec.multiplyScalar(this._emergencyPush));
       }
-      this._emergencyPush = 0;
+      this._emergencyPush *= 0.7;
 
       const carHeight = point.y + 0.3;
       const speedFactor = Math.min(1.0, this.speed / 0.7);
@@ -915,8 +915,12 @@ export class Car {
               if (forwardDist >= 0) {
                   this.speed = Math.min(this.speed, Math.max(other.speed * 0.85, this.MIN_SPEED));
               }
-              this._emergencyPush = (this._emergencyPush || 0) +
-                  (lateralDist < 0.1 ? 0.3 : 0.15) * (right.x * dx + right.z * dz > 0 ? -1 : 1);
+              let pushForce = lateralDist < 0.1 ? 0.3 : 0.15;
+              if (this._state instanceof PassState && this.overtakeProgress < 0.5) {
+                  pushForce *= 2.0;
+              }
+              const pushDir = right.x * dx + right.z * dz > 0 ? -1 : 1;
+              this._emergencyPush = (this._emergencyPush || 0) + pushForce * pushDir;
           }
       }
   }

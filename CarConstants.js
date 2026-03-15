@@ -249,13 +249,13 @@ export const AVOIDANCE = {
     MAX_PUSH: 0.25,
     PATH_DIST_MAX: 0.08,
     SMOOTH_FACTOR: 0.4,
-    OVERTAKE_DAMPING: 0.3,
+    OVERTAKE_DAMPING: 0.6,
 };
 
 // 追い抜き定数
 export const OVERTAKE = {
     DISTANCE: 40.0,
     OFFSET: 5.0,
-    PHASE_SPEED: 0.008,
+    PHASE_SPEED: 0.015,
     MAX_DURATION: 720,
 };

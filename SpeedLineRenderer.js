@@ -92,11 +92,13 @@ export class SpeedLineRenderer {
                 startY = carPos.y + d.offset.y;
                 startZ = carPos.z + d.offset.z + fwd.z * headDist;
             } else {
-                // PASS: 車の後方に出て後方へ流れる（従来動作）
-                startX = carPos.x + d.offset.x + fwd.x * 2;
-                startY = carPos.y + d.offset.y;
-                startZ = carPos.z + d.offset.z + fwd.z * 2;
+                // PASS: 車の近くからスポーンし後方へ流れ去る
+                const progress = 1 - alpha;
+                const dist = 2 + lineLength * progress;
                 len = lineLength * alpha;
+                startX = carPos.x + d.offset.x + fwd.x * dist;
+                startY = carPos.y + d.offset.y;
+                startZ = carPos.z + d.offset.z + fwd.z * dist;
             }
             positions[idx]     = startX;
             positions[idx + 1] = startY;

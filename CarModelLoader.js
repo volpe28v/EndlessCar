@@ -141,9 +141,14 @@ function loadFBX(carDef) {
 
             // FBXLoaderの座標変換を適用してからジオメトリに焼き込む
             object.updateMatrixWorld(true);
+            // 向き補正: X軸+90度 + Z軸+90度
+            const fixRotation = new THREE.Matrix4()
+                .makeRotationX(Math.PI / 2)
+                .multiply(new THREE.Matrix4().makeRotationZ(Math.PI / 2));
             object.traverse((obj) => {
                 if (obj.isMesh && obj.geometry) {
                     obj.geometry.applyMatrix4(obj.matrixWorld);
+                    obj.geometry.applyMatrix4(fixRotation);
                     obj.position.set(0, 0, 0);
                     obj.rotation.set(0, 0, 0);
                     obj.scale.set(1, 1, 1);

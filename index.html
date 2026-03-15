@@ -479,2296 +479,127 @@
     <div id="race-countdown" style="display:none;"></div>
     <div id="race-results" style="display:none;"></div>
     <script type="module">
+        import { ctx } from './GameContext.js';
         import { Car } from './Car.js';
-        
-        // デバッグ用のログ
+        import { SPEED_TO_KMH } from './CarConstants.js';
+        import { createTrack } from './TrackData.js';
+        import { createRoadSurface, createCurbstones, createRoadPillars } from './RoadBuilder.js';
+        import { placeEnvironmentObjects } from './EnvironmentBuilder.js';
+        import { RenderCache, WeatherSystem, initWeatherSystem, setupWeatherButtons, updateWeatherButtonState } from './WeatherSystem.js';
+        import { updateDayNightCycle } from './DayNightCycle.js';
+        import { updateCamera, setupViewButtons, updateButtonActiveState } from './CameraSystem.js';
+        import { RealtimeState, toggleTimeMode } from './TimeModeStates.js';
+        import { RaceManager } from './RaceManager.js';
+
         function log(message) {
             console.log(`[${new Date().toISOString()}] ${message}`);
         }
-        
+
         log("スクリプト開始");
-        
-        // 基本設定
+
+        // === 基本設定 ===
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setClearColor(0x646464); // 初期の空の色を設定
+        renderer.setClearColor(0x646464);
         document.body.appendChild(renderer.domElement);
-        
-        // グローバル定数の定義
-        const HORIZONTAL_SCALE = 100; // x,z座標のスケール
-        const VERTICAL_SCALE = 4;     // y座標(高さ)のスケール
-        const roadWidth = 16;         // 道路の幅
-        
-        // トラックポイントの定義
-        const originalTrackPoints = [
-            [4, 0, 7],     // 4,7,0
-            [1, 0, 7],     // 1,7,0
-            [0, 1, 5],     // 0,5,1
-            [0.5, 2, 4],   // 0.5,4,2
-            [1.2, 2, 4.3], // 1.2,4.3,2
-            [2.5, 2, 2.8], // 2.5,2.8,2
-            [2, 5, 1],     // 2,1,3
-            [2.7, 3, 0],   // 2.7,0,2.5
-            [4, 0, 1],     // 4,1,0
-            [4.4, 0, 0.8], // 4.4,0.8,0
-            [5.9, 0, 1.8], // 5.9,1.8,0
-            [5.7, 1, 2.1], // 5.7,2.1,1
-            [4.2, 1, 2.2], // 4.2,2.2,1
-            [3.7, 2, 2.9], // 3.7,2.9,2
-            [3, 2, 4.7],   // 3,4.7,2
-            [3.4, 1, 5.5], // 3.4,5.5,1
-            [4.4, 1, 5.5], // 4.4,5.5,1
-            [5.4, 2, 4.5], // 5.4,4.5,2
-            [5.7, 2, 3.6], // 5.7,3.6,2
-            [7.3, 1, 3],   // 7.3,3,1
-            [8, 1, 3.3],   // 8,3.3,1
-            [9.5, 2, 3.5], // 9.5,3.5,2
-            [9, 1, 5],     // 9,5,1
-            [7.9, 1, 5.7], // 7.9,5.7,1
-            [7, 1, 5.3],   // 7,5.3,1
-            [6, 0, 5.5],   // 6,5.5,0
-            [4.9, 0, 7],   // 4.9,7,0
-            [4, 0, 7]      // 4,7,0
-        ];
-        
-        // スケールを適用してtrackPointsを生成
-        const trackPoints = originalTrackPoints.map(point => [
-            point[0] * HORIZONTAL_SCALE,
-            point[1] * VERTICAL_SCALE,
-            point[2] * HORIZONTAL_SCALE
-        ]);
-        
-        // 道路を作成
+
+        // ctx に基本オブジェクトを登録
+        ctx.scene = scene;
+        ctx.camera = camera;
+        ctx.renderer = renderer;
+        ctx.updateButtonActiveState = updateButtonActiveState;
+
+        const HORIZONTAL_SCALE = ctx.HORIZONTAL_SCALE;
+
+        // === トラック生成 ===
+        const { carPath, detailedPathPoints } = createTrack();
+        ctx.carPath = carPath;
+        ctx.detailedPathPoints = detailedPathPoints;
+
         const roadGroup = new THREE.Group();
         scene.add(roadGroup);
-        
-        // 3Dパスポイントに変換
-        const carPathPoints = [];
-        for (let i = 0; i < trackPoints.length; i++) {
-            // 高さ情報（Y軸）を考慮したポイントを作成
-            carPathPoints.push(new THREE.Vector3(trackPoints[i][0], trackPoints[i][1] + 0.3, trackPoints[i][2]));
-        }
-        
-        // カトマル・ロムスプラインで滑らかな曲線を作成
-        const carPath = new THREE.CatmullRomCurve3(carPathPoints);
-        carPath.closed = true; // 閉じたループに戻す
-        
-        // パスの詳細なポイントを取得（道路生成用）
-        const detailedPathPoints = carPath.getPoints(500);
-        
- 
-        
-        // 車のオブジェクト配列
-        const cars = [];
-        let currentCarIndex = 0;
-        
-        // 車を作成して配列に追加する関数
+        ctx.roadGroup = roadGroup;
+
+        // === 車の管理 ===
         function createCars(count = 1) {
-            // 既存の車のリソースを解放
-            for (let car of cars) {
+            for (let car of ctx.cars) {
                 car.dispose(scene);
             }
-            cars.length = 0;
-            
-            // 新しい車を作成
+            ctx.cars.length = 0;
             for (let i = 0; i < count; i++) {
                 const car = new Car(carPath);
-                car.position = i * (1.0 / count); // 均等に配置
+                car.position = i * (1.0 / count);
                 car.createObject(scene);
-                cars.push(car);
+                ctx.cars.push(car);
             }
             for (let i = 0; i < count; i++) {
-                const car = cars[i];
-                car.setOtherCars(cars.filter(c => c !== car));  
+                const car = ctx.cars[i];
+                car.setOtherCars(ctx.cars.filter(c => c !== car));
             }
-            
             log(`${count}台の車を作成しました`);
         }
-        
+        ctx.createCars = createCars;
+
         // === レースマネージャー ===
-        let raceManager = null;
+        const raceManager = new RaceManager();
+        ctx.raceManager = raceManager;
 
-        class RaceManager {
-            constructor() {
-                this.phase = 'idle'; // 'idle' | 'grid' | 'countdown' | 'racing' | 'finished'
-                this.carData = new Map();
-                this.totalLaps = 10;
-                this.fastestLap = { time: Infinity, car: null };
-                this.raceStartTime = 0;
-                this.active = false;
-                this.autoCameraInterval = null;
-                this.autoCameraMode = true;
-                this.predictedCar = null;
-            }
-
-            get isActive() {
-                return this.active;
-            }
-
-            startRace() {
-                this.active = true;
-                this.phase = 'grid';
-                this.carData.clear();
-                this.fastestLap = { time: Infinity, car: null };
-
-                // Hide normal info, show race UI
-                document.getElementById('info').style.display = 'none';
-                document.getElementById('race-ui').style.display = 'block';
-                document.getElementById('race-results').style.display = 'none';
-
-                // Create 16 cars for race
-                createCars(16);
-
-                // Place cars on grid
-                this.placeOnGrid();
-
-                // Freeze all cars
-                for (const car of cars) {
-                    car.frozen = true;
-                    this.carData.set(car, {
-                        laps: 0,
-                        lapTimes: [],
-                        lapStartTime: 0,
-                        lastPosition: car.position,
-                        finished: false,
-                        finishTime: 0,
-                        gridPosition: 0,
-                        totalDistance: 0,
-                    });
-                }
-
-                // Set grid positions and initial totalDistance based on grid order
-                const polePosition = cars[0].position;
-                cars.forEach((car, i) => {
-                    const data = this.carData.get(car);
-                    data.gridPosition = i + 1;
-                    // Front cars get higher initial distance so grid order = ranking order
-                    let dist = car.position - polePosition;
-                    if (dist > 0.5) dist -= 1;
-                    if (dist < -0.5) dist += 1;
-                    data.totalDistance = dist;
-                });
-
-                // Focus camera on last car (最後尾)
-                currentCarIndex = cars.length - 1;
-                this.predictedCar = null;
-
-                // Show prediction UI - let user pick a car before countdown
-                document.getElementById('race-predict').style.display = 'block';
-            }
-
-            confirmPrediction() {
-                this.predictedCar = cars[currentCarIndex];
-                document.getElementById('race-predict').style.display = 'none';
-                // Start countdown after prediction confirmed
-                setTimeout(() => this.startCountdown(), 500);
-            }
-
-            placeOnGrid() {
-                // Grid: 2 columns, 8 rows, staggered (F1-style)
-                const startPosition = 0.05;
-                const rowSpacing = 0.005;
-                const staggerOffset = 0.002; // right column slightly behind
-                const lateralOffset = 2.5; // meters left/right from center
-
-                for (let i = 0; i < cars.length; i++) {
-                    const row = Math.floor(i / 2);
-                    const col = i % 2; // 0 = left, 1 = right
-
-                    const car = cars[i];
-                    car.position = startPosition - row * rowSpacing - col * staggerOffset;
-                    if (car.position < 0) car.position += 1.0;
-
-                    // Set 3D position from path
-                    const point = car.carPath.getPointAt(car.position);
-                    const tangent = car.carPath.getTangentAt(car.position);
-
-                    // Calculate lateral offset and apply to 3D position
-                    const right = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
-                    const offsetSign = (col === 0 ? -1 : 1);
-                    const offset = offsetSign * lateralOffset;
-
-                    car.object.position.set(
-                        point.x + right.x * offset,
-                        point.y,
-                        point.z + right.z * offset
-                    );
-
-                    // Store lateral offset so update() can maintain it initially
-                    car.gridLateralOffset = offset;
-
-                    // Face the car in the direction of the path
-                    const forward = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
-                    const up = new THREE.Vector3(0, 1, 0);
-                    const rightDir = new THREE.Vector3().crossVectors(forward, up).normalize();
-                    const rotMatrix = new THREE.Matrix4().makeBasis(rightDir, up, forward.clone().negate());
-                    car.object.quaternion.setFromRotationMatrix(rotMatrix);
-                }
-            }
-
-            startCountdown() {
-                this.phase = 'countdown';
-                const countdownEl = document.getElementById('race-countdown');
-                countdownEl.style.display = 'flex';
-
-                const steps = ['3', '2', '1', 'GO!'];
-                let step = 0;
-
-                const doStep = () => {
-                    if (step < steps.length) {
-                        countdownEl.textContent = steps[step];
-                        countdownEl.style.color = step < 3 ? '#ff4444' : '#44ff44';
-                        countdownEl.style.fontSize = step < 3 ? '120px' : '100px';
-                        step++;
-
-                        if (step <= steps.length) {
-                            setTimeout(doStep, 1000);
-                        }
-                    } else {
-                        // Hide countdown
-                        countdownEl.style.display = 'none';
-                    }
-                };
-
-                doStep();
-
-                // After "GO!" (3 seconds for 3,2,1 + show GO for 1 sec)
-                setTimeout(() => {
-                    this.phase = 'racing';
-                    this.raceStartTime = performance.now();
-
-                    // Unfreeze all cars and record lap start time
-                    for (const car of cars) {
-                        car.frozen = false;
-                        // Vary initial speed slightly to prevent bunching
-                        car.speed = car.MIN_SPEED + Math.random() * (car.MAX_SPEED - car.MIN_SPEED) * 0.3;
-                        const data = this.carData.get(car);
-                        data.lapStartTime = this.raceStartTime;
-                        data.lastPosition = car.position;
-                    }
-
-                    // Start auto camera switching (only if not manually selected)
-                    if (this.autoCameraMode) {
-                        this.startAutoCamera();
-                    }
-                }, 3000);
-            }
-
-            updateRace() {
-                if (this.phase !== 'racing') return;
-
-                const now = performance.now();
-                let allFinished = true;
-
-                for (const car of cars) {
-                    const data = this.carData.get(car);
-                    if (data.finished) continue;
-                    allFinished = false;
-
-                    // Track cumulative distance
-                    const prev = data.lastPosition;
-                    const curr = car.position;
-                    let delta = curr - prev;
-                    if (delta < -0.5) delta += 1; // wrap around 0
-                    if (delta > 0.5) delta -= 1;  // backwards safety
-                    data.totalDistance += delta;
-
-                    if (prev > 0.8 && curr < 0.2) {
-                        // Completed a lap
-                        data.laps++;
-                        const lapTime = now - data.lapStartTime;
-                        data.lapTimes.push(lapTime);
-                        data.lapStartTime = now;
-
-                        // Check fastest lap
-                        if (lapTime < this.fastestLap.time) {
-                            this.fastestLap = { time: lapTime, car: car };
-                        }
-
-                        // Check if finished
-                        if (data.laps >= this.totalLaps) {
-                            data.finished = true;
-                            data.finishTime = now - this.raceStartTime;
-                        }
-                    }
-
-                    data.lastPosition = curr;
-                }
-
-                // Update race rank on each car (for aggressive PASS logic)
-                const ranked = this.getRankedCars();
-                ranked.forEach(([car], i) => {
-                    car.raceRank = i + 1;
-                    car.totalCars = cars.length;
-                });
-
-                // Check if all cars finished
-                if (allFinished || this.getFinishedCount() >= cars.length) {
-                    this.finishRace();
-                }
-            }
-
-            getFinishedCount() {
-                let count = 0;
-                for (const [, data] of this.carData) {
-                    if (data.finished) count++;
-                }
-                return count;
-            }
-
-            getRankedCars() {
-                const entries = Array.from(this.carData.entries());
-                return entries.sort((a, b) => {
-                    const da = a[1], db = b[1];
-                    // Finished cars first, sorted by finish time
-                    if (da.finished && db.finished) return da.finishTime - db.finishTime;
-                    if (da.finished) return -1;
-                    if (db.finished) return 1;
-                    // Sort by cumulative distance (accounts for grid position naturally)
-                    return db.totalDistance - da.totalDistance;
-                });
-            }
-
-            updateUI() {
-                if (!this.active) return;
-
-                const ranked = this.getRankedCars();
-                this._cachedRanked = ranked; // cache for 3D label rendering
-                const board = document.getElementById('race-position-board');
-                const lapCounter = document.getElementById('race-lap-counter');
-
-                // Position board
-                let html = '<table><tr><th>P</th><th>Car</th><th>Lap</th><th>Gap</th></tr>';
-                const leaderData = ranked[0]?.[1];
-
-                ranked.forEach(([car, data], i) => {
-                    const pos = i + 1;
-                    const colorHex = '#' + (car.bodyColor || 0xffffff).toString(16).padStart(6, '0');
-                    const isCurrent = cars.indexOf(car) === currentCarIndex;
-
-                    let gap = '';
-                    if (i === 0) {
-                        if (this.phase !== 'racing') {
-                            gap = '--';
-                        } else if (data.finished) {
-                            gap = this.formatTime(data.finishTime);
-                        } else {
-                            gap = this.formatTime(performance.now() - this.raceStartTime);
-                        }
-                    } else if (this.phase !== 'racing') {
-                        gap = '--';
-                    } else if (data.finished && leaderData?.finished) {
-                        gap = '+' + this.formatTime(data.finishTime - leaderData.finishTime);
-                    } else {
-                        const lapDiff = (leaderData?.laps || 0) - data.laps;
-                        if (lapDiff > 0) {
-                            gap = '+' + lapDiff + 'L';
-                        } else {
-                            // パス位置差をリーダーのラップペースで秒に換算
-                            let posDiff = ((ranked[0]?.[0]?.position || 0) - car.position + 1) % 1;
-                            if (posDiff > 0.5) posDiff -= 1;
-                            posDiff = Math.abs(posDiff);
-                            const leaderLapMs = leaderData?.lapTimes?.length > 0
-                                ? leaderData.lapTimes[leaderData.lapTimes.length - 1]
-                                : (performance.now() - this.raceStartTime);
-                            const gapMs = posDiff * leaderLapMs;
-                            gap = '+' + this.formatTime(gapMs);
-                        }
-                    }
-
-                    const fastestMark = (this.fastestLap.car === car && data.lapTimes.length > 0) ? ' class="fastest-lap"' : '';
-                    const isPredicted = (this.predictedCar === car);
-                    const classes = [isCurrent ? 'current-car' : '', isPredicted ? 'predicted-car' : ''].filter(Boolean).join(' ');
-                    const rowAttr = classes ? ` class="${classes}"` : '';
-
-                    const carIdx = cars.indexOf(car);
-                    html += `<tr${rowAttr} data-car-index="${carIdx}" style="cursor:pointer;"><td>${pos}</td><td><span style="color:${colorHex};">■</span> ${car.driverName || ''}</td><td${fastestMark}>${data.laps}/${this.totalLaps}</td><td>${gap}</td></tr>`;
-                });
-
-                html += '</table>';
-                board.innerHTML = html;
-
-                // Lap counter - show current car's lap
-                const currentCar = cars[currentCarIndex];
-                if (currentCar) {
-                    const currentData = this.carData.get(currentCar);
-                    if (currentData) {
-                        lapCounter.textContent = `LAP ${Math.min(currentData.laps + 1, this.totalLaps)} / ${this.totalLaps}`;
-                    }
-                }
-            }
-
-            formatTime(ms) {
-                const totalSec = ms / 1000;
-                const min = Math.floor(totalSec / 60);
-                const sec = Math.floor(totalSec % 60);
-                const msec = Math.floor((totalSec % 1) * 1000);
-                if (min > 0) {
-                    return `${min}:${sec.toString().padStart(2, '0')}.${msec.toString().padStart(3, '0')}`;
-                }
-                return `${sec}.${msec.toString().padStart(3, '0')}`;
-            }
-
-            finishRace() {
-                this.phase = 'finished';
-                this.stopAutoCamera();
-
-                // Freeze all cars
-                for (const car of cars) {
-                    car.frozen = true;
-                }
-
-                // Show results
-                const results = document.getElementById('race-results');
-                const ranked = this.getRankedCars();
-
-                let html = '<h2>RACE RESULTS</h2>';
-                html += '<table><tr><th>Pos</th><th>Car</th><th>Time</th><th>Best Lap</th></tr>';
-
-                ranked.forEach(([car, data], i) => {
-                    const pos = i + 1;
-                    const colorHex = '#' + (car.bodyColor || 0xffffff).toString(16).padStart(6, '0');
-                    const time = data.finished ? this.formatTime(data.finishTime) : `DNF (${data.laps}L)`;
-                    const bestLap = data.lapTimes.length > 0 ? this.formatTime(Math.min(...data.lapTimes)) : '--';
-                    const isFastest = this.fastestLap.car === car && data.lapTimes.length > 0;
-                    const bestLapClass = isFastest ? ' class="fastest-lap"' : '';
-
-                    const resPredictClass = (this.predictedCar === car) ? ' class="predicted-car"' : '';
-                    html += `<tr${resPredictClass}><td>${pos}</td><td><span style="color:${colorHex};">■</span> ${car.driverName || ''}</td><td>${time}</td><td${bestLapClass}>${bestLap}</td></tr>`;
-                });
-
-                html += '</table>';
-                html += '<div class="result-buttons">';
-                html += '<button id="raceAgainBtn">Race Again</button>';
-                html += '<button id="normalModeBtn">Normal Mode</button>';
-                html += '</div>';
-
-                // Fastest lap info
-                if (this.fastestLap.car) {
-                    const flCar = this.fastestLap.car;
-                    const flColor = '#' + (flCar.bodyColor || 0xffffff).toString(16).padStart(6, '0');
-                    html += `<div style="margin-top:15px;" class="fastest-lap">Fastest Lap: <span style="color:${flColor};">■</span> ${this.formatTime(this.fastestLap.time)}</div>`;
-                }
-
-                results.innerHTML = html;
-                results.style.display = 'flex';
-            }
-
-            endRaceMode() {
-                this.active = false;
-                this.phase = 'idle';
-                this.stopAutoCamera();
-
-                // Hide race UI
-                document.getElementById('race-ui').style.display = 'none';
-                document.getElementById('race-results').style.display = 'none';
-                document.getElementById('race-countdown').style.display = 'none';
-                document.getElementById('race-predict').style.display = 'none';
-
-                // Show normal info
-                document.getElementById('info').style.display = 'block';
-
-                // Unfreeze and recreate cars normally
-                for (const car of cars) {
-                    car.frozen = false;
-                }
-                createCars(16);
-                currentCarIndex = 0;
-            }
-
-            startAutoCamera() {
-                this.stopAutoCamera(); // 既存 interval をクリア
-                this.autoCameraMode = true;
-                this.autoCameraInterval = setInterval(() => {
-                    if (!this.autoCameraMode || this.phase !== 'racing') return;
-                    // Switch to a random car, preferring cars near the front
-                    const ranked = this.getRankedCars();
-                    // Pick from top 5 with higher probability
-                    const topN = Math.min(5, ranked.length);
-                    const idx = Math.random() < 0.7
-                        ? Math.floor(Math.random() * topN)
-                        : Math.floor(Math.random() * ranked.length);
-                    const targetCar = ranked[idx][0];
-                    currentCarIndex = cars.indexOf(targetCar);
-
-                    // Randomly switch camera view (0-4)
-                    cameraMode = Math.floor(Math.random() * 5);
-                    updateButtonActiveState();
-                }, 8000);
-            }
-
-            stopAutoCamera() {
-                if (this.autoCameraInterval) {
-                    clearInterval(this.autoCameraInterval);
-                    this.autoCameraInterval = null;
-                }
-            }
-
-            toggleAutoCamera() {
-                this.autoCameraMode = !this.autoCameraMode;
-                if (this.autoCameraMode && this.phase === 'racing') {
-                    this.startAutoCamera();
-                } else {
-                    this.stopAutoCamera();
-                }
-                this.updateAutoCameraButton();
-            }
-
-            updateAutoCameraButton() {
-                const btn = document.getElementById('race-auto-camera');
-                if (btn) {
-                    if (this.autoCameraMode) {
-                        btn.classList.add('active');
-                        btn.textContent = 'Auto';
-                    } else {
-                        btn.classList.remove('active');
-                        btn.textContent = 'Manual';
-                    }
-                }
-            }
-        }
-
-        raceManager = new RaceManager();
-
-        // 初期状態では3台の車を作成
-        createCars(16);
-        
-        log("車の作成完了");
-        
-        // カメラ位置の初期設定（斜め視点向け）
-        camera.position.set(100, 70, 90);
-        
-        log("Three.jsの基本設定完了");
-        
-        // 時間システムの追加
-        let gameTime = 5.0; // 朝5時からスタート
-        let timeSpeed = 0.01; // 時間の進み速度 (0.01 = 現実の100倍速)
-        let isNight = false;
-        let isNightMode = false;
-        // --- TimeModeState ステートパターン ---
-        class TimeModeState {
-            get name() { return ''; }
-            get icon() { return ''; }
-            get title() { return ''; }
-            enter() {}
-            exit() {}
-            getGameTime(gameTime, timeSpeed) { return gameTime; }
-            shouldAutoSwitch() { return false; }
-            shouldAutoChangeWeather() { return false; }
-            shouldShowWeatherText(isFromCurrentLocation) { return true; }
-            getTimeDisplayText(gameTime) { return ''; }
-            initWeather() {}
-        }
-
-        class RealtimeState extends TimeModeState {
-            get name() { return 'realtime'; }
-            get icon() { return '🕒'; }
-            get title() { return '現在の時刻に連動（クリックで切替）'; }
-            enter() {
-                weatherSystem.lastChangeTime = Date.now();
-                weatherSystem.changeInterval = 30000;
-                lastCameraChangeTime = Date.now();
-                cameraChangeInterval = 30000;
-                fetchCurrentWeather();
-            }
-            getGameTime(gameTime, timeSpeed) {
-                const now = new Date();
-                return now.getHours() + now.getMinutes() / 60;
-            }
-            shouldAutoSwitch() { return false; }
-            shouldShowWeatherText(isFromCurrentLocation) { return isFromCurrentLocation; }
-            getTimeDisplayText(gameTime) {
-                const now = new Date();
-                const hours = now.getHours().toString().padStart(2, '0');
-                const minutes = now.getMinutes().toString().padStart(2, '0');
-                return `${hours}:${minutes}`;
-            }
-            initWeather() {
-                fetchCurrentWeather();
-            }
-        }
-
-        class AutoModeState extends TimeModeState {
-            enter() {
-                updateWeatherDisplay(null, false);
-                weatherSystem.lastChangeTime = Date.now();
-                weatherSystem.changeInterval = 20000 + Math.random() * 20000;
-                lastCameraChangeTime = Date.now();
-                cameraChangeInterval = 10000 + Math.random() * 5000;
-                lastCarChangeTime = Date.now();
-                carChangeInterval = 20000 + Math.random() * 10000;
-            }
-            shouldAutoSwitch() { return true; }
-            shouldAutoChangeWeather() { return true; }
-            shouldShowWeatherText(isFromCurrentLocation) { return false; }
-            initWeather() {
-                const randomWeather = weatherSystem.available[Math.floor(Math.random() * weatherSystem.available.length)];
-                weatherSystem.change(randomWeather);
-            }
-        }
-
-        class AutoState extends AutoModeState {
-            get name() { return 'auto'; }
-            get icon() { return '🔄'; }
-            get title() { return 'オート切替モード（クリックで切替）'; }
-            enter() {
-                super.enter();
-                fetchCurrentWeather();
-            }
-            shouldAutoChangeWeather() { return false; }
-            shouldShowWeatherText(isFromCurrentLocation) { return true; }
-            getGameTime(gameTime, timeSpeed) {
-                const now = new Date();
-                return now.getHours() + now.getMinutes() / 60;
-            }
-            getTimeDisplayText(gameTime) {
-                const now = new Date();
-                const hours = now.getHours().toString().padStart(2, '0');
-                const minutes = now.getMinutes().toString().padStart(2, '0');
-                return `${hours}:${minutes}`;
-            }
-        }
-
-        class FastForwardState extends AutoModeState {
-            get name() { return 'fastforward'; }
-            get icon() { return '⏩'; }
-            get title() { return '早送りモード（クリックで切替）'; }
-            getGameTime(gameTime, timeSpeed) {
-                return (gameTime + timeSpeed) % 24;
-            }
-            getTimeDisplayText(gameTime) {
-                const hours = Math.floor(gameTime).toString().padStart(2, '0');
-                const minutes = Math.floor((gameTime % 1) * 60).toString().padStart(2, '0');
-                return `${hours}:${minutes}`;
-            }
-        }
-
-        const TIME_MODE_CYCLE = [RealtimeState, AutoState, FastForwardState];
-
-        function transitionTimeTo(StateClass) {
-            timeModeState.exit();
-            timeModeState = new StateClass();
-            timeModeState.enter();
-        }
-
-        function toggleTimeMode() {
-            const currentIndex = TIME_MODE_CYCLE.findIndex(C => timeModeState instanceof C);
-            const nextIndex = (currentIndex + 1) % TIME_MODE_CYCLE.length;
-            transitionTimeTo(TIME_MODE_CYCLE[nextIndex]);
-            const btn = document.getElementById('timeToggleButton');
-            btn.textContent = timeModeState.icon;
-            btn.title = timeModeState.title;
-        }
-
-        let timeModeState = new RealtimeState();
-        let lastCameraChangeTime = Date.now(); // 最後にカメラが変更された時刻
-        let cameraChangeInterval = 30000; // カメラ変更の間隔（ミリ秒）
-        let availableCameraModes = [0, 1, 2, 3, 4]; // 利用可能なカメラモード
-
-        let currentFrameTime = Date.now(); // グローバル変数として定義
-        let weatherApiKey = '2416f36c5b6368d2de6d3016e34ae8f8'; // OpenWeatherMap APIキー
-        
-        // レンダリングキャッシュ（一時カラー・街灯・ミニマップ等）
-        class RenderCache {
-            constructor() {
-                this.tmpColor1 = new THREE.Color();
-                this.tmpColor2 = new THREE.Color();
-                this.weatherSkyColor = new THREE.Color(0x87CEEB);
-                this.streetLights = null;   // 初回traverse後にキャッシュ
-                this.lastIsNight = null;    // 街灯状態の変化検知
-                this.minimap = null;        // ミニマップPath2Dキャッシュ
-            }
-            setWeatherSkyColor(hex) {
-                this.weatherSkyColor.set(hex);  // new THREE.Color() を避ける
-            }
-            dispose() {
-                this.streetLights = null;
-                this.minimap = null;
-                this.lastIsNight = null;
-            }
-        }
-        const renderCache = new RenderCache();
-
-        // 天気システム
-        class WeatherSystem {
-            constructor(scene) {
-                this.scene = scene;
-                this.current = 'sunny';
-                this.rainParticles = null;
-                this.snowParticles = null;
-                this.cloudParticles = null;
-                this.isRaining = false;
-                this.isSnowing = false;
-                this.isCloudy = false;
-                this.lastChangeTime = Date.now();
-                this.changeInterval = 30000;
-                this.available = ['sunny', 'cloudy', 'rain', 'snow'];
-            }
-
-            createRainParticles() {
-                const rainGeometry = new THREE.BufferGeometry();
-                const rainCount = 7500;
-                const rainPositions = new Float32Array(rainCount * 6);
-                const rainSpeeds = new Float32Array(rainCount);
-                const rainSwayFactors = new Float32Array(rainCount);
-                const rainPhases = new Float32Array(rainCount);
-
-                for (let i = 0; i < rainCount; i++) {
-                    const baseIndex = i * 6;
-                    const x = Math.random() * 2000 - 1000;
-                    const y = Math.random() * 1000;
-                    const z = Math.random() * 2000 - 1000;
-                    rainPositions[baseIndex] = x;
-                    rainPositions[baseIndex + 1] = y;
-                    rainPositions[baseIndex + 2] = z;
-                    rainPositions[baseIndex + 3] = x;
-                    rainPositions[baseIndex + 4] = y - 10;
-                    rainPositions[baseIndex + 5] = z;
-                    rainSpeeds[i] = 20.0 + Math.random() * 10.0;
-                    rainSwayFactors[i] = 0.1 + Math.random() * 0.2;
-                    rainPhases[i] = Math.random() * Math.PI * 2;
-                }
-
-                rainGeometry.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
-                const rainMaterial = new THREE.LineBasicMaterial({
-                    color: 0x99ccff,
-                    opacity: 0.4,
-                    transparent: true,
-                    blending: THREE.AdditiveBlending,
-                    depthWrite: false
-                });
-
-                this.rainParticles = new THREE.LineSegments(rainGeometry, rainMaterial);
-                this.rainParticles.visible = false;
-                this.scene.add(this.rainParticles);
-                this.rainParticles.userData = {
-                    positions: rainPositions,
-                    speeds: rainSpeeds,
-                    swayFactors: rainSwayFactors,
-                    phases: rainPhases
-                };
-            }
-
-            createSnowParticles() {
-                const snowGeometry = new THREE.BufferGeometry();
-                const snowCount = 5000;
-                const snowPositions = new Float32Array(snowCount * 3);
-                const snowSpeeds = new Float32Array(snowCount);
-                const snowSwayFactors = new Float32Array(snowCount);
-                const snowPhases = new Float32Array(snowCount);
-
-                for (let i = 0; i < snowCount * 3; i += 3) {
-                    snowPositions[i] = Math.random() * 2000 - 1000;
-                    snowPositions[i + 1] = Math.random() * 1000;
-                    snowPositions[i + 2] = Math.random() * 2000 - 1000;
-                    const index = i / 3;
-                    snowSpeeds[index] = 0.5 + Math.random() * 1.0;
-                    snowSwayFactors[index] = 0.3 + Math.random() * 0.4;
-                    snowPhases[index] = Math.random() * Math.PI * 2;
-                }
-
-                snowGeometry.setAttribute('position', new THREE.BufferAttribute(snowPositions, 3));
-                const snowMaterial = new THREE.PointsMaterial({
-                    color: 0xffffff,
-                    size: 2,
-                    opacity: 0.8,
-                    transparent: true,
-                    blending: THREE.AdditiveBlending,
-                    depthWrite: false
-                });
-
-                this.snowParticles = new THREE.Points(snowGeometry, snowMaterial);
-                this.snowParticles.visible = false;
-                this.scene.add(this.snowParticles);
-                this.snowParticles.userData = {
-                    positions: snowPositions,
-                    speeds: snowSpeeds,
-                    swayFactors: snowSwayFactors,
-                    phases: snowPhases
-                };
-            }
-
-            createCloudParticles() {
-                const cloudGeometry = new THREE.BufferGeometry();
-                const cloudCount = 500;
-                const cloudPositions = new Float32Array(cloudCount * 3);
-                const cloudSizes = new Float32Array(cloudCount);
-
-                for (let i = 0; i < cloudCount * 3; i += 3) {
-                    cloudPositions[i] = Math.random() * 3000 - 1500;
-                    cloudPositions[i+1] = 300 + Math.random() * 500;
-                    cloudPositions[i+2] = Math.random() * 3000 - 1500;
-                    cloudSizes[i/3] = 20.0 + Math.random() * 30.0;
-                }
-
-                cloudGeometry.setAttribute('position', new THREE.BufferAttribute(cloudPositions, 3));
-                cloudGeometry.setAttribute('size', new THREE.BufferAttribute(cloudSizes, 1));
-
-                const cloudTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/sprites/cloud10.png');
-                const cloudMaterial = new THREE.PointsMaterial({
-                    color: 0xcccccc,
-                    size: 30.0,
-                    transparent: true,
-                    opacity: 0.7,
-                    map: cloudTexture,
-                    sizeAttenuation: true,
-                    depthWrite: false
-                });
-
-                this.cloudParticles = new THREE.Points(cloudGeometry, cloudMaterial);
-                this.cloudParticles.visible = false;
-                this.scene.add(this.cloudParticles);
-            }
-
-            change(weather, isFromCurrentLocation = false, temperature = null, windSpeed = null) {
-                this.current = weather;
-                updateWeatherDisplay(weather, isFromCurrentLocation, temperature, windSpeed);
-                updateWeatherButtonState(weather);
-
-                switch(weather) {
-                    case 'sunny':
-                        this.isRaining = false;
-                        this.isSnowing = false;
-                        this.isCloudy = false;
-                        if (this.rainParticles) this.rainParticles.visible = false;
-                        if (this.snowParticles) this.snowParticles.visible = false;
-                        if (this.cloudParticles) this.cloudParticles.visible = false;
-                        applyWeatherEnvironment('sunny');
-                        break;
-                    case 'cloudy':
-                        this.isRaining = false;
-                        this.isSnowing = false;
-                        this.isCloudy = true;
-                        if (this.rainParticles) this.rainParticles.visible = false;
-                        if (this.snowParticles) this.snowParticles.visible = false;
-                        if (this.cloudParticles) this.cloudParticles.visible = true;
-                        applyWeatherEnvironment('cloudy');
-                        break;
-                    case 'rain':
-                        this.isRaining = true;
-                        this.isSnowing = false;
-                        this.isCloudy = true;
-                        if (this.rainParticles) this.rainParticles.visible = true;
-                        if (this.snowParticles) this.snowParticles.visible = false;
-                        if (this.cloudParticles) this.cloudParticles.visible = true;
-                        applyWeatherEnvironment('rain');
-                        break;
-                    case 'snow':
-                        this.isRaining = false;
-                        this.isSnowing = true;
-                        this.isCloudy = true;
-                        if (this.rainParticles) this.rainParticles.visible = false;
-                        if (this.snowParticles) this.snowParticles.visible = true;
-                        if (this.cloudParticles) this.cloudParticles.visible = true;
-                        applyWeatherEnvironment('snow');
-                        break;
-                }
-            }
-
-            update(deltaTime, camera) {
-                const currentTime = Date.now();
-
-                // 早送りモード時の天気自動変更
-                if (timeModeState.shouldAutoChangeWeather()) {
-                    if (currentTime - this.lastChangeTime > this.changeInterval) {
-                        const availableChoices = this.available.filter(w => w !== this.current);
-                        const nextWeather = availableChoices[Math.floor(Math.random() * availableChoices.length)];
-                        this.change(nextWeather);
-                        this.lastChangeTime = currentTime;
-                        this.changeInterval = 20000 + Math.random() * 20000;
-                    }
-                }
-
-                // オート・早送りモード時のカメラ自動切り替え
-                if (timeModeState.shouldAutoSwitch()) {
-                    if (currentTime - lastCameraChangeTime > cameraChangeInterval) {
-                        const availableViews = availableCameraModes.filter(mode => mode !== cameraMode);
-                        const nextCameraMode = availableViews[Math.floor(Math.random() * availableViews.length)];
-                        cameraMode = nextCameraMode;
-                        updateCameraButtonState();
-
-                        lastCameraChangeTime = currentTime;
-                        cameraChangeInterval = 10000 + Math.random() * 5000;
-                    }
-                }
-
-                // 雲のアニメーション
-                if (this.isCloudy && this.cloudParticles) {
-                    this.cloudParticles.visible = true;
-                    this.cloudParticles.position.x = camera.position.x;
-                    this.cloudParticles.position.z = camera.position.z;
-                } else if (this.cloudParticles) {
-                    this.cloudParticles.visible = false;
-                }
-
-                // 雨のアニメーション
-                if (this.isRaining && this.rainParticles) {
-                    const positions = this.rainParticles.userData.positions;
-                    const speeds = this.rainParticles.userData.speeds;
-                    const swayFactors = this.rainParticles.userData.swayFactors;
-                    const phases = this.rainParticles.userData.phases;
-                    const time = Date.now() * 0.001;
-
-                    for (let i = 0; i < positions.length; i += 6) {
-                        const index = i / 6;
-                        positions[i + 1] -= speeds[index] * deltaTime;
-                        positions[i + 4] -= speeds[index] * deltaTime;
-                        const swayAmount = swayFactors[index];
-                        const phase = phases[index];
-                        const swayX = Math.sin(time + phase) * swayAmount * 0.1 * deltaTime;
-                        const swayZ = Math.cos(time * 0.8 + phase) * swayAmount * 0.1 * deltaTime;
-                        positions[i] += swayX;
-                        positions[i + 2] += swayZ;
-                        positions[i + 3] += swayX;
-                        positions[i + 5] += swayZ;
-                        if (positions[i + 4] < 0) {
-                            const x = Math.random() * 2000 - 1000;
-                            const y = 1000;
-                            const z = Math.random() * 2000 - 1000;
-                            positions[i] = x;
-                            positions[i + 1] = y;
-                            positions[i + 2] = z;
-                            positions[i + 3] = x;
-                            positions[i + 4] = y - 10;
-                            positions[i + 5] = z;
-                        }
-                    }
-                    this.rainParticles.position.x = camera.position.x;
-                    this.rainParticles.position.z = camera.position.z;
-                    this.rainParticles.geometry.attributes.position.needsUpdate = true;
-                } else if (this.rainParticles) {
-                    this.rainParticles.visible = false;
-                }
-
-                // 雪のアニメーション
-                if (this.isSnowing && this.snowParticles) {
-                    const positions = this.snowParticles.userData.positions;
-                    const speeds = this.snowParticles.userData.speeds;
-                    const swayFactors = this.snowParticles.userData.swayFactors;
-                    const phases = this.snowParticles.userData.phases;
-                    const time = Date.now() * 0.001;
-
-                    for (let i = 0; i < positions.length; i += 3) {
-                        const index = i / 3;
-                        positions[i + 1] -= speeds[index] * deltaTime;
-                        const swayAmount = swayFactors[index];
-                        const phase = phases[index];
-                        positions[i] += Math.sin(time + phase) * swayAmount * 0.1 * deltaTime;
-                        positions[i + 2] += Math.cos(time * 0.8 + phase) * swayAmount * 0.1 * deltaTime;
-                        if (positions[i + 1] < 0) {
-                            positions[i] = Math.random() * 2000 - 1000;
-                            positions[i + 1] = 1000;
-                            positions[i + 2] = Math.random() * 2000 - 1000;
-                        }
-                    }
-                    this.snowParticles.position.x = camera.position.x;
-                    this.snowParticles.position.z = camera.position.z;
-                    this.snowParticles.geometry.attributes.position.needsUpdate = true;
-                } else if (this.snowParticles) {
-                    this.snowParticles.visible = false;
-                }
-            }
-
-            dispose() {
-                for (const p of [this.rainParticles, this.snowParticles, this.cloudParticles]) {
-                    if (p) { p.geometry.dispose(); p.material.dispose(); this.scene.remove(p); }
-                }
-                this.rainParticles = this.snowParticles = this.cloudParticles = null;
-            }
-        }
-        const weatherSystem = new WeatherSystem(scene);
-
-        function updateDayNightCycle() {
-            // 時間モードに応じて時間を更新
-            gameTime = timeModeState.getGameTime(gameTime, timeSpeed);
-
-            updateTimeDisplay(); // 時刻表示を更新
-
-            // 時間帯に応じた空の色の設定
-            let timeSkyColor;
-            let lightIntensity;
-            let ambientIntensity;
-
-            isNight = false;
-            if (gameTime >= 5 && gameTime < 7) {
-                // 朝焼け（5時～7時）
-                const t = (gameTime - 5) / 2;
-                timeSkyColor = renderCache.tmpColor1.set(0xff9966).lerp(renderCache.tmpColor2.set(0x87CEEB), t);
-                lightIntensity = 0.5 + t * 0.5;
-                ambientIntensity = 0.3 + t * 0.3;
-            } else if (gameTime >= 7 && gameTime < 17) {
-                // 昼間（7時～17時）
-                timeSkyColor = renderCache.tmpColor1.set(0x87CEEB);
-                lightIntensity = 1.0;
-                ambientIntensity = 0.6;
-            } else if (gameTime >= 17 && gameTime < 19) {
-                // 夕焼け（17時～19時）
-                const t = (gameTime - 17) / 2;
-                timeSkyColor = renderCache.tmpColor1.set(0x87CEEB).lerp(renderCache.tmpColor2.set(0xff7733), t);
-                lightIntensity = 1.0 - t * 0.5;
-                ambientIntensity = 0.6 - t * 0.3;
-            } else if (gameTime >= 19 && gameTime < 21) {
-                // 日没後（19時～21時）
-                const t = (gameTime - 19) / 2;
-                timeSkyColor = renderCache.tmpColor1.set(0xff7733).lerp(renderCache.tmpColor2.set(0x111133), t);
-                lightIntensity = 0.5 - t * 0.4;
-                ambientIntensity = 0.3 - t * 0.2;
-                isNight = true;
-            } else {
-                // 夜間（21時～5時）
-                if (gameTime >= 21) {
-                    timeSkyColor = renderCache.tmpColor1.set(0x111133);
-                } else {
-                    // 夜明け前（0時～5時）
-                    const t = gameTime / 5;
-                    timeSkyColor = renderCache.tmpColor1.set(0x111133).lerp(renderCache.tmpColor2.set(0xff9966), t);
-                }
-                lightIntensity = 0.25;  // 0.1から0.25に増加
-                ambientIntensity = 0.2;  // 0.1から0.2に増加
-                isNight = true;
-            }
-
-            // 時間帯の色と天気の色を合成（timeSkyColorはrenderCache.tmpColor1を指している）
-            if (weatherSystem.current !== 'sunny') {
-                // 天気による色の影響を強める（0.7は天気の影響度）
-                timeSkyColor.lerp(renderCache.weatherSkyColor, 0.7);
-            }
-
-            // 空の色を設定
-            renderer.setClearColor(timeSkyColor.getHex());
-
-            // 光源の強度を設定
-            directionalLight.intensity = lightIntensity;
-            ambientLight.intensity = ambientIntensity;
-
-            // 夜間は街灯を明るく
-            updateStreetLights(isNight);
-        }
-        
-        // 街灯の明るさを更新
-        function updateStreetLights(isNight) {
-            // 前フレームと同じなら何もしない
-            if (isNight === renderCache.lastIsNight) return;
-            renderCache.lastIsNight = isNight;
-
-            // 街灯参照を初回のみキャッシュ
-            if (!renderCache.streetLights) {
-                renderCache.streetLights = [];
-                scene.traverse((object) => {
-                    if (object.userData && object.userData.isStreetlight) {
-                        renderCache.streetLights.push(object);
-                    }
-                });
-            }
-
-            // キャッシュ済みの街灯のみ更新
-            for (const object of renderCache.streetLights) {
-                if (object.material && object.material.emissive) {
-                    if (isNight) {
-                        object.material.emissive.set(0xFFDD99);
-                        object.material.emissiveIntensity = 1.0;
-                    } else {
-                        object.material.emissive.set(0x333333);
-                        object.material.emissiveIntensity = 0.1;
-                    }
-                }
-                if (object.userData.pointLight) {
-                    const pointLight = object.userData.pointLight;
-                    if (isNight) {
-                        pointLight.intensity = 2.5;
-                        pointLight.distance = 50;
-                    } else {
-                        pointLight.intensity = 0.2;
-                        pointLight.distance = 10;
-                    }
-                }
-            }
-        }
-
-        // 光源
+        // === 光源 ===
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         scene.add(ambientLight);
-        
+        ctx.ambientLight = ambientLight;
+
         const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
         directionalLight.position.set(1, 1, 1).normalize();
         scene.add(directionalLight);
-        
-        // 都市の地面を作成
-        const floorSize = 5000; // 床のサイズを2500から2.0倍の5000に拡大
+        ctx.directionalLight = directionalLight;
+
+        // === 地面 ===
+        const floorSize = 5000;
         const floorGeometry = new THREE.PlaneGeometry(floorSize, floorSize);
-        const floorMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x336633, 
-            roughness: 0.8, 
-            metalness: 0.2 
+        const floorMaterial = new THREE.MeshStandardMaterial({
+            color: 0x336633,
+            roughness: 0.8,
+            metalness: 0.2
         });
         const floor = new THREE.Mesh(floorGeometry, floorMaterial);
         floor.rotation.x = -Math.PI / 2;
-        floor.position.y = -5; // 床の位置を下げる
+        floor.position.y = -5;
         scene.add(floor);
-        
-        // 舗装された道路の幅
-        
-        // アスファルト部分を作成
-        function createRoadSurface() {
-            // 道路の左右のエッジを計算
-            const leftEdgePoints = [];
-            const rightEdgePoints = [];
-            
-            for (let i = 0; i < detailedPathPoints.length; i++) {
-                const point = detailedPathPoints[i];
-                const nextPoint = detailedPathPoints[(i + 1) % detailedPathPoints.length];
-                
-                // 進行方向ベクトルを計算
-                const direction = new THREE.Vector3().subVectors(nextPoint, point).normalize();
-                
-                // 上向きベクトル（法線）を計算
-                // 高さの変化を考慮した法線ベクトルを計算する（地形に沿った道路）
-                const up = new THREE.Vector3(0, 1, 0);
-                
-                // 右向きベクトル（進行方向と上向きの外積）
-                const right = new THREE.Vector3().crossVectors(direction, up).normalize();
-                
-                // 修正した上向きベクトル（進行方向と右向きの外積）
-                const correctedUp = new THREE.Vector3().crossVectors(right, direction).normalize();
-                
-                // 道路の左右のエッジを計算（修正した法線ベクトルを使用）
-                const leftEdge = new THREE.Vector3().addVectors(point, right.clone().multiplyScalar(roadWidth / 2));
-                const rightEdge = new THREE.Vector3().addVectors(point, right.clone().multiplyScalar(-roadWidth / 2));
-                
-                // 高さを維持（道路面の高さは既にdetailedPathPointsに含まれる）
-                // 道路を少し浮かせる（0.05）
-                leftEdge.y += 0.05;
-                rightEdge.y += 0.05;
-                
-                leftEdgePoints.push(leftEdge);
-                rightEdgePoints.push(rightEdge);
-            }
-            
-            // 道路の表面を三角形メッシュで作成
-            const roadGeometry = new THREE.BufferGeometry();
-            const vertices = [];
-            const indices = [];
-            
-            // すべてのポイントを頂点配列に追加
-            for (let i = 0; i < leftEdgePoints.length; i++) {
-                vertices.push(leftEdgePoints[i].x, leftEdgePoints[i].y, leftEdgePoints[i].z);
-                vertices.push(rightEdgePoints[i].x, rightEdgePoints[i].y, rightEdgePoints[i].z);
-            }
-            
-            // 三角形インデックスを作成
-            for (let i = 0; i < leftEdgePoints.length - 1; i++) {
-                const v0 = i * 2;
-                const v1 = v0 + 1;
-                const v2 = v0 + 2;
-                const v3 = v0 + 3;
-                
-                // 2つの三角形で四角形を作成
-                indices.push(v0, v1, v2);
-                indices.push(v2, v1, v3);
-            }
-            
-            // 最後の部分を閉じる
-            const v0 = (leftEdgePoints.length - 1) * 2;
-            const v1 = v0 + 1;
-            const v2 = 0;
-            const v3 = 1;
-            
-            indices.push(v0, v1, v2);
-            indices.push(v2, v1, v3);
-            
-            roadGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-            roadGeometry.setIndex(indices);
-            roadGeometry.computeVertexNormals();
-            
-            const roadMaterial = new THREE.MeshStandardMaterial({
-                color: 0x333333,    // より暗めのグレーに
-                roughness: 0.98,    // roughnessを最大限に近く設定
-                metalness: 0.05,    // metalnessをさらに下げて光の反射を抑える
-                side: THREE.DoubleSide
-            });
-            
-            const roadMesh = new THREE.Mesh(roadGeometry, roadMaterial);
-            roadGroup.add(roadMesh);
-            
-            // 白線（実線）を作成 - 削除
-            // createRoadLine(detailedPathPoints, 0.05, 0xFFFFFF);
-            
-            // 縁石を作成（コーナー部分） - 削除
-            // createCurbstones();
-            
-            return roadMesh;
-        }
-        
-        // 道路の白線を作成
-        function createRoadLine(pathPoints, lineWidth, color) {
-            const lineGeometry = new THREE.BufferGeometry().setFromPoints(pathPoints);
-            const lineMaterial = new THREE.LineBasicMaterial({ color: color, linewidth: lineWidth });
-            const line = new THREE.Line(lineGeometry, lineMaterial);
-            line.position.y = 0.1; // 道路の上に浮かせる
-            roadGroup.add(line);
-            
-            return line;
-        }
-        
-        // 縁石を作成（コース全体の両側に沿って）
-        function createCurbstones() {
-            // 縁石の間隔（パスの割合）- 滑らかな見た目のために密に配置
-            const curbSpacing = 0.001; // 0.003から0.001へ変更してセグメント数を3倍に増加
-            
-            // 縁石用のグループを作成
-            const curbGroup = new THREE.Group();
-            roadGroup.add(curbGroup);
-            
-            // 道路の両側に縁石を設置
-            createSideCurb(1);  // 右側
-            createSideCurb(-1); // 左側
-            
-            // 特定の側（右側または左側）に縁石を作成する関数
-            function createSideCurb(side) {
-                // 縁石の頂点とインデックスを収集
-                const curbVertices = [];
-                const curbIndices = [];
-                const curbNormals = [];
-                
-                let vertexIndex = 0;
-                let currentT = 0;
-                
-                // 縁石の頂点データを生成
-                while (currentT < 1) {
-                    const point = carPath.getPointAt(currentT);
-                    const tangent = carPath.getTangentAt(currentT);
-                    
-                    // 垂直方向ベクトル（外側方向）
-                    const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
-                    
-                    // 次のポイントと前のポイントを取得して傾斜を計算
-                    const nextT = (currentT + 0.005) % 1;
-                    const prevT = (currentT - 0.005 + 1) % 1;
-                    const nextPoint = carPath.getPointAt(nextT);
-                    const prevPoint = carPath.getPointAt(prevT);
-                    
-                    // 縁石の基本位置（道路のエッジ、side=1で右側、side=-1で左側）
-                    const edgePosition = new THREE.Vector3().addVectors(
-                        point,
-                        normal.clone().multiplyScalar(side * (roadWidth / 2))
-                    );
-                    
-                    // 縁石の外側位置
-                    const outerPosition = new THREE.Vector3().addVectors(
-                        point,
-                        normal.clone().multiplyScalar(side * (roadWidth / 2 + 0.2)) // 0.3から0.2へ変更して幅を狭く
-                    );
-                    
-                    // 頂点を追加（縁石の4つの角）
-                    // 1. 道路側の下部
-                    curbVertices.push(
-                        edgePosition.x, 
-                        point.y, 
-                        edgePosition.z
-                    );
-                    
-                    // 2. 道路側の上部
-                    curbVertices.push(
-                        edgePosition.x, 
-                        point.y + 0.12, // 高さを少し低くして0.15から0.12へ
-                        edgePosition.z
-                    );
-                    
-                    // 3. 外側の上部
-                    curbVertices.push(
-                        outerPosition.x, 
-                        point.y + 0.12, // 高さを少し低くして0.15から0.12へ
-                        outerPosition.z
-                    );
-                    
-                    // 4. 外側の下部
-                    curbVertices.push(
-                        outerPosition.x, 
-                        point.y, 
-                        outerPosition.z
-                    );
-                    
-                    // 法線ベクトルを追加（縁石の各頂点の法線）
-                    const upVector = new THREE.Vector3(0, 1, 0);
-                    const sideNormal = normal.clone().multiplyScalar(side);
-                    
-                    // 下部の道路側は下向き法線
-                    curbNormals.push(0, -1, 0);
-                    
-                    // 道路側の上部は内側向き法線
-                    curbNormals.push(-sideNormal.x, 0, -sideNormal.z);
-                    
-                    // 外側の上部は上向き法線
-                    curbNormals.push(0, 1, 0);
-                    
-                    // 外側の下部は外側向き法線
-                    curbNormals.push(sideNormal.x, 0, sideNormal.z);
-                    
-                    // インデックスを追加（縁石の面を定義）
-                    if (vertexIndex > 0) {
-                        const baseIdx = vertexIndex * 4;
-                        const prevBaseIdx = (vertexIndex - 1) * 4;
-                        
-                        // 上面（四角形）
-                        curbIndices.push(
-                            prevBaseIdx + 1, baseIdx + 1, prevBaseIdx + 2,
-                            prevBaseIdx + 2, baseIdx + 1, baseIdx + 2
-                        );
-                        
-                        // 外側面（四角形）
-                        curbIndices.push(
-                            prevBaseIdx + 2, baseIdx + 2, prevBaseIdx + 3,
-                            prevBaseIdx + 3, baseIdx + 2, baseIdx + 3
-                        );
-                        
-                        // 内側面（四角形）
-                        curbIndices.push(
-                            prevBaseIdx, baseIdx, prevBaseIdx + 1,
-                            prevBaseIdx + 1, baseIdx, baseIdx + 1
-                        );
-                    }
-                    
-                    vertexIndex++;
-                    currentT += curbSpacing;
-                }
-                
-                // 最後の縁石を最初の縁石に接続（ループを閉じる）
-                const lastBaseIdx = (vertexIndex - 1) * 4;
-                
-                // 上面の接続
-                curbIndices.push(
-                    lastBaseIdx + 1, 1, lastBaseIdx + 2,
-                    lastBaseIdx + 2, 1, 2
-                );
-                
-                // 外側面の接続
-                curbIndices.push(
-                    lastBaseIdx + 2, 2, lastBaseIdx + 3,
-                    lastBaseIdx + 3, 2, 3
-                );
-                
-                // 内側面の接続
-                curbIndices.push(
-                    lastBaseIdx, 0, lastBaseIdx + 1,
-                    lastBaseIdx + 1, 0, 1
-                );
-                
-                // 縁石のジオメトリを作成
-                const curbGeometry = new THREE.BufferGeometry();
-                curbGeometry.setAttribute('position', new THREE.Float32BufferAttribute(curbVertices, 3));
-                curbGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(curbNormals, 3));
-                curbGeometry.setIndex(curbIndices);
-                
-                // コンクリート風の材質
-                const curbMaterial = new THREE.MeshStandardMaterial({
-                    color: 0xE8E8E8, // 少し明るい色に変更
-                    roughness: 0.9,  // より粗い質感に
-                    metalness: 0.05, // わずかな光沢を追加
-                    flatShading: false // スムーズシェーディング
-                });
-                
-                // 縁石メッシュを作成
-                const curbMesh = new THREE.Mesh(curbGeometry, curbMaterial);
-                curbGroup.add(curbMesh);
-            }
-        }
-        
-        // ガードレールを作成（コース全体の外側）
-        function createGuardrails() {
-            // ガードレールの間隔（パスの割合）
-            const railSpacing = 0.005; // より密に配置
-            const postSpacing = 0.025; // 支柱の間隔
-            
-            // ガードレール用のグループを作成
-            const guardrailGroup = new THREE.Group();
-            roadGroup.add(guardrailGroup);
-            
-            // 道路の両側にガードレールを設置
-            createSideGuardrail(1); // 右側
-            createSideGuardrail(-1); // 左側
-            
-            // 特定の側（右側または左側）にガードレールを作成する関数
-            function createSideGuardrail(side) {
-                // 連続したガードレールのセグメントを格納する配列
-                const railSegments = [];
-                const railPosts = [];
-                
-                // ガードレール用の頂点とインデックスを収集
-                const railVertices = [];
-                const railIndices = [];
-                const railUvs = [];
-                
-                let vertexIndex = 0;
-                let currentT = 0;
-                
-                // ガードレールの頂点データを生成
-                while (currentT < 1) {
-                    const point = carPath.getPointAt(currentT);
-                    const tangent = carPath.getTangentAt(currentT);
-                    
-                    // 次のポイントと前のポイントを取得して傾斜を計算
-                    const nextT = (currentT + 0.005) % 1;
-                    const prevT = (currentT - 0.005 + 1) % 1;
-                    const nextPoint = carPath.getPointAt(nextT);
-                    const prevPoint = carPath.getPointAt(prevT);
-                    
-                    // 垂直方向ベクトル（外側方向）
-                    const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
-                    
-                    // ガードレールの位置（道路の外側、side=1で右側、side=-1で左側）
-                    const railPosition = new THREE.Vector3().addVectors(
-                        point,
-                        normal.clone().multiplyScalar(side * (roadWidth / 2 + 1.2))
-                    );
-                    
-                    // 前後方向の傾斜角を計算
-                    const slopeDistance = Math.sqrt(
-                        Math.pow(nextPoint.x - prevPoint.x, 2) + 
-                        Math.pow(nextPoint.z - prevPoint.z, 2));
-                    const slope = Math.atan2(nextPoint.y - prevPoint.y, slopeDistance);
-                    
-                    // ガードレールの高さ調整
-                    const railHeight = point.y + 0.8; // 道路面から少し高く
-                    
-                    // ガードレールの上部と下部の頂点を追加
-                    const topRailPos = new THREE.Vector3(
-                        railPosition.x,
-                        railHeight + 0.4, // 上部の高さ
-                        railPosition.z
-                    );
-                    
-                    const bottomRailPos = new THREE.Vector3(
-                        railPosition.x,
-                        railHeight, // 下部の高さ
-                        railPosition.z
-                    );
-                    
-                    // 支柱を作成（一定間隔ごと）
-                    if (Math.abs(currentT % postSpacing) < railSpacing) {
-                        const postGeometry = new THREE.CylinderGeometry(0.08, 0.08, 1.0, 6);
-                        const postMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
-                        const post = new THREE.Mesh(postGeometry, postMaterial);
-                        
-                        // 支柱の位置を設定
-                        post.position.copy(new THREE.Vector3(
-                            railPosition.x,
-                            point.y + 0.5, // 地面からの高さ
-                            railPosition.z
-                        ));
-                        
-                        // 支柱を少し内側に傾ける
-                        const postLookAt = new THREE.Vector3().addVectors(
-                            post.position,
-                            normal.clone().multiplyScalar(-0.1 * side) // 内側に少し傾ける
-                        );
-                        post.lookAt(postLookAt);
-                        post.rotateX(Math.PI / 2); // 支柱の向きを修正
-                        
-                        // 上下の傾斜に合わせて追加の回転
-                        post.rotateZ(slope); // X軸ではなくZ軸で回転（支柱の向きが変わっているため）
-                        
-                        guardrailGroup.add(post);
-                        railPosts.push(post);
-                    }
-                    
-                    // 頂点データを追加
-                    railVertices.push(
-                        topRailPos.x, topRailPos.y, topRailPos.z,
-                        bottomRailPos.x, bottomRailPos.y, bottomRailPos.z
-                    );
-                    
-                    // テクスチャ座標を追加
-                    railUvs.push(
-                        currentT * 20, 0, // 上部のUV座標
-                        currentT * 20, 1  // 下部のUV座標
-                    );
-                    
-                    // インデックスを追加（四角形を作成）
-                    if (vertexIndex > 0) {
-                        // 各セグメント間を三角形で接続
-                        railIndices.push(
-                            vertexIndex * 2 - 2, vertexIndex * 2, vertexIndex * 2 - 1, // 最初の三角形
-                            vertexIndex * 2 - 1, vertexIndex * 2, vertexIndex * 2 + 1  // 二番目の三角形
-                        );
-                    }
-                    
-                    vertexIndex++;
-                    currentT += railSpacing;
-                }
-                
-                // 最後のセグメントを最初のセグメントと接続して閉じる
-                railIndices.push(
-                    (vertexIndex - 1) * 2, 0, (vertexIndex - 1) * 2 + 1, // 最初の三角形
-                    (vertexIndex - 1) * 2 + 1, 0, 1  // 二番目の三角形
-                );
-                
-                // ガードレールのジオメトリを作成
-                const railGeometry = new THREE.BufferGeometry();
-                railGeometry.setAttribute('position', new THREE.Float32BufferAttribute(railVertices, 3));
-                railGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(railUvs, 2));
-                railGeometry.setIndex(railIndices);
-                railGeometry.computeVertexNormals();
-                
-                // 高速道路のガードレールらしい素材
-                const railMaterial = new THREE.MeshLambertMaterial({
-                    color: 0xE0E0E0,
-                    side: THREE.DoubleSide,
-                    flatShading: false
-                });
-                
-                // ガードレールメッシュを作成
-                const railMesh = new THREE.Mesh(railGeometry, railMaterial);
-                guardrailGroup.add(railMesh);
-            }
-        }
-        
-        // 道路の可視化
+        ctx.floor = floor;
+
+        // === レンダリングキャッシュ・天気システム ===
+        const renderCache = new RenderCache();
+        ctx.renderCache = renderCache;
+
+        const weatherSystem = new WeatherSystem(scene);
+        ctx.weatherSystem = weatherSystem;
+
+        // === 時間モード ===
+        ctx.timeModeState = new RealtimeState();
+        ctx.lastCameraChangeTime = Date.now();
+        ctx.lastCarChangeTime = Date.now();
+        ctx.currentFrameTime = Date.now();
+
+        // === 道路の可視化 ===
         createRoadSurface();
-        
-        // 高層道路の柱を生成する関数
-        function createRoadPillars() {
-            const pillarGroup = new THREE.Group();
-            roadGroup.add(pillarGroup);
-            
-            // 柱の間隔（パスの割合）
-            const pillarSpacing = 0.04; // 約25本の柱
-            
-            // コース全体に柱を配置
-            let currentT = 0;
-            while (currentT < 1) {
-                const point = carPath.getPointAt(currentT);
-                const tangent = carPath.getTangentAt(currentT);
-                
-                // 地上からの高さが1以上の場合のみ柱を設置
-                if (point.y > 1) {
-                    // 道路の左右に柱を設置
-                    createSinglePillar(point, tangent, 1);  // 右側
-                    createSinglePillar(point, tangent, -1); // 左側
-                }
-                
-                currentT += pillarSpacing;
-            }
-            
-            // 1本の柱を生成する関数
-            function createSinglePillar(point, tangent, side) {
-                // 垂直方向ベクトル（外側方向）
-                const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
-                
-                // 柱の位置（道路の外側）
-                const pillarPosition = new THREE.Vector3().addVectors(
-                    point,
-                    normal.clone().multiplyScalar(side * (roadWidth / 2 - 1))
-                );
-                
-                // 柱の高さを計算（地上から道路面まで）
-                const pillarHeight = point.y;
-                
-                // 柱のジオメトリとマテリアル
-                const pillarGeometry = new THREE.BoxGeometry(2, pillarHeight, 2);
-                const pillarMaterial = new THREE.MeshLambertMaterial({ 
-                    color: 0x888888,
-                    roughness: 0.7,
-                    metalness: 0.3
-                });
-                
-                const pillar = new THREE.Mesh(pillarGeometry, pillarMaterial);
-                
-                // 柱の位置を設定（Y座標は高さの半分）
-                pillar.position.set(
-                    pillarPosition.x,
-                    pillarHeight / 2,
-                    pillarPosition.z
-                );
-                
-                pillarGroup.add(pillar);
-            }
-        }
-        
-        // 高層道路の柱を生成
         createRoadPillars();
-        
-        // ガードレールの作成
         createCurbstones();
-        
         log("道路の作成完了");
-        
-        // 環境オブジェクトを配置
-        function placeEnvironmentObjects() {
-            log("環境オブジェクトの配置開始");
 
-            // 街灯を配置
-            createStreetlights();
+        // === 車の初期作成 ===
+        createCars(10);
+        log("車の作成完了");
 
-            // 岩肌の構造物を配置
-            createRockFormations();
+        // === カメラ初期位置 ===
+        camera.position.set(100, 70, 90);
+        log("Three.jsの基本設定完了");
 
-            // トンネルを配置
-            createTunnels();
-
-            // 斜張橋を配置
-            createCableStayedBridges();
-
-            log("環境オブジェクトの配置完了");
-        }
-
-        // モナコ風トンネルを作成（ジオメトリ結合で軽量化）
-        function createTunnels() {
-            const tunnelGroup = new THREE.Group();
-            roadGroup.add(tunnelGroup);
-
-            const tunnelSections = [
-                { start: 0.12, length: 0.06 },
-            ];
-
-            const tunnelHeight = 7.0;
-            const tunnelWidth = roadWidth + 4;
-            const wallThickness = 0.8;
-            const segmentSpacing = 0.004; // 間隔を広げて軽量化
-
-            // ジオメトリ結合ヘルパー: 個別Meshの位置・回転を焼き込んで1つのジオメトリに
-            function mergeGeos(entries) {
-                const merged = new THREE.BufferGeometry();
-                let totalVerts = 0, totalIdx = 0;
-                for (const e of entries) { totalVerts += e.geo.attributes.position.count; totalIdx += (e.geo.index ? e.geo.index.count : 0); }
-                const pos = new Float32Array(totalVerts * 3);
-                const nrm = new Float32Array(totalVerts * 3);
-                const idx = totalIdx > 0 ? new Uint32Array(totalIdx) : null;
-                let vOff = 0, iOff = 0, vBase = 0;
-                const m4 = new THREE.Matrix4();
-                const n3 = new THREE.Matrix3();
-                for (const e of entries) {
-                    m4.compose(e.pos, e.quat, new THREE.Vector3(1,1,1));
-                    n3.getNormalMatrix(m4);
-                    const gp = e.geo.attributes.position;
-                    const gn = e.geo.attributes.normal;
-                    const v = new THREE.Vector3();
-                    for (let i = 0; i < gp.count; i++) {
-                        v.set(gp.getX(i), gp.getY(i), gp.getZ(i)).applyMatrix4(m4);
-                        pos[vOff] = v.x; pos[vOff+1] = v.y; pos[vOff+2] = v.z;
-                        if (gn) { v.set(gn.getX(i), gn.getY(i), gn.getZ(i)).applyMatrix3(n3).normalize(); nrm[vOff] = v.x; nrm[vOff+1] = v.y; nrm[vOff+2] = v.z; }
-                        vOff += 3;
-                    }
-                    if (e.geo.index && idx) {
-                        for (let i = 0; i < e.geo.index.count; i++) { idx[iOff++] = e.geo.index.array[i] + vBase; }
-                    }
-                    vBase += gp.count;
-                }
-                merged.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-                merged.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
-                if (idx) merged.setIndex(new THREE.BufferAttribute(idx, 1));
-                merged.computeBoundingSphere();
-                return merged;
-            }
-
-            function fwdQuat(fwd) {
-                const q = new THREE.Quaternion();
-                q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), fwd);
-                return q;
-            }
-
-            for (const section of tunnelSections) {
-                const wallEntries = [];
-                const ceilEntries = [];
-                const lightEntries = [];
-                const stripeEntries = [];
-
-                // 壁・天井用の共有ジオメトリ
-                const segLen = 6.0;
-                const wallGeo = new THREE.BoxGeometry(wallThickness, tunnelHeight, segLen);
-                const ceilGeo = new THREE.BoxGeometry(tunnelWidth + wallThickness * 2, 0.6, segLen);
-                const lightGeo = new THREE.BoxGeometry(0.3, 0.08, 6.0);
-                const stripeGeo = new THREE.BoxGeometry(0.15, 0.15, 6.0);
-
-                // 壁・天井セグメント
-                for (let t = section.start; t < section.start + section.length; t += segmentSpacing) {
-                    const point = carPath.getPointAt(t % 1);
-                    const tangent = carPath.getTangentAt(t % 1);
-                    const fwd = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
-                    const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
-                    const q = fwdQuat(fwd);
-
-                    // 左壁
-                    wallEntries.push({ geo: wallGeo, pos: new THREE.Vector3(
-                        point.x - right.x * (tunnelWidth / 2 + wallThickness / 2),
-                        point.y + tunnelHeight / 2,
-                        point.z - right.z * (tunnelWidth / 2 + wallThickness / 2)
-                    ), quat: q });
-                    // 右壁
-                    wallEntries.push({ geo: wallGeo, pos: new THREE.Vector3(
-                        point.x + right.x * (tunnelWidth / 2 + wallThickness / 2),
-                        point.y + tunnelHeight / 2,
-                        point.z + right.z * (tunnelWidth / 2 + wallThickness / 2)
-                    ), quat: q });
-                    // 天井
-                    ceilEntries.push({ geo: ceilGeo, pos: new THREE.Vector3(
-                        point.x, point.y + tunnelHeight + 0.3, point.z
-                    ), quat: q });
-                    // 照明ライン
-                    lightEntries.push({ geo: lightGeo, pos: new THREE.Vector3(
-                        point.x, point.y + tunnelHeight - 0.1, point.z
-                    ), quat: q });
-                    // ストライプ左右
-                    [-1, 1].forEach(side => {
-                        stripeEntries.push({ geo: stripeGeo, pos: new THREE.Vector3(
-                            point.x + right.x * side * (tunnelWidth / 2 - 0.2),
-                            point.y + 1.5,
-                            point.z + right.z * side * (tunnelWidth / 2 - 0.2)
-                        ), quat: q });
-                    });
-                }
-
-                // マテリアル
-                const wallMat = new THREE.MeshPhongMaterial({ color: 0x888888, shininess: 20, specular: 0x222222 });
-                const ceilingMat = new THREE.MeshPhongMaterial({ color: 0x666666, shininess: 10 });
-                const lightMat = new THREE.MeshPhongMaterial({ color: 0xFFFFDD, emissive: 0xFFFFDD, emissiveIntensity: 0.8 });
-                const stripeMat = new THREE.MeshPhongMaterial({ color: 0xFFAA00, emissive: 0xFFAA00, emissiveIntensity: 0.3 });
-
-                // 結合してメッシュ化（4ドローコールに）
-                if (wallEntries.length) tunnelGroup.add(new THREE.Mesh(mergeGeos(wallEntries), wallMat));
-                if (ceilEntries.length) tunnelGroup.add(new THREE.Mesh(mergeGeos(ceilEntries), ceilingMat));
-                if (lightEntries.length) tunnelGroup.add(new THREE.Mesh(mergeGeos(lightEntries), lightMat));
-                if (stripeEntries.length) tunnelGroup.add(new THREE.Mesh(mergeGeos(stripeEntries), stripeMat));
-
-                // ポイントライトは入口と出口の2つだけ
-                [section.start, (section.start + section.length) % 1].forEach(t => {
-                    const point = carPath.getPointAt(t);
-                    const pLight = new THREE.PointLight(0xFFFFCC, 3.0, 40, 1.5);
-                    pLight.position.set(point.x, point.y + tunnelHeight - 1, point.z);
-                    tunnelGroup.add(pLight);
-                });
-
-                // トンネル入口・出口のアーチ
-                const archMat = new THREE.MeshPhongMaterial({ color: 0x555555, shininess: 15 });
-                [section.start, (section.start + section.length) % 1].forEach(t => {
-                    const point = carPath.getPointAt(t);
-                    const tangent = carPath.getTangentAt(t);
-                    const fwd = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
-                    const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
-                    const q = fwdQuat(fwd);
-
-                    const archTop = new THREE.Mesh(new THREE.BoxGeometry(tunnelWidth + wallThickness * 2 + 1, 1.2, 1.5), archMat);
-                    archTop.position.set(point.x, point.y + tunnelHeight + 0.8, point.z);
-                    archTop.quaternion.copy(q);
-                    tunnelGroup.add(archTop);
-
-                    [-1, 1].forEach(side => {
-                        const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.2, tunnelHeight + 2, 1.5), archMat);
-                        pillar.position.set(
-                            point.x + right.x * side * (tunnelWidth / 2 + wallThickness),
-                            point.y + tunnelHeight / 2,
-                            point.z + right.z * side * (tunnelWidth / 2 + wallThickness)
-                        );
-                        pillar.quaternion.copy(q);
-                        tunnelGroup.add(pillar);
-                    });
-                });
-            }
-
-            log(`トンネル作成完了: ${tunnelSections.length}箇所`);
-        }
-
-        // リッジレーサー風 斜張橋を作成（ジオメトリ結合で軽量化）
-        function createCableStayedBridges() {
-            const bridgeGroup = new THREE.Group();
-            roadGroup.add(bridgeGroup);
-
-            // 橋の区間定義（パス上の位置）
-            const bridgeSections = [
-                { center: 0.72, span: 0.05 }, // 主塔の位置と橋の半径
-            ];
-
-            const concreteMat = new THREE.MeshPhongMaterial({ color: 0xCCCCCC, shininess: 30, specular: 0x333333 });
-            const cableMat = new THREE.MeshPhongMaterial({ color: 0xAAAAAAA, shininess: 80, specular: 0x666666 });
-            const towerMat = new THREE.MeshPhongMaterial({ color: 0xDDDDDD, shininess: 40, specular: 0x444444 });
-
-            const bridgeWidth = roadWidth + 6;
-            const towerHeight = 55;
-            const cableRadius = 0.08;
-
-            for (const section of bridgeSections) {
-                const towerPoint = carPath.getPointAt(section.center);
-                const towerTangent = carPath.getTangentAt(section.center);
-                const towerFwd = new THREE.Vector3(towerTangent.x, 0, towerTangent.z).normalize();
-                const towerRight = new THREE.Vector3(-towerFwd.z, 0, towerFwd.x);
-
-                // === 主塔（左右2本のA型タワー） ===
-                [-1, 1].forEach(side => {
-                    const baseX = towerPoint.x + towerRight.x * side * (bridgeWidth / 2 + 1);
-                    const baseZ = towerPoint.z + towerRight.z * side * (bridgeWidth / 2 + 1);
-                    const baseY = towerPoint.y;
-
-                    // 主柱（やや内側に傾斜するA型）
-                    const pillarGeo = new THREE.BoxGeometry(1.5, towerHeight, 2.0);
-                    const pillar = new THREE.Mesh(pillarGeo, towerMat);
-                    pillar.position.set(baseX, baseY + towerHeight / 2, baseZ);
-                    const q = new THREE.Quaternion();
-                    q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), towerFwd);
-                    pillar.quaternion.copy(q);
-                    bridgeGroup.add(pillar);
-
-                    // 主塔上部の横梁
-                    const beamGeo = new THREE.BoxGeometry(3.0, 1.5, 2.0);
-                    const beam = new THREE.Mesh(beamGeo, towerMat);
-                    beam.position.set(baseX, baseY + towerHeight - 2, baseZ);
-                    beam.quaternion.copy(q);
-                    bridgeGroup.add(beam);
-                });
-
-                // === ケーブル（主塔頂部から道路面へ放射状）→ ジオメトリ結合 ===
-                const cableCount = 8; // 片側のケーブル本数
-                const cableEntries = [];
-                [-1, 1].forEach(side => {
-                    const towerTopX = towerPoint.x + towerRight.x * side * (bridgeWidth / 2 + 1);
-                    const towerTopZ = towerPoint.z + towerRight.z * side * (bridgeWidth / 2 + 1);
-                    const towerTopY = towerPoint.y + towerHeight - 3;
-
-                    // 前後にケーブルを張る
-                    [-1, 1].forEach(dir => {
-                        for (let i = 1; i <= cableCount; i++) {
-                            const ratio = i / cableCount;
-                            const anchorT = (section.center + dir * ratio * section.span + 1) % 1;
-                            const anchorPoint = carPath.getPointAt(anchorT);
-                            const anchorTangent = carPath.getTangentAt(anchorT);
-                            const anchorRight = new THREE.Vector3(
-                                -anchorTangent.z, 0, anchorTangent.x
-                            ).normalize();
-
-                            // ケーブルの下端（道路端のアンカー位置）
-                            const anchorX = anchorPoint.x + anchorRight.x * side * (bridgeWidth / 2 - 1);
-                            const anchorY = anchorPoint.y + 2.0;
-                            const anchorZ = anchorPoint.z + anchorRight.z * side * (bridgeWidth / 2 - 1);
-
-                            // ケーブルの長さと方向を計算
-                            const dx = anchorX - towerTopX;
-                            const dy = anchorY - towerTopY;
-                            const dz = anchorZ - towerTopZ;
-                            const cableLen = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-                            const cableGeo = new THREE.CylinderGeometry(cableRadius, cableRadius, cableLen, 4);
-                            const cableDir = new THREE.Vector3(dx, dy, dz).normalize();
-                            const cableQ = new THREE.Quaternion();
-                            cableQ.setFromUnitVectors(new THREE.Vector3(0, 1, 0), cableDir);
-
-                            cableEntries.push({
-                                geo: cableGeo,
-                                pos: new THREE.Vector3(
-                                    (towerTopX + anchorX) / 2,
-                                    (towerTopY + anchorY) / 2,
-                                    (towerTopZ + anchorZ) / 2
-                                ),
-                                quat: cableQ
-                            });
-                        }
-                    });
-                });
-
-                // ケーブルをジオメトリ結合して1 Meshに
-                if (cableEntries.length) {
-                    const merged = new THREE.BufferGeometry();
-                    let totalVerts = 0, totalIdx = 0;
-                    for (const e of cableEntries) { totalVerts += e.geo.attributes.position.count; totalIdx += (e.geo.index ? e.geo.index.count : 0); }
-                    const pos = new Float32Array(totalVerts * 3);
-                    const nrm = new Float32Array(totalVerts * 3);
-                    const idx = totalIdx > 0 ? new Uint32Array(totalIdx) : null;
-                    let vOff = 0, iOff = 0, vBase = 0;
-                    const m4 = new THREE.Matrix4();
-                    const n3 = new THREE.Matrix3();
-                    for (const e of cableEntries) {
-                        m4.compose(e.pos, e.quat, new THREE.Vector3(1,1,1));
-                        n3.getNormalMatrix(m4);
-                        const gp = e.geo.attributes.position;
-                        const gn = e.geo.attributes.normal;
-                        const v = new THREE.Vector3();
-                        for (let j = 0; j < gp.count; j++) {
-                            v.set(gp.getX(j), gp.getY(j), gp.getZ(j)).applyMatrix4(m4);
-                            pos[vOff] = v.x; pos[vOff+1] = v.y; pos[vOff+2] = v.z;
-                            if (gn) { v.set(gn.getX(j), gn.getY(j), gn.getZ(j)).applyMatrix3(n3).normalize(); nrm[vOff] = v.x; nrm[vOff+1] = v.y; nrm[vOff+2] = v.z; }
-                            vOff += 3;
-                        }
-                        if (e.geo.index && idx) { for (let j = 0; j < e.geo.index.count; j++) { idx[iOff++] = e.geo.index.array[j] + vBase; } }
-                        vBase += gp.count;
-                    }
-                    merged.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-                    merged.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
-                    if (idx) merged.setIndex(new THREE.BufferAttribute(idx, 1));
-                    merged.computeBoundingSphere();
-                    bridgeGroup.add(new THREE.Mesh(merged, cableMat));
-                }
-
-                // === 橋桁（道路の両側の壁・欄干）===
-                const railEntries = [];
-                const railGeo = new THREE.BoxGeometry(0.4, 1.8, 5.0);
-                const railSpacing = 0.003;
-                const startT = (section.center - section.span + 1) % 1;
-                const endT = (section.center + section.span) % 1;
-
-                for (let t = startT; t !== endT; t = (t + railSpacing) % 1) {
-                    if (Math.abs(t - endT) < railSpacing) break;
-                    const p = carPath.getPointAt(t);
-                    const tg = carPath.getTangentAt(t);
-                    const f = new THREE.Vector3(tg.x, 0, tg.z).normalize();
-                    const r = new THREE.Vector3(-f.z, 0, f.x);
-                    const q = new THREE.Quaternion();
-                    q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), f);
-
-                    [-1, 1].forEach(side => {
-                        railEntries.push({
-                            geo: railGeo,
-                            pos: new THREE.Vector3(
-                                p.x + r.x * side * (bridgeWidth / 2),
-                                p.y + 0.9,
-                                p.z + r.z * side * (bridgeWidth / 2)
-                            ),
-                            quat: q
-                        });
-                    });
-                }
-
-                // 欄干をジオメトリ結合
-                if (railEntries.length) {
-                    // mergeGeosはcreateTunnelsで定義済みなのでスコープ外 → インライン結合
-                    const merged = new THREE.BufferGeometry();
-                    let totalVerts = 0, totalIdx = 0;
-                    for (const e of railEntries) { totalVerts += e.geo.attributes.position.count; totalIdx += (e.geo.index ? e.geo.index.count : 0); }
-                    const pos = new Float32Array(totalVerts * 3);
-                    const nrm = new Float32Array(totalVerts * 3);
-                    const idx = totalIdx > 0 ? new Uint32Array(totalIdx) : null;
-                    let vOff = 0, iOff = 0, vBase = 0;
-                    const m4 = new THREE.Matrix4();
-                    const n3 = new THREE.Matrix3();
-                    for (const e of railEntries) {
-                        m4.compose(e.pos, e.quat, new THREE.Vector3(1,1,1));
-                        n3.getNormalMatrix(m4);
-                        const gp = e.geo.attributes.position;
-                        const gn = e.geo.attributes.normal;
-                        const v = new THREE.Vector3();
-                        for (let i = 0; i < gp.count; i++) {
-                            v.set(gp.getX(i), gp.getY(i), gp.getZ(i)).applyMatrix4(m4);
-                            pos[vOff] = v.x; pos[vOff+1] = v.y; pos[vOff+2] = v.z;
-                            if (gn) { v.set(gn.getX(i), gn.getY(i), gn.getZ(i)).applyMatrix3(n3).normalize(); nrm[vOff] = v.x; nrm[vOff+1] = v.y; nrm[vOff+2] = v.z; }
-                            vOff += 3;
-                        }
-                        if (e.geo.index && idx) { for (let i = 0; i < e.geo.index.count; i++) { idx[iOff++] = e.geo.index.array[i] + vBase; } }
-                        vBase += gp.count;
-                    }
-                    merged.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-                    merged.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
-                    if (idx) merged.setIndex(new THREE.BufferAttribute(idx, 1));
-                    merged.computeBoundingSphere();
-                    bridgeGroup.add(new THREE.Mesh(merged, concreteMat));
-                }
-            }
-
-            // === 川の生成（橋の下を横切る） ===
-            for (const section of bridgeSections) {
-                const centerPoint = carPath.getPointAt(section.center);
-                const centerTangent = carPath.getTangentAt(section.center);
-                const roadDir = new THREE.Vector3(centerTangent.x, 0, centerTangent.z).normalize();
-                // 川は道路と直交する方向に流れる
-                const riverDir = new THREE.Vector3(-roadDir.z, 0, roadDir.x);
-
-                const riverWidth = 60;
-                const riverLength = 300;
-                const riverY = centerPoint.y - 6; // 道路面より少し下
-
-                // 川の水面
-                const riverGeo = new THREE.PlaneGeometry(riverWidth, riverLength, 1, 1);
-                const riverMat = new THREE.MeshPhongMaterial({
-                    color: 0x225588,
-                    shininess: 120,
-                    specular: 0x88AACC,
-                    transparent: true,
-                    opacity: 0.7,
-                });
-                const river = new THREE.Mesh(riverGeo, riverMat);
-                river.rotation.x = -Math.PI / 2;
-                river.position.set(centerPoint.x, riverY, centerPoint.z);
-                // 川を道路と直交する方向に向ける
-                const riverAngle = Math.atan2(riverDir.z, riverDir.x);
-                river.rotation.z = -riverAngle + Math.PI / 2;
-                bridgeGroup.add(river);
-
-                // 川底（少し暗い色の平面）
-                const bedGeo = new THREE.PlaneGeometry(riverWidth + 10, riverLength + 20, 1, 1);
-                const bedMat = new THREE.MeshPhongMaterial({ color: 0x334422, shininess: 5 });
-                const bed = new THREE.Mesh(bedGeo, bedMat);
-                bed.rotation.x = -Math.PI / 2;
-                bed.position.set(centerPoint.x, riverY - 1.5, centerPoint.z);
-                bed.rotation.z = river.rotation.z;
-                bridgeGroup.add(bed);
-
-                // 川岸（左右の土手）
-                const bankMat = new THREE.MeshPhongMaterial({ color: 0x556633, shininess: 10 });
-                [-1, 1].forEach(side => {
-                    const bankGeo = new THREE.BoxGeometry(8, 4, riverLength + 20);
-                    const bank = new THREE.Mesh(bankGeo, bankMat);
-                    bank.position.set(
-                        centerPoint.x + riverDir.x * side * (riverWidth / 2 + 4),
-                        riverY - 0.5,
-                        centerPoint.z + riverDir.z * side * (riverWidth / 2 + 4)
-                    );
-                    const bankQ = new THREE.Quaternion();
-                    bankQ.setFromUnitVectors(new THREE.Vector3(0, 0, 1), riverDir);
-                    bank.quaternion.copy(bankQ);
-                    bridgeGroup.add(bank);
-                });
-            }
-
-            log(`斜張橋作成完了: ${bridgeSections.length}箇所`);
-        }
-
-        // コース全周の連続地形メッシュを作成（リッジレーサー風）
-        function createRockFormations() {
-            const terrainGroup = new THREE.Group();
-            scene.add(terrainGroup);
-
-            // シード付き乱数
-            function seededRandom(seed) {
-                const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
-                return x - Math.floor(x);
-            }
-
-            // シンプルなノイズ関数（2Dバリューノイズ）
-            function noise2D(x, z) {
-                const ix = Math.floor(x);
-                const iz = Math.floor(z);
-                const fx = x - ix;
-                const fz = z - iz;
-                // スムーズステップ補間
-                const ux = fx * fx * (3 - 2 * fx);
-                const uz = fz * fz * (3 - 2 * fz);
-                // 4隅の値
-                const a = seededRandom(ix * 73.7 + iz * 157.3);
-                const b = seededRandom((ix + 1) * 73.7 + iz * 157.3);
-                const c = seededRandom(ix * 73.7 + (iz + 1) * 157.3);
-                const d = seededRandom((ix + 1) * 73.7 + (iz + 1) * 157.3);
-                return a + (b - a) * ux + (c - a) * uz + (a - b - c + d) * ux * uz;
-            }
-
-            // フラクタルノイズ（オクターブ重ね）
-            function fractalNoise(x, z, octaves, persistence, scale) {
-                let total = 0;
-                let amplitude = 1;
-                let frequency = scale;
-                let maxVal = 0;
-                for (let i = 0; i < octaves; i++) {
-                    total += noise2D(x * frequency, z * frequency) * amplitude;
-                    maxVal += amplitude;
-                    amplitude *= persistence;
-                    frequency *= 2;
-                }
-                return total / maxVal;
-            }
-
-            // コース沿いの地形帯（strips）を両サイドに生成
-            // 各帯: 道路端→外側に広がる複数リングの頂点
-            const pathSegments = 200; // コース周方向の分割数
-            const radialSteps = 6;   // 道路端から外側への帯数
-            const radialDistances = [0, 5, 15, 30, 55, 90]; // 道路端からの距離
-            const baseHeights =      [0, 2, 8, 18, 30, 40]; // 各帯の基本的な高さ上昇
-
-            function createSideTerrain(side) {
-                const vertices = [];
-                const indices = [];
-                const colors = [];
-
-                // 頂点を生成
-                for (let i = 0; i <= pathSegments; i++) {
-                    const t = (i / pathSegments) % 1;
-                    const point = carPath.getPointAt(t);
-                    const tangent = carPath.getTangentAt(t);
-                    const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
-
-                    for (let r = 0; r < radialSteps; r++) {
-                        const dist = roadWidth / 2 + 1.2 + radialDistances[r]; // ガードレール外側から
-                        const pos = new THREE.Vector3().addVectors(
-                            point,
-                            normal.clone().multiplyScalar(side * dist)
-                        );
-
-                        // 高さの計算
-                        let h = point.y;
-                        if (r === 0) {
-                            // 道路端: 道路面とほぼ同じ高さ（少し下）
-                            h = point.y - 0.5;
-                        } else {
-                            // ノイズで自然な起伏を生成
-                            const nx = pos.x * 0.008;
-                            const nz = pos.z * 0.008;
-                            const noiseVal = fractalNoise(nx, nz, 3, 0.5, 1.0);
-                            // 基本高さ + ノイズによる変動
-                            h = point.y - 2 + baseHeights[r] * (0.5 + noiseVal * 1.0);
-
-                            // 高架部分は地形を下げない（柱が地面から出るように）
-                            if (point.y > 3 && r >= 2) {
-                                h = Math.min(h, point.y * 0.3);
-                            }
-                        }
-
-                        vertices.push(pos.x, h, pos.z);
-
-                        // 頂点カラー（高さに応じて岩色を変化）
-                        const heightRatio = Math.min(1, Math.max(0, (h - point.y) / 35));
-                        const baseColor = new THREE.Color(0x6B5B4F); // 茶褐色
-                        const peakColor = new THREE.Color(0x8B7D6B); // 砂岩色
-                        const darkColor = new THREE.Color(0x4A3F35); // 暗い岩色
-                        const noiseColor = fractalNoise(pos.x * 0.02, pos.z * 0.02, 2, 0.5, 1.0);
-
-                        const color = baseColor.clone().lerp(peakColor, heightRatio);
-                        // ノイズで色に変化をつける
-                        color.lerp(darkColor, noiseColor * 0.3);
-                        colors.push(color.r, color.g, color.b);
-                    }
-                }
-
-                // インデックス生成（帯をつなぐ三角形）
-                for (let i = 0; i < pathSegments; i++) {
-                    for (let r = 0; r < radialSteps - 1; r++) {
-                        const v0 = i * radialSteps + r;
-                        const v1 = v0 + 1;
-                        const v2 = v0 + radialSteps;
-                        const v3 = v2 + 1;
-
-                        if (side > 0) {
-                            indices.push(v0, v2, v1);
-                            indices.push(v1, v2, v3);
-                        } else {
-                            indices.push(v0, v1, v2);
-                            indices.push(v1, v3, v2);
-                        }
-                    }
-                }
-
-                const geometry = new THREE.BufferGeometry();
-                geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-                geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-                geometry.setIndex(indices);
-                geometry.computeVertexNormals();
-
-                const material = new THREE.MeshLambertMaterial({
-                    vertexColors: true,
-                    flatShading: true,
-                    side: THREE.DoubleSide,
-                });
-
-                terrainGroup.add(new THREE.Mesh(geometry, material));
-            }
-
-            // 両サイドに地形を生成
-            createSideTerrain(1);  // 右側
-            createSideTerrain(-1); // 左側
-
-            log("連続地形の生成完了");
-        }
-        
-        // 街灯を作成する関数
-        function createStreetlights() {
-            // 街灯の間隔（パスの割合）
-            const streetlightSpacing = 0.04; // コース全体で約25本の街灯
-            
-            // 街灯用のグループを作成
-            const streetlightGroup = new THREE.Group();
-            roadGroup.add(streetlightGroup);
-            
-            // コース全体に街灯を配置
-            let currentT = 0;
-            while (currentT < 1) {
-                // パス上の位置と接線を取得
-                const point = carPath.getPointAt(currentT);
-                const tangent = carPath.getTangentAt(currentT);
-                
-                // 垂直方向ベクトル（外側方向）
-                const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
-                
-                // 道路の右側に街灯を設置
-                createSingleStreetlight(point, normal, 1); // 右側
-                
-                currentT += streetlightSpacing;
-            }
-            
-            // 1本の街灯を作成する関数
-            function createSingleStreetlight(point, normal, side) {
-                // 街灯の位置（道路の外側）
-                const lightPosition = new THREE.Vector3().addVectors(
-                    point,
-                    normal.clone().multiplyScalar(side * (roadWidth / 2 + 2.0))
-                );
-                
-                // 街灯の支柱
-                const poleGeometry = new THREE.CylinderGeometry(0.15, 0.2, 8, 8);
-                const poleMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
-                const pole = new THREE.Mesh(poleGeometry, poleMaterial);
-                
-                // 支柱の位置を設定
-                pole.position.copy(new THREE.Vector3(
-                    lightPosition.x,
-                    point.y + 4, // 地面からの高さ
-                    lightPosition.z
-                ));
-                
-                // 支柱を垂直に立てる
-                pole.rotation.x = Math.PI / 2;
-                
-                streetlightGroup.add(pole);
-                
-                // 街灯の頭部
-                const headGeometry = new THREE.BoxGeometry(1.0, 0.4, 0.4);
-                const headMaterial = new THREE.MeshStandardMaterial({ 
-                    color: 0x333333,
-                    emissive: 0xFFDD99,
-                    emissiveIntensity: 0.1 // 初期値は低く
-                });
-                const head = new THREE.Mesh(headGeometry, headMaterial);
-                
-                // 頭部の位置を設定
-                head.position.copy(new THREE.Vector3(
-                    lightPosition.x,
-                    point.y + 8, // 支柱の上部
-                    lightPosition.z
-                ));
-                
-                // 頭部を道路に向ける
-                head.lookAt(new THREE.Vector3(
-                    point.x,
-                    point.y + 8,
-                    point.z
-                ));
-                
-                // ユーザーデータに街灯フラグを設定
-                head.userData.isStreetlight = true;
-                
-                streetlightGroup.add(head);
-                
-                // 街灯のライト
-                const light = new THREE.PointLight(0xFFDD99, 0.2, 10, 2);
-                light.position.copy(new THREE.Vector3(
-                    lightPosition.x,
-                    point.y + 8, // 支柱の上部
-                    lightPosition.z
-                ));
-                
-                // ライトを街灯の頭部に関連付ける
-                head.userData.pointLight = light;
-                
-                streetlightGroup.add(light);
-            }
-        }
-        
-        // カメラモード（0: 俯瞰, 1: 追従, 2: 車載, 3: 斜め視点）
-        let cameraMode = 3; // デフォルトを斜め視点モードに設定
-        let debugMode = false; // デバッグ表示（Dキーで切り替え）
-        
-        // カメラ位置の初期設定（斜め視点向け）
-        camera.position.set(100, 70, 90); // 斜め視点の初期位置
-        
-        // 過去フレームの時間を記録する変数
-        let lastFrameTime = Date.now();
-        
-        // デバッグラベル描画: 状態文字・ライン戦略・速度・スリップストリームバーを描画
-        function drawDebugInfo(ctx, car, textY, barY) {
+        // === デバッグラベル描画 ===
+        function drawDebugInfo(canvasCtx, car, textY, barY) {
             const strategyLabels = { OUT_IN_OUT: 'OIO', LATE_APEX: 'LA', IN_IN_IN: 'III', WIDE_ENTRY: 'WE' };
             const strategyColors = { OUT_IN_OUT: '#44aaff', LATE_APEX: '#ffaa00', IN_IN_IN: '#ff4488', WIDE_ENTRY: '#aa44ff' };
 
@@ -2779,693 +610,40 @@
             else if (car.isTandemFollowing) { stateChar = 'T'; stateColor = '#00ff88'; }
 
             const strat = car.drivingStyle?.lineStrategy || '';
-            const kmh = Math.round(car.speed * Car.SPEED_TO_KMH);
+            const kmh = Math.round(car.speed * SPEED_TO_KMH);
             const infoText = stateChar + ' ' + (strategyLabels[strat] || '') + ' ' + kmh;
 
-            ctx.font = 'bold 18px sans-serif';
-            const totalW = ctx.measureText(infoText).width;
+            canvasCtx.font = 'bold 18px sans-serif';
+            const totalW = canvasCtx.measureText(infoText).width;
             let cx = 128 - totalW / 2;
-            ctx.textAlign = 'left';
-            ctx.fillStyle = stateColor;
-            ctx.fillText(stateChar, cx, textY);
-            cx += ctx.measureText(stateChar + ' ').width;
-            ctx.fillStyle = strategyColors[strat] || '#888888';
+            canvasCtx.textAlign = 'left';
+            canvasCtx.fillStyle = stateColor;
+            canvasCtx.fillText(stateChar, cx, textY);
+            cx += canvasCtx.measureText(stateChar + ' ').width;
+            canvasCtx.fillStyle = strategyColors[strat] || '#888888';
             const stratLabel = strategyLabels[strat] || '';
-            ctx.fillText(stratLabel, cx, textY);
-            cx += ctx.measureText(stratLabel + ' ').width;
-            ctx.fillStyle = '#cccccc';
-            ctx.fillText('' + kmh, cx, textY);
-            ctx.textAlign = 'center';
+            canvasCtx.fillText(stratLabel, cx, textY);
+            cx += canvasCtx.measureText(stratLabel + ' ').width;
+            canvasCtx.fillStyle = '#cccccc';
+            canvasCtx.fillText('' + kmh, cx, textY);
+            canvasCtx.textAlign = 'center';
 
-            // スリップストリームバー
             const slip = car.slipstreamCharge;
             if (slip > 0) {
                 const barX = 60, barW = 136, barH = 8;
-                ctx.fillStyle = 'rgba(255,255,255,0.2)';
-                ctx.fillRect(barX, barY, barW, barH);
+                canvasCtx.fillStyle = 'rgba(255,255,255,0.2)';
+                canvasCtx.fillRect(barX, barY, barW, barH);
                 const r = Math.floor(255 * slip);
                 const g = Math.floor(255 * (1 - slip * 0.5));
-                ctx.fillStyle = `rgb(${r},${g},0)`;
-                ctx.fillRect(barX, barY, barW * slip, barH);
-                ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(barX, barY, barW, barH);
+                canvasCtx.fillStyle = `rgb(${r},${g},0)`;
+                canvasCtx.fillRect(barX, barY, barW * slip, barH);
+                canvasCtx.strokeStyle = 'rgba(255,255,255,0.5)';
+                canvasCtx.lineWidth = 1;
+                canvasCtx.strokeRect(barX, barY, barW, barH);
             }
         }
 
-        // アニメーションループ
-        let frameCount = 0;
-
-        function animate() {
-            requestAnimationFrame(animate);
-            
-            const metrics = {};
-            const startTime = performance.now();
-            let lastCheck = startTime;
-            
-            // フレーム間のデルタタイムを計算
-            currentFrameTime = Date.now();
-            const deltaTime = (currentFrameTime - lastFrameTime) / 16.67;
-            lastFrameTime = currentFrameTime;
-            
-            // 昼夜サイクルの更新
-            updateDayNightCycle();
-            metrics.dayNightCycle = performance.now() - lastCheck;
-            lastCheck = performance.now();
-            
-            // 天気の更新
-            weatherSystem.update(deltaTime, camera);
-            metrics.weather = performance.now() - lastCheck;
-            lastCheck = performance.now();
-            
-            // オート・早送りモード時の車の自動切り替え
-            if (timeModeState.shouldAutoSwitch() && !raceManager?.active && currentFrameTime - lastCarChangeTime > carChangeInterval) {
-                // 現在の車以外からランダムに選択
-                const availableCars = Array.from({length: cars.length}, (_, i) => i).filter(i => i !== currentCarIndex);
-                currentCarIndex = availableCars[Math.floor(Math.random() * availableCars.length)];
-                
-                lastCarChangeTime = currentFrameTime;
-                carChangeInterval = 20000 + Math.random() * 10000; // 20-30秒のランダムな間隔
-            }
-            
-            // 車の更新
-            for (let i = 0; i < cars.length; i++) {
-                const car = cars[i];
-                car.update(deltaTime);
-
-                // 車の上のラベル表示（レース中: 順位 / 通常: デバッグ）
-                if (debugMode || raceManager?.active) {
-                    if (!car._debugLabel) {
-                        const canvas = document.createElement('canvas');
-                        canvas.width = 256;
-                        canvas.height = 96;
-                        const texture = new THREE.CanvasTexture(canvas);
-                        const material = new THREE.SpriteMaterial({ map: texture, depthTest: false });
-                        const sprite = new THREE.Sprite(material);
-                        sprite.scale.set(10, 3.75, 1);
-                        scene.add(sprite);
-                        car._debugLabel = sprite;
-                        car._debugCanvas = canvas;
-                        car._debugTexture = texture;
-                    }
-                    car._debugLabel.visible = true;
-
-                    // デバッグテキストのキーを生成（変化時のみCanvas再描画）
-                    let debugKey = '';
-                    if (raceManager?.active) {
-                        const ranked = raceManager._cachedRanked || [];
-                        const rank = ranked.findIndex(([c]) => c === car) + 1;
-                        const isPredicted = raceManager.predictedCar === car;
-                        const stateChar = car.isOvertaking && !car.isReturning ? 'P' : car.isReturning ? 'R' : car.isTandemFollowing ? 'T' : 'N';
-                        const kmh = Math.round(car.speed * Car.SPEED_TO_KMH);
-                        const slip = Math.round(car.slipstreamCharge * 10);
-                        debugKey = `R${rank}${debugMode?1:0}${stateChar}${kmh}${slip}${isPredicted?1:0}`;
-                    } else if (debugMode) {
-                        const stateChar = car.isOvertaking && !car.isReturning ? 'P' : car.isReturning ? 'R' : car.isTandemFollowing ? 'T' : 'N';
-                        const kmh = Math.round(car.speed * Car.SPEED_TO_KMH);
-                        const slip = Math.round(car.slipstreamCharge * 10);
-                        debugKey = `D${stateChar}${kmh}${slip}`;
-                    }
-
-                    if (debugKey !== car._lastDebugKey) {
-                        car._lastDebugKey = debugKey;
-                        const ctx = car._debugCanvas.getContext('2d');
-                        ctx.clearRect(0, 0, 256, 96);
-
-                        if (raceManager?.active) {
-                            const ranked = raceManager._cachedRanked || [];
-                            const rank = ranked.findIndex(([c]) => c === car) + 1;
-                            const isPredicted = raceManager.predictedCar === car;
-
-                            ctx.font = 'bold 44px sans-serif';
-                            ctx.textAlign = 'center';
-                            ctx.fillStyle = rank <= 3 ? '#ffdd00' : '#ffffff';
-                            ctx.fillText('P' + rank, 128, debugMode ? 36 : 48);
-
-                            if (debugMode) {
-                                drawDebugInfo(ctx, car, 56, 62);
-                            }
-
-                            if (isPredicted) {
-                                ctx.font = 'bold 18px sans-serif';
-                                ctx.fillStyle = '#ffdd00';
-                                ctx.fillText('\u2605', 128, debugMode ? 82 : 70);
-                            }
-                        } else if (debugMode) {
-                            drawDebugInfo(ctx, car, 36, 42);
-                        }
-                        car._debugTexture.needsUpdate = true;
-                    }
-                    car._debugLabel.position.copy(car.object.position);
-                    car._debugLabel.position.y += 5;
-                }
-            }
-            // レース更新
-            if (raceManager?.active && raceManager.phase === 'racing') {
-                raceManager.updateRace();
-            }
-            if (raceManager?.active) {
-                raceManager.updateUI();
-            }
-
-            metrics.carUpdates = performance.now() - lastCheck;
-            lastCheck = performance.now();
-
-            // 速度表示の更新
-            const currentCar = cars[currentCarIndex];
-            if (currentCar) {
-                const speedKmh = Math.round(currentCar.speed * HORIZONTAL_SCALE * 3.6); // スケールを考慮してm/sからkm/hに変換
-                document.getElementById('speed-display').textContent = `${speedKmh} km/h`;
-            }
-            
-            // カメラの更新
-            updateCamera();
-            metrics.camera = performance.now() - lastCheck;
-            lastCheck = performance.now();
-            
-            // ミニマップの更新
-            updateMinimap();
-            metrics.minimap = performance.now() - lastCheck;
-            lastCheck = performance.now();
-            
-            // レンダリング
-            renderer.render(scene, camera);
-            metrics.rendering = performance.now() - lastCheck;
-            
-            // 全体の実行時間
-            metrics.total = performance.now() - startTime;
-            
-            // 100フレームごとにメトリクスを出力
-            frameCount++;
-            if (frameCount % 100 === 0) {
-                console.log('Frame Performance Metrics:');
-                console.table(metrics);
-            }
-        }
-        
-        // カメラの位置と向きを更新
-        function updateCamera() {
-            const currentCar = cars[currentCarIndex];
-            if (!currentCar || !currentCar.object) return;
-
-            switch (cameraMode) {
-                case 0: // 俯瞰
-                    // 車の真上からの追従視点
-                    const topOffset = new THREE.Vector3(0, 100, 0); // 高さ100の真上
-                    const targetTopCameraPos = new THREE.Vector3().addVectors(currentCar.object.position, topOffset);
-                    camera.position.lerp(targetTopCameraPos, 0.1); // スムーズな追従
-                    camera.lookAt(currentCar.object.position);
-                    
-                    // 視野角を広めに設定して見やすく
-                    camera.fov = 70;
-                    camera.updateProjectionMatrix();
-                    break;
-                    
-                case 1: // 追従
-                    // 車の後ろから少し上の位置（Z軸を正に変更して車の後ろに）
-                    const followOffset = new THREE.Vector3(0, 5, 10); // 車の真後ろ寄り
-                    // 車の向きに合わせてオフセットを回転
-                    const rotatedOffset = followOffset.clone().applyQuaternion(currentCar.object.quaternion);
-                    
-                    // カメラ位置をスムーズに更新
-                    const targetCameraPos = new THREE.Vector3().addVectors(currentCar.object.position, rotatedOffset);
-                    camera.position.lerp(targetCameraPos, 0.1); // スムージング
-                    
-                    // カメラの注視点を車の位置に設定（少し前に）
-                    const lookAheadOffset = new THREE.Vector3(0, -2, -20).applyQuaternion(currentCar.object.quaternion);
-                    const lookAtPoint = new THREE.Vector3().addVectors(currentCar.object.position, lookAheadOffset);
-                    camera.lookAt(lookAtPoint);
-                    
-                    // 標準の視野角に戻す
-                    camera.fov = 60;
-                    camera.updateProjectionMatrix();
-                    break;
-                    
-                case 2: // 車載（ドライバー視点）
-                    // 車体に固定マウント（運転席位置）
-                    const fpvOffset = new THREE.Vector3(0, 1.2, 0.0);
-                    const rotatedFpvOffset = fpvOffset.clone().applyQuaternion(currentCar.object.quaternion);
-                    // 車体に直接固定
-                    camera.position.copy(currentCar.object.position).add(rotatedFpvOffset);
-
-                    // 進行方向を見る（注視点も少し遅延）
-                    const fpvLookAheadOffset = new THREE.Vector3(0, 0.5, -30).applyQuaternion(currentCar.object.quaternion);
-                    const fpvLookAtPoint = new THREE.Vector3().addVectors(currentCar.object.position, fpvLookAheadOffset);
-                    if (!camera.userData.fpvLookTarget) camera.userData.fpvLookTarget = fpvLookAtPoint.clone();
-                    camera.userData.fpvLookTarget.lerp(fpvLookAtPoint, 0.1);
-                    camera.lookAt(camera.userData.fpvLookTarget);
-
-                    camera.fov = 80;
-                    camera.updateProjectionMatrix();
-
-                    break;
-                case 3: // 斜め上視点
-                    // 車の上と横から見る位置（車の傾きを強調して見せるため）
-                    const diagonalOffset = new THREE.Vector3(50, 40, 20); // 右上からかなり離れた位置に配置
-                    // 車の向きに合わせてオフセットを回転
-                    const rotatedDiagOffset = diagonalOffset.clone().applyQuaternion(currentCar.object.quaternion);
-                    
-                    // カメラ位置をスムーズに更新
-                    const targetDiagCameraPos = new THREE.Vector3().addVectors(currentCar.object.position, rotatedDiagOffset);
-                    camera.position.lerp(targetDiagCameraPos, 0.1); // スムージング
-                    
-                    // 車をしっかり見る（少し前を見るように設定）
-                    const diagLookOffset = new THREE.Vector3(0, -1, -5).applyQuaternion(currentCar.object.quaternion);
-                    const diagLookAtPoint = new THREE.Vector3().addVectors(currentCar.object.position, diagLookOffset);
-                    camera.lookAt(diagLookAtPoint);
-                    
-                    // 標準の視野角に戻す
-                    camera.fov = 60;
-                    camera.updateProjectionMatrix();
-                    break;
-                    
-                case 4: // 車前方から後方を見る視点
-                    // 車の前方の位置（Z軸を負に変更して車の前方に）
-                    const frontOffset = new THREE.Vector3(0, 5, -32); // 車の前方、より離れた位置に変更
-                    // 車の向きに合わせてオフセットを回転
-                    const rotatedFrontOffset = frontOffset.clone().applyQuaternion(currentCar.object.quaternion);
-                    
-                    // カメラ位置をスムーズに更新
-                    const targetFrontCameraPos = new THREE.Vector3().addVectors(currentCar.object.position, rotatedFrontOffset);
-                    camera.position.lerp(targetFrontCameraPos, 0.1); // スムージング
-                    
-                    // カメラが車の後方を見るようにする
-                    const lookBackOffset = new THREE.Vector3(0, 0, 20).applyQuaternion(currentCar.object.quaternion);
-                    const lookBackPoint = new THREE.Vector3().addVectors(currentCar.object.position, lookBackOffset);
-                    camera.lookAt(lookBackPoint);
-                    
-                    // 標準の視野角に戻す
-                    camera.fov = 60;
-                    camera.updateProjectionMatrix();
-                    break;
-            }
-        }
-        
-        // リサイズ処理
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-        
-        // 視点切り替えボタンの設定
-        function setupViewButtons() {
-            document.querySelectorAll('.view-buttons .viewButton').forEach(button => {
-                button.addEventListener('click', () => {
-                    cameraMode = parseInt(button.getAttribute('data-view'));
-                    updateButtonActiveState();
-                });
-            });
-        }
-
-        // ボタンのアクティブ状態を更新
-        function updateButtonActiveState() {
-            // 視点ボタンの状態を更新（.view-buttons内のボタンのみ）
-            document.querySelectorAll('.view-buttons .viewButton').forEach(button => {
-                const viewMode = parseInt(button.getAttribute('data-view'));
-                if (viewMode === cameraMode) {
-                    button.classList.add('active');
-                } else {
-                    button.classList.remove('active');
-                }
-            });
-        }
-
-        // 初期化関数
-        function init() {
-            // 環境オブジェクトを配置
-            placeEnvironmentObjects();
-            
-            // 視点切り替えボタンの設定
-            setupViewButtons();
-            
-            // 天気ボタンの設定
-            setupWeatherButtons();
-            
-            // 初期天気のボタンをアクティブに
-            updateWeatherButtonState(weatherSystem.current);
-            
-            // ミニマップのクリックイベントを設定
-            document.getElementById('minimap-container').addEventListener('click', () => {
-                // タブキーと同じ動作：次の車に切り替え
-                currentCarIndex = (currentCarIndex + 1) % cars.length;
-            });
-            
-            // BGMの初期化
-            initBgm();
-            
-            // アニメーションスタート
-            log("アニメーション開始");
-            animate();
-            
-            // 天気システムの初期化
-            initWeatherSystem();
-
-            // レースボタンの設定
-            document.getElementById('raceButton').addEventListener('click', () => {
-                if (raceManager.active) {
-                    raceManager.endRaceMode();
-                } else {
-                    raceManager.startRace();
-                }
-            });
-
-            // 予想確定ボタン
-            document.getElementById('race-predict-confirm').addEventListener('click', () => {
-                if (raceManager.active && raceManager.phase === 'grid') {
-                    raceManager.confirmPrediction();
-                }
-            });
-
-            // オートカメラ切替ボタン
-            document.getElementById('race-auto-camera').addEventListener('click', () => {
-                if (raceManager.active) {
-                    raceManager.toggleAutoCamera();
-                }
-            });
-
-            // リザルト画面ボタン（イベント委譲 - innerHTML再生成のため一度だけ登録）
-            document.getElementById('race-results').addEventListener('click', (e) => {
-                const btn = e.target.closest('button');
-                if (!btn) return;
-                if (btn.id === 'raceAgainBtn') {
-                    document.getElementById('race-results').style.display = 'none';
-                    raceManager.startRace();
-                } else if (btn.id === 'normalModeBtn') {
-                    raceManager.endRaceMode();
-                }
-            });
-
-        }
-
-        // ページ読み込み完了時に初期化を実行
-        window.onload = init;
-
-        // 順位表クリック（イベント委譲 - DOMが毎フレーム書き換わるため）
-        document.getElementById('race-position-board').addEventListener('mousedown', (e) => {
-            e.stopPropagation();
-            const row = e.target.closest('tr[data-car-index]');
-            if (row && raceManager?.active) {
-                const idx = parseInt(row.getAttribute('data-car-index'));
-                if (!isNaN(idx)) {
-                    currentCarIndex = idx;
-                    raceManager.autoCameraMode = false;
-                    raceManager.stopAutoCamera();
-                    raceManager.updateAutoCameraButton();
-                }
-            }
-        });
-
-        // キーボードイベントを設定
-        function setupKeyboardControls() {
-            document.addEventListener('keydown', (event) => {
-                switch (event.key) {
-                    case 'Tab':
-                        // Tabキーで車を切り替え
-                        event.preventDefault(); // デフォルトのTab動作を防止
-                        currentCarIndex = (currentCarIndex + 1) % cars.length;
-                        break;
-                    case '1':
-                        cameraMode = 0; // 俯瞰
-                        updateCameraButtonState();
-                        break;
-                    case '2':
-                        cameraMode = 1; // 追従
-                        updateCameraButtonState();
-                        break;
-                    case '3':
-                        cameraMode = 2; // 車載
-                        updateCameraButtonState();
-                        break;
-                    case '4':
-                        cameraMode = 3; // 斜め
-                        updateCameraButtonState();
-                        break;
-                    case '5':
-                        cameraMode = 4; // 前方
-                        updateCameraButtonState();
-                        break;
-                    case 'd':
-                    case 'D':
-                        debugMode = !debugMode;
-                        // 非表示時にラベルをクリア
-                        if (!debugMode) {
-                            for (const car of cars) {
-                                if (car._debugLabel) car._debugLabel.visible = false;
-                            }
-                        }
-                        break;
-                }
-            });
-        }
-
-        // キーボードイベントを設定
-        setupKeyboardControls();
-
-        // 時間モード切替ボタンのイベントリスナー（3段階トグル: 🕒 → 🔄 → ⏩）
-        document.getElementById('timeToggleButton').addEventListener('click', function() {
-            toggleTimeMode();
-        });
-
-        // DOMContentLoadedイベントリスナーは削除（init関数に移動済み）
-
-        // DOMContentLoadedイベントリスナーを削除（重複初期化防止のため）
-        
-        // 天気システムの初期化
-        function initWeatherSystem() {
-            weatherSystem.createSnowParticles();
-            weatherSystem.createRainParticles();
-            weatherSystem.createCloudParticles();
-            timeModeState.initWeather();
-        }
-        
-        // 天気ごとの環境パラメータテーブル
-        const weatherEnvironmentTable = {
-            sunny: {
-                fogColor: null,        // 霧なし
-                fogDensityBirdseye: 0,  // 俯瞰視点の霧の濃度
-                fogDensityNormal: 0,    // 通常視点の霧の濃度
-                skyColor: 0x87CEEB,     // 晴れの空の色（明るい青空）
-                floorColor: 0x336633,   // 通常の芝生の色
-                floorRoughness: 0.8,
-                floorMetalness: 0.2,
-            },
-            cloudy: {
-                fogColor: 0xaaaaaa,     // 曇りの霧の色
-                fogDensityBirdseye: 0.0008, // 俯瞰視点の場合
-                fogDensityNormal: 0.003,
-                skyColor: 0x8c8c8c,     // 曇りの空の色（グレーがかった色）
-                floorColor: 0x2a552a,   // 曇り時の芝生の色
-                floorRoughness: 0.8,
-                floorMetalness: 0.2,
-            },
-            rain: {
-                fogColor: 0x555555,     // 雨の霧の色
-                fogDensityBirdseye: 0.001,
-                fogDensityNormal: 0.007,
-                skyColor: 0x4a4a4a,     // 雨の空の色（暗いグレー）
-                floorColor: 0x1c4d1c,   // 地面を濡れた感じに
-                floorRoughness: 0.9,    // より反射するように
-                floorMetalness: 0.5,    // より金属感を増やして反射を強める
-            },
-            snow: {
-                fogColor: 0xaaaaaa,     // 雪の霧の色
-                fogDensityBirdseye: 0.0005,
-                fogDensityNormal: 0.005,
-                skyColor: 0xd8d8d8,     // 雪の空の色（明るいグレー）
-                floorColor: 0xf0f0f0,   // 地面を雪で覆われたように
-                floorRoughness: 0.9,
-                floorMetalness: 0.0,
-            },
-        };
-
-        // 天気に応じた環境を適用
-        function applyWeatherEnvironment(weather) {
-            const params = weatherEnvironmentTable[weather];
-            if (!params) return;
-
-            // 霧の設定（カメラモードに応じて濃度を調整、既存fogインスタンスを再利用）
-            if (params.fogColor === null) {
-                scene.fog = null;
-            } else {
-                const density = cameraMode === 0 ? params.fogDensityBirdseye : params.fogDensityNormal;
-                if (scene.fog) {
-                    scene.fog.color.set(params.fogColor);
-                    scene.fog.density = density;
-                } else {
-                    scene.fog = new THREE.FogExp2(params.fogColor, density);
-                }
-            }
-
-            // 空の色を設定
-            renderCache.setWeatherSkyColor(params.skyColor);
-
-            // 床マテリアルの更新
-            floor.material.color.setHex(params.floorColor);
-            floor.material.roughness = params.floorRoughness;
-            floor.material.metalness = params.floorMetalness;
-            floor.material.needsUpdate = true;
-        }
-        
-
-        // updateCameraButtonState は updateButtonActiveState に統合済み
-        const updateCameraButtonState = updateButtonActiveState;
-
-        // 現在位置の天気を取得する関数
-        async function fetchCurrentWeather() {
-            try {
-                // 現在位置を取得
-                const position = await new Promise((resolve, reject) => {
-                    navigator.geolocation.getCurrentPosition(resolve, reject, {
-                        timeout: 10000,
-                        maximumAge: 0
-                    });
-                });
-                
-                const lat = position.coords.latitude;
-                const lon = position.coords.longitude;
-                
-                log(`現在位置を取得しました: 緯度 ${lat}, 経度 ${lon}`);
-                
-                // OpenWeatherMap APIを呼び出し
-                const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${weatherApiKey}&units=metric`);
-                
-                if (!response.ok) {
-                    throw new Error('天気情報の取得に失敗しました');
-                }
-                
-                const data = await response.json();
-                
-                // 気象データを取得
-                const temperature = data.main.temp;
-                const windSpeed = data.wind.speed;
-                const humidity = data.main.humidity;
-                const pressure = data.main.pressure;
-                const locationName = data.name;
-
-                // 気象データを保存
-                currentTemperature = temperature;
-                currentWindSpeed = windSpeed;
-                currentHumidity = humidity;
-                currentPressure = pressure;
-                currentLocationName = locationName;
-
-                log(`${locationName} 気温: ${temperature}℃, 風速: ${windSpeed}m/s, 湿度: ${humidity}%, 気圧: ${pressure}hPa`);
-                
-                // 天気コードに基づいて天気を設定
-                const weatherCode = data.weather[0].id;
-                let gameWeather = 'sunny'; // デフォルト
-                
-                // 天気コードに基づいて天気を判定
-                if (weatherCode >= 600 && weatherCode < 623) {
-                    gameWeather = 'snow';
-                } else if ((weatherCode >= 500 && weatherCode < 532) || (weatherCode >= 200 && weatherCode < 233)) {
-                    gameWeather = 'rain';
-                } else if (weatherCode >= 801 && weatherCode < 805) {
-                    gameWeather = 'cloudy';
-                } else if (weatherCode === 800) {
-                    gameWeather = 'sunny';
-                } else {
-                    gameWeather = 'cloudy';
-                }
-                
-                log(`天気を変更します: ${gameWeather}`);
-                
-                // 天気を変更（気温と風速も渡す）
-                weatherSystem.change(gameWeather, true, temperature, windSpeed);
-                
-                return gameWeather;
-            } catch (error) {
-                console.error('天気情報の取得エラー:', error);
-                log('天気情報の取得に失敗しました。デフォルトの天気を使用します。');
-                
-                updateWeatherDisplay('-', false); // エラー時は天気表示を非表示に
-                
-                // エラーの場合はランダムな天気を設定（表示はしない）
-                const randomWeather = weatherSystem.available[Math.floor(Math.random() * weatherSystem.available.length)];
-                weatherSystem.change(randomWeather, false);
-                
-                return null;
-            }
-        }
-
-        // 時刻表示を更新する関数
-        function updateTimeDisplay() {
-            const timeDisplay = document.getElementById('currentTime');
-            timeDisplay.textContent = timeModeState.getTimeDisplayText(gameTime);
-        }
-
-        // 天気表示を更新する関数
-        function updateWeatherDisplay(weather, isFromCurrentLocation = false, temperature = null, windSpeed = null) {
-            const weatherDisplay = document.getElementById('currentWeatherText');
-
-            // 各モードの表示判定に委譲
-            if (!timeModeState.shouldShowWeatherText(isFromCurrentLocation)) {
-                weatherDisplay.textContent = '-';
-                return;
-            }
-
-            const weatherMap = {
-                'sunny': '☀️',
-                'cloudy': '☁️',
-                'rain': '🌧️',
-                'snow': '❄️'
-            };
-
-            let displayText = weatherMap[weather] || '-';
-            if (temperature !== null) displayText += ` ${Math.round(temperature)}℃`;
-            if (currentHumidity !== null) displayText += ` 💧${currentHumidity}%`;
-            if (windSpeed !== null) displayText += ` ${Math.round(windSpeed)}m/s`;
-            if (currentPressure !== null) displayText += ` ${currentPressure}hPa`;
-
-            weatherDisplay.textContent = displayText;
-
-            // 位置名は時間行に表示
-            const locEl = document.getElementById('currentLocation');
-            if (locEl) {
-                locEl.textContent = currentLocationName ? `📍${currentLocationName}` : '';
-            }
-        }
-
-        // 天気ボタンのイベントリスナーを修正
-        function setupWeatherButtons() {
-            document.querySelectorAll('.weather-button').forEach(button => {
-                button.addEventListener('click', function() {
-                    const selectedWeather = this.getAttribute('data-weather');
-                    
-                    // 以前の天気をリセット
-                    document.querySelectorAll('.weather-button').forEach(btn => {
-                        btn.classList.remove('active');
-                    });
-                    
-                    // 選択された天気をアクティブに
-                    this.classList.add('active');
-                    
-                    // 天気を変更（手動変更なのでisFromCurrentLocation = false）
-                    weatherSystem.change(selectedWeather, false);
-                });
-            });
-        }
-
-        // 天気ボタンのアクティブ状態を更新する関数
-        function updateWeatherButtonState(weather) {
-            document.querySelectorAll('.weather-button').forEach(button => {
-                if (button.getAttribute('data-weather') === weather) {
-                    button.classList.add('active');
-                } else {
-                    button.classList.remove('active');
-                }
-            });
-        }
-
-        // グローバル変数に気温と風速を追加
-        let currentTemperature = null;
-        let currentWindSpeed = null;
-        let currentHumidity = null;
-        let currentPressure = null;
-        let currentLocationName = null;
-
-        // ミニマップ: パスポイント・Path2D・スケール情報をキャッシュ
+        // === ミニマップ ===
         function _buildMinimapCache() {
             const canvas = document.getElementById('minimap');
             const margin = 10;
@@ -3481,7 +659,6 @@
             const width = canvas.width - margin * 2;
             const height = canvas.height - margin * 2;
             const scale = Math.min(width / (maxX - minX), height / (maxZ - minZ));
-            // Path2D をキャッシュ
             const path2d = new Path2D();
             for (let i = 0; i < pathPoints.length; i++) {
                 const x = margin + (pathPoints[i].x - minX) * scale;
@@ -3492,69 +669,240 @@
             renderCache.minimap = { margin, minX, minZ, scale, path2d };
         }
 
-        // ミニマップの更新関数
         function updateMinimap() {
             const canvas = document.getElementById('minimap');
-            const ctx = canvas.getContext('2d');
+            const mmCtx = canvas.getContext('2d');
             if (!renderCache.minimap) _buildMinimapCache();
             const { margin, minX, minZ, scale, path2d } = renderCache.minimap;
 
-            // キャンバスをクリア
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            mmCtx.clearRect(0, 0, canvas.width, canvas.height);
+            mmCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            mmCtx.fillRect(0, 0, canvas.width, canvas.height);
+            mmCtx.strokeStyle = 'white';
+            mmCtx.lineWidth = 1;
+            mmCtx.stroke(path2d);
 
-            // 背景色
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // パスを描画（キャッシュ済みPath2D）
-            ctx.strokeStyle = 'white';
-            ctx.lineWidth = 1;
-            ctx.stroke(path2d);
-
-            // 車の位置をミニマップ上で表示
-            for (let i = 0; i < cars.length; i++) {
-                const car = cars[i];
+            for (let i = 0; i < ctx.cars.length; i++) {
+                const car = ctx.cars[i];
                 const point = carPath.getPointAt(car.position);
                 const x = margin + (point.x - minX) * scale;
                 const y = margin + (point.z - minZ) * scale;
-
-                // 車の向きを計算
                 const tangent = carPath.getTangentAt(car.position).normalize();
                 const angle = Math.atan2(tangent.z, tangent.x) + Math.PI/2;
 
-                // 車を三角形で描画
-                ctx.save();
-                ctx.translate(x, y);
-                ctx.rotate(angle);
-                ctx.beginPath();
-                ctx.moveTo(0, -5);  // 先端
-                ctx.lineTo(-3, 3);  // 左下
-                ctx.lineTo(3, 3);   // 右下
-                ctx.closePath();
+                mmCtx.save();
+                mmCtx.translate(x, y);
+                mmCtx.rotate(angle);
+                mmCtx.beginPath();
+                mmCtx.moveTo(0, -5);
+                mmCtx.lineTo(-3, 3);
+                mmCtx.lineTo(3, 3);
+                mmCtx.closePath();
                 let carColor = 'white';
-                if (i === currentCarIndex) carColor = 'red';
-                else if (car.isTandemFollowing) carColor = '#00ffff'; // TANDEM: シアン
-                else if (car.isOvertaking) carColor = '#ff8800'; // PASS: オレンジ
-                ctx.fillStyle = carColor;
-                ctx.fill();
-                ctx.restore();
+                if (i === ctx.currentCarIndex) carColor = 'red';
+                else if (car.isTandemFollowing) carColor = '#00ffff';
+                else if (car.isOvertaking) carColor = '#ff8800';
+                mmCtx.fillStyle = carColor;
+                mmCtx.fill();
+                mmCtx.restore();
             }
         }
 
-        // 車の自動切り替え用の変数を初期化
-        let lastCarChangeTime = Date.now();
-        let carChangeInterval = 20000 + Math.random() * 10000; // 20-30秒のランダムな間隔
+        // === アニメーションループ ===
+        let frameCount = 0;
+        let lastFrameTime = Date.now();
 
-        // BGMの初期化と制御
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const metrics = {};
+            const startTime = performance.now();
+            let lastCheck = startTime;
+
+            ctx.currentFrameTime = Date.now();
+            const deltaTime = (ctx.currentFrameTime - lastFrameTime) / 16.67;
+            lastFrameTime = ctx.currentFrameTime;
+
+            updateDayNightCycle();
+            metrics.dayNightCycle = performance.now() - lastCheck;
+            lastCheck = performance.now();
+
+            weatherSystem.update(deltaTime, camera);
+            metrics.weather = performance.now() - lastCheck;
+            lastCheck = performance.now();
+
+            // オート・早送りモード時の車の自動切り替え
+            if (ctx.timeModeState.shouldAutoSwitch() && !raceManager?.active && ctx.currentFrameTime - ctx.lastCarChangeTime > ctx.carChangeInterval) {
+                const availableCars = Array.from({length: ctx.cars.length}, (_, i) => i).filter(i => i !== ctx.currentCarIndex);
+                ctx.currentCarIndex = availableCars[Math.floor(Math.random() * availableCars.length)];
+                ctx.lastCarChangeTime = ctx.currentFrameTime;
+                ctx.carChangeInterval = 20000 + Math.random() * 10000;
+            }
+
+            // 車の更新
+            for (let i = 0; i < ctx.cars.length; i++) {
+                const car = ctx.cars[i];
+                car.update(deltaTime);
+
+                if (ctx.debugMode || raceManager?.active) {
+                    if (!car._debugLabel) {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = 256;
+                        canvas.height = 96;
+                        const texture = new THREE.CanvasTexture(canvas);
+                        const material = new THREE.SpriteMaterial({ map: texture, depthTest: false });
+                        const sprite = new THREE.Sprite(material);
+                        sprite.scale.set(10, 3.75, 1);
+                        scene.add(sprite);
+                        car._debugLabel = sprite;
+                        car._debugCanvas = canvas;
+                        car._debugTexture = texture;
+                    }
+                    car._debugLabel.visible = true;
+
+                    let debugKey = '';
+                    if (raceManager?.active) {
+                        const ranked = raceManager._cachedRanked || [];
+                        const rank = ranked.findIndex(([c]) => c === car) + 1;
+                        const isPredicted = raceManager.predictedCar === car;
+                        const stateChar = car.isOvertaking && !car.isReturning ? 'P' : car.isReturning ? 'R' : car.isTandemFollowing ? 'T' : 'N';
+                        const kmh = Math.round(car.speed * SPEED_TO_KMH);
+                        const slip = Math.round(car.slipstreamCharge * 10);
+                        debugKey = `R${rank}${ctx.debugMode?1:0}${stateChar}${kmh}${slip}${isPredicted?1:0}`;
+                    } else if (ctx.debugMode) {
+                        const stateChar = car.isOvertaking && !car.isReturning ? 'P' : car.isReturning ? 'R' : car.isTandemFollowing ? 'T' : 'N';
+                        const kmh = Math.round(car.speed * SPEED_TO_KMH);
+                        const slip = Math.round(car.slipstreamCharge * 10);
+                        debugKey = `D${stateChar}${kmh}${slip}`;
+                    }
+
+                    if (debugKey !== car._lastDebugKey) {
+                        car._lastDebugKey = debugKey;
+                        const dCtx = car._debugCanvas.getContext('2d');
+                        dCtx.clearRect(0, 0, 256, 96);
+
+                        if (raceManager?.active) {
+                            const ranked = raceManager._cachedRanked || [];
+                            const rank = ranked.findIndex(([c]) => c === car) + 1;
+                            const isPredicted = raceManager.predictedCar === car;
+                            dCtx.font = 'bold 44px sans-serif';
+                            dCtx.textAlign = 'center';
+                            dCtx.fillStyle = rank <= 3 ? '#ffdd00' : '#ffffff';
+                            dCtx.fillText('P' + rank, 128, ctx.debugMode ? 36 : 48);
+                            if (ctx.debugMode) {
+                                drawDebugInfo(dCtx, car, 56, 62);
+                            }
+                            if (isPredicted) {
+                                dCtx.font = 'bold 18px sans-serif';
+                                dCtx.fillStyle = '#ffdd00';
+                                dCtx.fillText('\u2605', 128, ctx.debugMode ? 82 : 70);
+                            }
+                        } else if (ctx.debugMode) {
+                            drawDebugInfo(dCtx, car, 36, 42);
+                        }
+                        car._debugTexture.needsUpdate = true;
+                    }
+                    car._debugLabel.position.copy(car.object.position);
+                    car._debugLabel.position.y += 5;
+                }
+            }
+
+            // レース更新
+            if (raceManager?.active && raceManager.phase === 'racing') {
+                raceManager.updateRace();
+            }
+            if (raceManager?.active) {
+                raceManager.updateUI();
+            }
+
+            metrics.carUpdates = performance.now() - lastCheck;
+            lastCheck = performance.now();
+
+            // 速度表示の更新
+            const currentCar = ctx.cars[ctx.currentCarIndex];
+            if (currentCar) {
+                const speedKmh = Math.round(currentCar.speed * HORIZONTAL_SCALE * 3.6);
+                document.getElementById('speed-display').textContent = `${speedKmh} km/h`;
+            }
+
+            updateCamera();
+            metrics.camera = performance.now() - lastCheck;
+            lastCheck = performance.now();
+
+            updateMinimap();
+            metrics.minimap = performance.now() - lastCheck;
+            lastCheck = performance.now();
+
+            renderer.render(scene, camera);
+            metrics.rendering = performance.now() - lastCheck;
+            metrics.total = performance.now() - startTime;
+
+            frameCount++;
+            if (frameCount % 100 === 0) {
+                console.log('Frame Performance Metrics:');
+                console.table(metrics);
+            }
+        }
+
+        // === リサイズ処理 ===
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // === キーボード操作 ===
+        document.addEventListener('keydown', (event) => {
+            switch (event.key) {
+                case 'Tab':
+                    event.preventDefault();
+                    ctx.currentCarIndex = (ctx.currentCarIndex + 1) % ctx.cars.length;
+                    break;
+                case '1': ctx.cameraMode = 0; updateButtonActiveState(); break;
+                case '2': ctx.cameraMode = 1; updateButtonActiveState(); break;
+                case '3': ctx.cameraMode = 2; updateButtonActiveState(); break;
+                case '4': ctx.cameraMode = 3; updateButtonActiveState(); break;
+                case '5': ctx.cameraMode = 4; updateButtonActiveState(); break;
+                case 'd':
+                case 'D':
+                    ctx.debugMode = !ctx.debugMode;
+                    if (!ctx.debugMode) {
+                        for (const car of ctx.cars) {
+                            if (car._debugLabel) car._debugLabel.visible = false;
+                        }
+                    }
+                    break;
+            }
+        });
+
+        // === 時間モード切替ボタン ===
+        document.getElementById('timeToggleButton').addEventListener('click', function() {
+            toggleTimeMode();
+        });
+
+        // === 順位表クリック ===
+        document.getElementById('race-position-board').addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+            const row = e.target.closest('tr[data-car-index]');
+            if (row && raceManager?.active) {
+                const idx = parseInt(row.getAttribute('data-car-index'));
+                if (!isNaN(idx)) {
+                    ctx.currentCarIndex = idx;
+                    raceManager.autoCameraMode = false;
+                    raceManager.stopAutoCamera();
+                    raceManager.updateAutoCameraButton();
+                }
+            }
+        });
+
+        // === BGM初期化 ===
         async function initBgm() {
-            // BGM関連の変数
-            let isBgmMuted = true; // 初期状態をミュートに変更
+            let isBgmMuted = true;
             let bgmVolume = 0.2;
-
             const bgms = ['RRR-01.mid', 'RR-01.mid', 'RR4-01.mid', 'RR4-02.mid'];
             const picoAudio = new PicoAudio();
             picoAudio.init();
-            picoAudio.setMasterVolume(0.2); // 初期音量を0に設定
+            picoAudio.setMasterVolume(0.2);
 
             async function playRandomBgm() {
                 const randomIndex = Math.floor(Math.random() * bgms.length);
@@ -3572,18 +920,13 @@
             }
 
             try {
-                // ミュートボタンの初期表示を設定
                 document.getElementById('muteBgm').textContent = '🔇';
-
-                // 音量スライダーのイベントリスナー
                 document.getElementById('bgmVolume').addEventListener('input', function() {
                     bgmVolume = this.value / 100;
                     if (!isBgmMuted) {
                         picoAudio.setMasterVolume(bgmVolume);
                     }
                 });
-
-                // ミュートボタンのイベントリスナー
                 document.getElementById('muteBgm').addEventListener('click', function() {
                     isBgmMuted = !isBgmMuted;
                     if (isBgmMuted) {
@@ -3596,8 +939,6 @@
                         playRandomBgm();
                     }
                 });
-
-                // 再生終了時のループ処理
                 picoAudio.addEventListener('songEnd', () => {
                     playRandomBgm();
                 });
@@ -3605,6 +946,56 @@
                 console.error('BGMの初期化エラー:', error);
             }
         }
+
+        // === 初期化関数 ===
+        function init() {
+            placeEnvironmentObjects();
+            setupViewButtons();
+            setupWeatherButtons();
+            updateWeatherButtonState(weatherSystem.current);
+
+            document.getElementById('minimap-container').addEventListener('click', () => {
+                ctx.currentCarIndex = (ctx.currentCarIndex + 1) % ctx.cars.length;
+            });
+
+            initBgm();
+            log("アニメーション開始");
+            animate();
+            initWeatherSystem();
+
+            document.getElementById('raceButton').addEventListener('click', () => {
+                if (raceManager.active) {
+                    raceManager.endRaceMode();
+                } else {
+                    raceManager.startRace();
+                }
+            });
+
+            document.getElementById('race-predict-confirm').addEventListener('click', () => {
+                if (raceManager.active && raceManager.phase === 'grid') {
+                    raceManager.confirmPrediction();
+                }
+            });
+
+            document.getElementById('race-auto-camera').addEventListener('click', () => {
+                if (raceManager.active) {
+                    raceManager.toggleAutoCamera();
+                }
+            });
+
+            document.getElementById('race-results').addEventListener('click', (e) => {
+                const btn = e.target.closest('button');
+                if (!btn) return;
+                if (btn.id === 'raceAgainBtn') {
+                    document.getElementById('race-results').style.display = 'none';
+                    raceManager.startRace();
+                } else if (btn.id === 'normalModeBtn') {
+                    raceManager.endRaceMode();
+                }
+            });
+        }
+
+        window.onload = init;
     </script>
 </body>
-</html> 
+</html>

@@ -67,6 +67,12 @@ export class RaceManager {
             data.totalDistance = dist;
         });
 
+        // グリッド順で初期順位を設定
+        ctx.cars.forEach((car, i) => {
+            car.raceRank = i + 1;
+            car.totalCars = ctx.cars.length;
+        });
+
         // Focus camera on last car (最後尾)
         ctx.currentCarIndex = ctx.cars.length - 1;
         this.predictedCar = null;
@@ -233,7 +239,6 @@ export class RaceManager {
 
         const ranked = this._cachedRanked || this.getRankedCars();
         const board = document.getElementById('race-position-board');
-        const lapCounter = document.getElementById('race-lap-counter');
 
         let html = '<table><tr><th>P</th><th>Car</th><th>Lap</th></tr>';
 
@@ -242,24 +247,15 @@ export class RaceManager {
             const colorHex = '#' + (car.bodyColor || 0xffffff).toString(16).padStart(6, '0');
             const isCurrent = car._index === ctx.currentCarIndex;
 
-            const fastestMark = (this.fastestLap.car === car && data.lapTimes.length > 0) ? ' class="fastest-lap"' : '';
             const isPredicted = (this.predictedCar === car);
             const classes = [isCurrent ? 'current-car' : '', isPredicted ? 'predicted-car' : ''].filter(Boolean).join(' ');
             const rowAttr = classes ? ` class="${classes}"` : '';
 
-            html += `<tr${rowAttr} data-car-index="${car._index}" style="cursor:pointer;"><td>${pos}</td><td><span style="color:${colorHex};">■</span> ${car.driverName || ''}</td><td${fastestMark}>${data.laps}/${this.totalLaps}</td></tr>`;
+            html += `<tr${rowAttr} data-car-index="${car._index}" style="cursor:pointer;"><td>${pos}</td><td><span style="color:${colorHex};">■</span> ${car.driverName || ''}</td><td>${data.laps}/${this.totalLaps}</td></tr>`;
         });
 
         html += '</table>';
         board.innerHTML = html;
-
-        const currentCar = ctx.cars[ctx.currentCarIndex];
-        if (currentCar) {
-            const currentData = this.carData.get(currentCar);
-            if (currentData) {
-                lapCounter.textContent = `LAP ${Math.min(currentData.laps + 1, this.totalLaps)} / ${this.totalLaps}`;
-            }
-        }
     }
 
     formatTime(ms) {
@@ -285,18 +281,15 @@ export class RaceManager {
         const ranked = this.getRankedCars();
 
         let html = '<h2>RACE RESULTS</h2>';
-        html += '<table><tr><th>Pos</th><th>Car</th><th>Time</th><th>Best Lap</th></tr>';
+        html += '<table><tr><th>Pos</th><th>Car</th><th>Time</th></tr>';
 
         ranked.forEach(([car, data], i) => {
             const pos = i + 1;
             const colorHex = '#' + (car.bodyColor || 0xffffff).toString(16).padStart(6, '0');
             const time = data.finished ? this.formatTime(data.finishTime) : `DNF (${data.laps}L)`;
-            const bestLap = data.lapTimes.length > 0 ? this.formatTime(Math.min(...data.lapTimes)) : '--';
-            const isFastest = this.fastestLap.car === car && data.lapTimes.length > 0;
-            const bestLapClass = isFastest ? ' class="fastest-lap"' : '';
 
             const resPredictClass = (this.predictedCar === car) ? ' class="predicted-car"' : '';
-            html += `<tr${resPredictClass}><td>${pos}</td><td><span style="color:${colorHex};">■</span> ${car.driverName || ''}</td><td>${time}</td><td${bestLapClass}>${bestLap}</td></tr>`;
+            html += `<tr${resPredictClass}><td>${pos}</td><td><span style="color:${colorHex};">■</span> ${car.driverName || ''}</td><td>${time}</td></tr>`;
         });
 
         html += '</table>';
@@ -304,12 +297,6 @@ export class RaceManager {
         html += '<button id="raceAgainBtn">Race Again</button>';
         html += '<button id="normalModeBtn">Normal Mode</button>';
         html += '</div>';
-
-        if (this.fastestLap.car) {
-            const flCar = this.fastestLap.car;
-            const flColor = '#' + (flCar.bodyColor || 0xffffff).toString(16).padStart(6, '0');
-            html += `<div style="margin-top:15px;" class="fastest-lap">Fastest Lap: <span style="color:${flColor};">■</span> ${this.formatTime(this.fastestLap.time)}</div>`;
-        }
 
         results.innerHTML = html;
         results.style.display = 'flex';

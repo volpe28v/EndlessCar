@@ -255,6 +255,7 @@
         }
         #race-bottom-bar {
             display: flex;
+            flex-direction: column;
             gap: 3px;
             margin-top: 3px;
             width: 130px;
@@ -275,17 +276,6 @@
         }
         #race-position-board tr.current-car {
             background-color: rgba(100, 100, 255, 0.3);
-        }
-        #race-lap-counter {
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 3px 6px;
-            border-radius: 5px;
-            font-size: 13px;
-            font-weight: bold;
-            text-align: center;
-            flex: 1;
-            box-sizing: border-box;
         }
         #race-countdown {
             position: fixed;
@@ -347,9 +337,6 @@
         #race-results .result-buttons button:hover {
             background-color: rgba(130, 130, 255, 0.9);
         }
-        .fastest-lap {
-            color: #ff00ff;
-        }
         #race-predict {
             position: fixed;
             bottom: 60px;
@@ -392,7 +379,7 @@
             font-size: 11px;
             cursor: pointer;
             text-align: center;
-            flex-shrink: 0;
+            width: 100%;
         }
         .race-auto-btn.active {
             background-color: rgba(100, 100, 255, 0.7);
@@ -417,9 +404,6 @@
             }
             #race-bottom-bar {
                 width: 104px;
-            }
-            #race-lap-counter {
-                font-size: 11px;
             }
             #race-countdown {
                 font-size: 80px;
@@ -477,7 +461,6 @@
     <div id="race-ui" style="display:none;">
         <div id="race-position-board"></div>
         <div id="race-bottom-bar">
-            <div id="race-lap-counter"></div>
             <button id="race-auto-camera" class="race-auto-btn active" title="カメラ自動切替">Auto</button>
         </div>
     </div>
@@ -775,13 +758,14 @@
 
                     let debugKey = '';
                     if (raceManager?.active) {
-                        const ranked = raceManager._cachedRanked || [];
+                        const ranked = raceManager._cachedRanked || raceManager.getRankedCars();
                         const rank = ranked.findIndex(([c]) => c === car) + 1;
                         const isPredicted = raceManager.predictedCar === car;
+                        const isFocused = !raceManager.predictedCar && car._index === ctx.currentCarIndex;
                         const stateChar = car.isOvertaking && !car.isReturning ? 'P' : car.isReturning ? 'R' : car.isTandemFollowing ? 'T' : 'N';
                         const kmh = Math.round(car.speed * SPEED_TO_KMH / 5) * 5;
                         const slip = Math.round(car.slipstreamCharge * 5);
-                        debugKey = `R${rank}${ctx.debugMode?1:0}${stateChar}${kmh}${slip}${isPredicted?1:0}`;
+                        debugKey = `R${rank}${ctx.debugMode?1:0}${stateChar}${kmh}${slip}${isPredicted?1:0}${isFocused?1:0}`;
                     } else if (ctx.debugMode) {
                         const stateChar = car.isOvertaking && !car.isReturning ? 'P' : car.isReturning ? 'R' : car.isTandemFollowing ? 'T' : 'N';
                         const kmh = Math.round(car.speed * SPEED_TO_KMH / 5) * 5;
@@ -795,9 +779,10 @@
                         dCtx.clearRect(0, 0, 256, 96);
 
                         if (raceManager?.active) {
-                            const ranked = raceManager._cachedRanked || [];
+                            const ranked = raceManager._cachedRanked || raceManager.getRankedCars();
                             const rank = ranked.findIndex(([c]) => c === car) + 1;
                             const isPredicted = raceManager.predictedCar === car;
+                            const isFocused = !raceManager.predictedCar && car._index === ctx.currentCarIndex;
                             dCtx.font = 'bold 44px sans-serif';
                             dCtx.textAlign = 'center';
                             dCtx.fillStyle = rank <= 3 ? '#ffdd00' : '#ffffff';
@@ -805,9 +790,9 @@
                             if (ctx.debugMode) {
                                 drawDebugInfo(dCtx, car, 56, 62);
                             }
-                            if (isPredicted) {
+                            if (isPredicted || isFocused) {
                                 dCtx.font = 'bold 18px sans-serif';
-                                dCtx.fillStyle = '#ffdd00';
+                                dCtx.fillStyle = isFocused ? '#ff8800' : '#ffdd00';
                                 dCtx.fillText('\u2605', 128, ctx.debugMode ? 82 : 70);
                             }
                         } else if (ctx.debugMode) {

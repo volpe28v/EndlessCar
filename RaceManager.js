@@ -198,8 +198,8 @@ export class RaceManager {
             data.lastPosition = curr;
         }
 
-        const ranked = this.getRankedCars();
-        ranked.forEach(([car], i) => {
+        this._cachedRanked = this.getRankedCars();
+        this._cachedRanked.forEach(([car], i) => {
             car.raceRank = i + 1;
             car.totalCars = ctx.cars.length;
         });
@@ -231,55 +231,23 @@ export class RaceManager {
     updateUI() {
         if (!this.active) return;
 
-        const ranked = this.getRankedCars();
-        this._cachedRanked = ranked;
+        const ranked = this._cachedRanked || this.getRankedCars();
         const board = document.getElementById('race-position-board');
         const lapCounter = document.getElementById('race-lap-counter');
 
-        let html = '<table><tr><th>P</th><th>Car</th><th>Lap</th><th>Gap</th></tr>';
-        const leaderData = ranked[0]?.[1];
+        let html = '<table><tr><th>P</th><th>Car</th><th>Lap</th></tr>';
 
         ranked.forEach(([car, data], i) => {
             const pos = i + 1;
             const colorHex = '#' + (car.bodyColor || 0xffffff).toString(16).padStart(6, '0');
-            const isCurrent = ctx.cars.indexOf(car) === ctx.currentCarIndex;
-
-            let gap = '';
-            if (i === 0) {
-                if (this.phase !== 'racing') {
-                    gap = '--';
-                } else if (data.finished) {
-                    gap = this.formatTime(data.finishTime);
-                } else {
-                    gap = this.formatTime(performance.now() - this.raceStartTime);
-                }
-            } else if (this.phase !== 'racing') {
-                gap = '--';
-            } else if (data.finished && leaderData?.finished) {
-                gap = '+' + this.formatTime(data.finishTime - leaderData.finishTime);
-            } else {
-                const lapDiff = (leaderData?.laps || 0) - data.laps;
-                if (lapDiff > 0) {
-                    gap = '+' + lapDiff + 'L';
-                } else {
-                    let posDiff = ((ranked[0]?.[0]?.position || 0) - car.position + 1) % 1;
-                    if (posDiff > 0.5) posDiff -= 1;
-                    posDiff = Math.abs(posDiff);
-                    const leaderLapMs = leaderData?.lapTimes?.length > 0
-                        ? leaderData.lapTimes[leaderData.lapTimes.length - 1]
-                        : (performance.now() - this.raceStartTime);
-                    const gapMs = posDiff * leaderLapMs;
-                    gap = '+' + this.formatTime(gapMs);
-                }
-            }
+            const isCurrent = car._index === ctx.currentCarIndex;
 
             const fastestMark = (this.fastestLap.car === car && data.lapTimes.length > 0) ? ' class="fastest-lap"' : '';
             const isPredicted = (this.predictedCar === car);
             const classes = [isCurrent ? 'current-car' : '', isPredicted ? 'predicted-car' : ''].filter(Boolean).join(' ');
             const rowAttr = classes ? ` class="${classes}"` : '';
 
-            const carIdx = ctx.cars.indexOf(car);
-            html += `<tr${rowAttr} data-car-index="${carIdx}" style="cursor:pointer;"><td>${pos}</td><td><span style="color:${colorHex};">■</span> ${car.driverName || ''}</td><td${fastestMark}>${data.laps}/${this.totalLaps}</td><td>${gap}</td></tr>`;
+            html += `<tr${rowAttr} data-car-index="${car._index}" style="cursor:pointer;"><td>${pos}</td><td><span style="color:${colorHex};">■</span> ${car.driverName || ''}</td><td${fastestMark}>${data.laps}/${this.totalLaps}</td></tr>`;
         });
 
         html += '</table>';
@@ -377,7 +345,7 @@ export class RaceManager {
                 ? Math.floor(Math.random() * topN)
                 : Math.floor(Math.random() * ranked.length);
             const targetCar = ranked[idx][0];
-            ctx.currentCarIndex = ctx.cars.indexOf(targetCar);
+            ctx.currentCarIndex = targetCar._index;
 
             ctx.cameraMode = Math.floor(Math.random() * 5);
             updateButtonActiveState();

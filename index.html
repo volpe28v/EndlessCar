@@ -532,6 +532,7 @@
             for (let i = 0; i < count; i++) {
                 const car = new Car(carPath);
                 car.position = i * (1.0 / count);
+                car._index = i;
                 car.createObject(scene);
                 ctx.cars.push(car);
             }
@@ -811,7 +812,7 @@
             if (raceManager?.active && raceManager.phase === 'racing') {
                 raceManager.updateRace();
             }
-            if (raceManager?.active) {
+            if (raceManager?.active && frameCount % 10 === 0) {
                 raceManager.updateUI();
             }
 

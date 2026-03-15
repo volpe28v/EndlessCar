@@ -567,21 +567,9 @@
         
         // 車を作成して配列に追加する関数
         function createCars(count = 1) {
-            // 既存の車をクリア
+            // 既存の車のリソースを解放
             for (let car of cars) {
-                if (car.object) {
-                    scene.remove(car.object);
-                }
-                // デバッグラベルも削除
-                if (car._debugLabel) {
-                    scene.remove(car._debugLabel);
-                    car._debugLabel = null;
-                }
-                // スピードラインも削除
-                if (car._speedLines) {
-                    scene.remove(car._speedLines);
-                    car._speedLines = null;
-                }
+                car.dispose(scene);
             }
             cars.length = 0;
             
@@ -992,6 +980,7 @@
             }
 
             startAutoCamera() {
+                this.stopAutoCamera(); // 既存 interval をクリア
                 this.autoCameraMode = true;
                 this.autoCameraInterval = setInterval(() => {
                     if (!this.autoCameraMode || this.phase !== 'racing') return;
@@ -1198,73 +1187,72 @@
         // グローバル変数として天気の色の影響を保持
         let weatherSkyColor = new THREE.Color(0x87CEEB); // デフォルトは晴れの空の色
 
-        // 時間帯に応じた空の色と光の設定
+        // 時間帯に応じた空の色と光の設定（再利用用Colorオブジェクト）
+        const _tmpColor1 = new THREE.Color();
+        const _tmpColor2 = new THREE.Color();
         function updateDayNightCycle() {
             // 時間モードに応じて時間を更新
             gameTime = timeModeState.getGameTime(gameTime, timeSpeed);
-            
+
             updateTimeDisplay(); // 時刻表示を更新
-            
+
             // 時間帯に応じた空の色の設定
             let timeSkyColor;
             let lightIntensity;
             let ambientIntensity;
-            
+
             isNight = false;
             if (gameTime >= 5 && gameTime < 7) {
                 // 朝焼け（5時～7時）
                 const t = (gameTime - 5) / 2;
-                timeSkyColor = new THREE.Color(0xff9966).lerp(new THREE.Color(0x87CEEB), t);
+                timeSkyColor = _tmpColor1.set(0xff9966).lerp(_tmpColor2.set(0x87CEEB), t);
                 lightIntensity = 0.5 + t * 0.5;
                 ambientIntensity = 0.3 + t * 0.3;
             } else if (gameTime >= 7 && gameTime < 17) {
                 // 昼間（7時～17時）
-                timeSkyColor = new THREE.Color(0x87CEEB);
+                timeSkyColor = _tmpColor1.set(0x87CEEB);
                 lightIntensity = 1.0;
                 ambientIntensity = 0.6;
             } else if (gameTime >= 17 && gameTime < 19) {
                 // 夕焼け（17時～19時）
                 const t = (gameTime - 17) / 2;
-                timeSkyColor = new THREE.Color(0x87CEEB).lerp(new THREE.Color(0xff7733), t);
+                timeSkyColor = _tmpColor1.set(0x87CEEB).lerp(_tmpColor2.set(0xff7733), t);
                 lightIntensity = 1.0 - t * 0.5;
                 ambientIntensity = 0.6 - t * 0.3;
             } else if (gameTime >= 19 && gameTime < 21) {
                 // 日没後（19時～21時）
                 const t = (gameTime - 19) / 2;
-                timeSkyColor = new THREE.Color(0xff7733).lerp(new THREE.Color(0x111133), t);
+                timeSkyColor = _tmpColor1.set(0xff7733).lerp(_tmpColor2.set(0x111133), t);
                 lightIntensity = 0.5 - t * 0.4;
                 ambientIntensity = 0.3 - t * 0.2;
                 isNight = true;
             } else {
                 // 夜間（21時～5時）
                 if (gameTime >= 21) {
-                    timeSkyColor = new THREE.Color(0x111133);
+                    timeSkyColor = _tmpColor1.set(0x111133);
                 } else {
                     // 夜明け前（0時～5時）
                     const t = gameTime / 5;
-                    timeSkyColor = new THREE.Color(0x111133).lerp(new THREE.Color(0xff9966), t);
+                    timeSkyColor = _tmpColor1.set(0x111133).lerp(_tmpColor2.set(0xff9966), t);
                 }
                 lightIntensity = 0.25;  // 0.1から0.25に増加
                 ambientIntensity = 0.2;  // 0.1から0.2に増加
                 isNight = true;
             }
-            
-            // 時間帯の色と天気の色を合成
-            let finalColor;
-            if (currentWeather === 'sunny') {
-                finalColor = timeSkyColor;
-            } else {
+
+            // 時間帯の色と天気の色を合成（timeSkyColorは_tmpColor1を指している）
+            if (currentWeather !== 'sunny') {
                 // 天気による色の影響を強める（0.7は天気の影響度）
-                finalColor = timeSkyColor.clone().lerp(weatherSkyColor, 0.7);
+                timeSkyColor.lerp(weatherSkyColor, 0.7);
             }
-            
+
             // 空の色を設定
-            renderer.setClearColor(finalColor.getHex());
-            
+            renderer.setClearColor(timeSkyColor.getHex());
+
             // 光源の強度を設定
             directionalLight.intensity = lightIntensity;
             ambientLight.intensity = ambientIntensity;
-            
+
             // 夜間は街灯を明るく
             updateStreetLights(isNight);
         }
@@ -3093,13 +3081,17 @@
             const params = weatherEnvironmentTable[weather];
             if (!params) return;
 
-            // 霧の設定（カメラモードに応じて濃度を調整）
+            // 霧の設定（カメラモードに応じて濃度を調整、既存fogインスタンスを再利用）
             if (params.fogColor === null) {
                 scene.fog = null;
-            } else if (cameraMode === 0) { // 俯瞰視点の場合
-                scene.fog = new THREE.FogExp2(params.fogColor, params.fogDensityBirdseye);
             } else {
-                scene.fog = new THREE.FogExp2(params.fogColor, params.fogDensityNormal);
+                const density = cameraMode === 0 ? params.fogDensityBirdseye : params.fogDensityNormal;
+                if (scene.fog) {
+                    scene.fog.color.set(params.fogColor);
+                    scene.fog.density = density;
+                } else {
+                    scene.fog = new THREE.FogExp2(params.fogColor, density);
+                }
             }
 
             // 空の色を設定

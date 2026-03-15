@@ -20,7 +20,7 @@ export class SpeedLineRenderer {
         scene.add(lines);
         this._lines = lines;
         this._data = Array.from({ length: LINE_COUNT }, () => ({
-            offset: new THREE.Vector3(), life: 0, maxLife: 0,
+            offset: new THREE.Vector3(), life: 0, maxLife: 0, spawnAhead: 0,
         }));
     }
 
@@ -53,14 +53,17 @@ export class SpeedLineRenderer {
             if (d.life <= 0) {
                 // スポーン判定
                 if (active && Math.random() < spawnRate) {
-                    const side = (Math.random() - 0.5) * 2.5;
+                    // 車の左右どちらかの脇にスポーン（やや広めに）
+                    const side = (Math.random() < 0.5 ? -1 : 1) * (1.2 + Math.random() * 1.5);
                     const height = 0.3 + Math.random() * 1.5;
                     d.offset.set(
                         right.x * side,
                         height,
                         right.z * side
                     );
-                    d.maxLife = 8 + Math.floor(Math.random() * 12);
+                    // 車の前方にスポーンする距離（-fwdが前方）
+                    d.spawnAhead = 3 + lineLength + Math.random() * 2;
+                    d.maxLife = 10 + Math.floor(Math.random() * 15);
                     d.life = d.maxLife;
                 } else {
                     // 非表示
@@ -73,15 +76,17 @@ export class SpeedLineRenderer {
             const alpha = d.life / d.maxLife;
             d.life--;
 
-            // ライフの進行度（0→1で車から離れていく）
+            // progress: 0(前方スポーン) → 1(後方へ通過)
+            // ラインが前方から後方へ車を通り過ぎるように流れる
             const progress = 1 - alpha;
-            const dist = 2 + lineLength * progress;
-            const len = lineLength * alpha;
-            // 先端: 車から離れていく（fwd方向に流れる）
-            const startX = carPos.x + d.offset.x + fwd.x * dist;
+            const travelDist = d.spawnAhead + lineLength;
+            // 先端位置: 前方(-fwd)からスタートし、後方(+fwd)へ移動
+            const headDist = -d.spawnAhead + travelDist * progress;
+            const len = lineLength * (0.3 + 0.7 * alpha);
+            const startX = carPos.x + d.offset.x + fwd.x * headDist;
             const startY = carPos.y + d.offset.y;
-            const startZ = carPos.z + d.offset.z + fwd.z * dist;
-            // 末端: さらに先へ
+            const startZ = carPos.z + d.offset.z + fwd.z * headDist;
+            // 末端: 先端からさらに後方(+fwd)へ伸びる
             positions[idx]     = startX;
             positions[idx + 1] = startY;
             positions[idx + 2] = startZ;

@@ -1068,8 +1068,8 @@
             get icon() { return '🕒'; }
             get title() { return '現在の時刻に連動（クリックで切替）'; }
             enter() {
-                weatherSystem.lastChangeTime = Date.now();
-                weatherSystem.changeInterval = 30000;
+                lastWeatherChangeTime = Date.now();
+                weatherChangeInterval = 30000;
                 lastCameraChangeTime = Date.now();
                 cameraChangeInterval = 30000;
                 fetchCurrentWeather();
@@ -1094,8 +1094,8 @@
         class AutoModeState extends TimeModeState {
             enter() {
                 updateWeatherDisplay(null, false);
-                weatherSystem.lastChangeTime = Date.now();
-                weatherSystem.changeInterval = 20000 + Math.random() * 20000;
+                lastWeatherChangeTime = Date.now();
+                weatherChangeInterval = 20000 + Math.random() * 20000;
                 lastCameraChangeTime = Date.now();
                 cameraChangeInterval = 10000 + Math.random() * 5000;
                 lastCarChangeTime = Date.now();
@@ -1105,8 +1105,8 @@
             shouldAutoChangeWeather() { return true; }
             shouldShowWeatherText(isFromCurrentLocation) { return false; }
             initWeather() {
-                const randomWeather = weatherSystem.available[Math.floor(Math.random() * weatherSystem.available.length)];
-                weatherSystem.change(randomWeather);
+                const randomWeather = availableWeathers[Math.floor(Math.random() * availableWeathers.length)];
+                changeWeather(randomWeather);
             }
         }
 
@@ -1168,319 +1168,28 @@
         let cameraChangeInterval = 30000; // カメラ変更の間隔（ミリ秒）
         let availableCameraModes = [0, 1, 2, 3, 4]; // 利用可能なカメラモード
 
+        // 天気システムの追加
+        let currentWeather = 'sunny'; // デフォルトは晴れ
+        let rainParticles;
+        let snowParticles;
+        let cloudParticles; // 雲パーティクル追加
+        let driftSmokeParticles; // ドリフト煙パーティクル
+        let driftSmokeData; // ドリフト煙データ
+        let isRaining = false;
+        let isSnowing = false;
+        let isCloudy = false; // 曇りフラグ追加
+        let lastWeatherChangeTime = Date.now(); // 最後に天気が変更された時刻
+        let weatherChangeInterval = 30000; // 天気変更の間隔（ミリ秒）
+        let availableWeathers = ['sunny', 'cloudy', 'rain', 'snow']; // 利用可能な天気の配列
         let currentFrameTime = Date.now(); // グローバル変数として定義
         let weatherApiKey = '2416f36c5b6368d2de6d3016e34ae8f8'; // OpenWeatherMap APIキー
         
-        // レンダリングキャッシュ（一時カラー・街灯・ミニマップ等）
-        class RenderCache {
-            constructor() {
-                this.tmpColor1 = new THREE.Color();
-                this.tmpColor2 = new THREE.Color();
-                this.weatherSkyColor = new THREE.Color(0x87CEEB);
-                this.streetLights = null;   // 初回traverse後にキャッシュ
-                this.lastIsNight = null;    // 街灯状態の変化検知
-                this.minimap = null;        // ミニマップPath2Dキャッシュ
-            }
-            setWeatherSkyColor(hex) {
-                this.weatherSkyColor.set(hex);  // new THREE.Color() を避ける
-            }
-            dispose() {
-                this.streetLights = null;
-                this.minimap = null;
-                this.lastIsNight = null;
-            }
-        }
-        const renderCache = new RenderCache();
+        // グローバル変数として天気の色の影響を保持
+        let weatherSkyColor = new THREE.Color(0x87CEEB); // デフォルトは晴れの空の色
 
-        // 天気システム
-        class WeatherSystem {
-            constructor(scene) {
-                this.scene = scene;
-                this.current = 'sunny';
-                this.rainParticles = null;
-                this.snowParticles = null;
-                this.cloudParticles = null;
-                this.isRaining = false;
-                this.isSnowing = false;
-                this.isCloudy = false;
-                this.lastChangeTime = Date.now();
-                this.changeInterval = 30000;
-                this.available = ['sunny', 'cloudy', 'rain', 'snow'];
-            }
-
-            createRainParticles() {
-                const rainGeometry = new THREE.BufferGeometry();
-                const rainCount = 7500;
-                const rainPositions = new Float32Array(rainCount * 6);
-                const rainSpeeds = new Float32Array(rainCount);
-                const rainSwayFactors = new Float32Array(rainCount);
-                const rainPhases = new Float32Array(rainCount);
-
-                for (let i = 0; i < rainCount; i++) {
-                    const baseIndex = i * 6;
-                    const x = Math.random() * 2000 - 1000;
-                    const y = Math.random() * 1000;
-                    const z = Math.random() * 2000 - 1000;
-                    rainPositions[baseIndex] = x;
-                    rainPositions[baseIndex + 1] = y;
-                    rainPositions[baseIndex + 2] = z;
-                    rainPositions[baseIndex + 3] = x;
-                    rainPositions[baseIndex + 4] = y - 10;
-                    rainPositions[baseIndex + 5] = z;
-                    rainSpeeds[i] = 20.0 + Math.random() * 10.0;
-                    rainSwayFactors[i] = 0.1 + Math.random() * 0.2;
-                    rainPhases[i] = Math.random() * Math.PI * 2;
-                }
-
-                rainGeometry.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
-                const rainMaterial = new THREE.LineBasicMaterial({
-                    color: 0x99ccff,
-                    opacity: 0.4,
-                    transparent: true,
-                    blending: THREE.AdditiveBlending,
-                    depthWrite: false
-                });
-
-                this.rainParticles = new THREE.LineSegments(rainGeometry, rainMaterial);
-                this.rainParticles.visible = false;
-                this.scene.add(this.rainParticles);
-                this.rainParticles.userData = {
-                    positions: rainPositions,
-                    speeds: rainSpeeds,
-                    swayFactors: rainSwayFactors,
-                    phases: rainPhases
-                };
-            }
-
-            createSnowParticles() {
-                const snowGeometry = new THREE.BufferGeometry();
-                const snowCount = 5000;
-                const snowPositions = new Float32Array(snowCount * 3);
-                const snowSpeeds = new Float32Array(snowCount);
-                const snowSwayFactors = new Float32Array(snowCount);
-                const snowPhases = new Float32Array(snowCount);
-
-                for (let i = 0; i < snowCount * 3; i += 3) {
-                    snowPositions[i] = Math.random() * 2000 - 1000;
-                    snowPositions[i + 1] = Math.random() * 1000;
-                    snowPositions[i + 2] = Math.random() * 2000 - 1000;
-                    const index = i / 3;
-                    snowSpeeds[index] = 0.5 + Math.random() * 1.0;
-                    snowSwayFactors[index] = 0.3 + Math.random() * 0.4;
-                    snowPhases[index] = Math.random() * Math.PI * 2;
-                }
-
-                snowGeometry.setAttribute('position', new THREE.BufferAttribute(snowPositions, 3));
-                const snowMaterial = new THREE.PointsMaterial({
-                    color: 0xffffff,
-                    size: 2,
-                    opacity: 0.8,
-                    transparent: true,
-                    blending: THREE.AdditiveBlending,
-                    depthWrite: false
-                });
-
-                this.snowParticles = new THREE.Points(snowGeometry, snowMaterial);
-                this.snowParticles.visible = false;
-                this.scene.add(this.snowParticles);
-                this.snowParticles.userData = {
-                    positions: snowPositions,
-                    speeds: snowSpeeds,
-                    swayFactors: snowSwayFactors,
-                    phases: snowPhases
-                };
-            }
-
-            createCloudParticles() {
-                const cloudGeometry = new THREE.BufferGeometry();
-                const cloudCount = 500;
-                const cloudPositions = new Float32Array(cloudCount * 3);
-                const cloudSizes = new Float32Array(cloudCount);
-
-                for (let i = 0; i < cloudCount * 3; i += 3) {
-                    cloudPositions[i] = Math.random() * 3000 - 1500;
-                    cloudPositions[i+1] = 300 + Math.random() * 500;
-                    cloudPositions[i+2] = Math.random() * 3000 - 1500;
-                    cloudSizes[i/3] = 20.0 + Math.random() * 30.0;
-                }
-
-                cloudGeometry.setAttribute('position', new THREE.BufferAttribute(cloudPositions, 3));
-                cloudGeometry.setAttribute('size', new THREE.BufferAttribute(cloudSizes, 1));
-
-                const cloudTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/sprites/cloud10.png');
-                const cloudMaterial = new THREE.PointsMaterial({
-                    color: 0xcccccc,
-                    size: 30.0,
-                    transparent: true,
-                    opacity: 0.7,
-                    map: cloudTexture,
-                    sizeAttenuation: true,
-                    depthWrite: false
-                });
-
-                this.cloudParticles = new THREE.Points(cloudGeometry, cloudMaterial);
-                this.cloudParticles.visible = false;
-                this.scene.add(this.cloudParticles);
-            }
-
-            change(weather, isFromCurrentLocation = false, temperature = null, windSpeed = null) {
-                this.current = weather;
-                updateWeatherDisplay(weather, isFromCurrentLocation, temperature, windSpeed);
-                updateWeatherButtonState(weather);
-
-                switch(weather) {
-                    case 'sunny':
-                        this.isRaining = false;
-                        this.isSnowing = false;
-                        this.isCloudy = false;
-                        if (this.rainParticles) this.rainParticles.visible = false;
-                        if (this.snowParticles) this.snowParticles.visible = false;
-                        if (this.cloudParticles) this.cloudParticles.visible = false;
-                        applyWeatherEnvironment('sunny');
-                        break;
-                    case 'cloudy':
-                        this.isRaining = false;
-                        this.isSnowing = false;
-                        this.isCloudy = true;
-                        if (this.rainParticles) this.rainParticles.visible = false;
-                        if (this.snowParticles) this.snowParticles.visible = false;
-                        if (this.cloudParticles) this.cloudParticles.visible = true;
-                        applyWeatherEnvironment('cloudy');
-                        break;
-                    case 'rain':
-                        this.isRaining = true;
-                        this.isSnowing = false;
-                        this.isCloudy = true;
-                        if (this.rainParticles) this.rainParticles.visible = true;
-                        if (this.snowParticles) this.snowParticles.visible = false;
-                        if (this.cloudParticles) this.cloudParticles.visible = true;
-                        applyWeatherEnvironment('rain');
-                        break;
-                    case 'snow':
-                        this.isRaining = false;
-                        this.isSnowing = true;
-                        this.isCloudy = true;
-                        if (this.rainParticles) this.rainParticles.visible = false;
-                        if (this.snowParticles) this.snowParticles.visible = true;
-                        if (this.cloudParticles) this.cloudParticles.visible = true;
-                        applyWeatherEnvironment('snow');
-                        break;
-                }
-            }
-
-            update(deltaTime, camera) {
-                const currentTime = Date.now();
-
-                // 早送りモード時の天気自動変更
-                if (timeModeState.shouldAutoChangeWeather()) {
-                    if (currentTime - this.lastChangeTime > this.changeInterval) {
-                        const availableChoices = this.available.filter(w => w !== this.current);
-                        const nextWeather = availableChoices[Math.floor(Math.random() * availableChoices.length)];
-                        this.change(nextWeather);
-                        this.lastChangeTime = currentTime;
-                        this.changeInterval = 20000 + Math.random() * 20000;
-                    }
-                }
-
-                // オート・早送りモード時のカメラ自動切り替え
-                if (timeModeState.shouldAutoSwitch()) {
-                    if (currentTime - lastCameraChangeTime > cameraChangeInterval) {
-                        const availableViews = availableCameraModes.filter(mode => mode !== cameraMode);
-                        const nextCameraMode = availableViews[Math.floor(Math.random() * availableViews.length)];
-                        cameraMode = nextCameraMode;
-                        updateCameraButtonState();
-
-                        lastCameraChangeTime = currentTime;
-                        cameraChangeInterval = 10000 + Math.random() * 5000;
-                    }
-                }
-
-                // 雲のアニメーション
-                if (this.isCloudy && this.cloudParticles) {
-                    this.cloudParticles.visible = true;
-                    this.cloudParticles.position.x = camera.position.x;
-                    this.cloudParticles.position.z = camera.position.z;
-                } else if (this.cloudParticles) {
-                    this.cloudParticles.visible = false;
-                }
-
-                // 雨のアニメーション
-                if (this.isRaining && this.rainParticles) {
-                    const positions = this.rainParticles.userData.positions;
-                    const speeds = this.rainParticles.userData.speeds;
-                    const swayFactors = this.rainParticles.userData.swayFactors;
-                    const phases = this.rainParticles.userData.phases;
-                    const time = Date.now() * 0.001;
-
-                    for (let i = 0; i < positions.length; i += 6) {
-                        const index = i / 6;
-                        positions[i + 1] -= speeds[index] * deltaTime;
-                        positions[i + 4] -= speeds[index] * deltaTime;
-                        const swayAmount = swayFactors[index];
-                        const phase = phases[index];
-                        const swayX = Math.sin(time + phase) * swayAmount * 0.1 * deltaTime;
-                        const swayZ = Math.cos(time * 0.8 + phase) * swayAmount * 0.1 * deltaTime;
-                        positions[i] += swayX;
-                        positions[i + 2] += swayZ;
-                        positions[i + 3] += swayX;
-                        positions[i + 5] += swayZ;
-                        if (positions[i + 4] < 0) {
-                            const x = Math.random() * 2000 - 1000;
-                            const y = 1000;
-                            const z = Math.random() * 2000 - 1000;
-                            positions[i] = x;
-                            positions[i + 1] = y;
-                            positions[i + 2] = z;
-                            positions[i + 3] = x;
-                            positions[i + 4] = y - 10;
-                            positions[i + 5] = z;
-                        }
-                    }
-                    this.rainParticles.position.x = camera.position.x;
-                    this.rainParticles.position.z = camera.position.z;
-                    this.rainParticles.geometry.attributes.position.needsUpdate = true;
-                } else if (this.rainParticles) {
-                    this.rainParticles.visible = false;
-                }
-
-                // 雪のアニメーション
-                if (this.isSnowing && this.snowParticles) {
-                    const positions = this.snowParticles.userData.positions;
-                    const speeds = this.snowParticles.userData.speeds;
-                    const swayFactors = this.snowParticles.userData.swayFactors;
-                    const phases = this.snowParticles.userData.phases;
-                    const time = Date.now() * 0.001;
-
-                    for (let i = 0; i < positions.length; i += 3) {
-                        const index = i / 3;
-                        positions[i + 1] -= speeds[index] * deltaTime;
-                        const swayAmount = swayFactors[index];
-                        const phase = phases[index];
-                        positions[i] += Math.sin(time + phase) * swayAmount * 0.1 * deltaTime;
-                        positions[i + 2] += Math.cos(time * 0.8 + phase) * swayAmount * 0.1 * deltaTime;
-                        if (positions[i + 1] < 0) {
-                            positions[i] = Math.random() * 2000 - 1000;
-                            positions[i + 1] = 1000;
-                            positions[i + 2] = Math.random() * 2000 - 1000;
-                        }
-                    }
-                    this.snowParticles.position.x = camera.position.x;
-                    this.snowParticles.position.z = camera.position.z;
-                    this.snowParticles.geometry.attributes.position.needsUpdate = true;
-                } else if (this.snowParticles) {
-                    this.snowParticles.visible = false;
-                }
-            }
-
-            dispose() {
-                for (const p of [this.rainParticles, this.snowParticles, this.cloudParticles]) {
-                    if (p) { p.geometry.dispose(); p.material.dispose(); this.scene.remove(p); }
-                }
-                this.rainParticles = this.snowParticles = this.cloudParticles = null;
-            }
-        }
-        const weatherSystem = new WeatherSystem(scene);
-
+        // 時間帯に応じた空の色と光の設定（再利用用Colorオブジェクト）
+        const _tmpColor1 = new THREE.Color();
+        const _tmpColor2 = new THREE.Color();
         function updateDayNightCycle() {
             // 時間モードに応じて時間を更新
             gameTime = timeModeState.getGameTime(gameTime, timeSpeed);
@@ -1496,45 +1205,45 @@
             if (gameTime >= 5 && gameTime < 7) {
                 // 朝焼け（5時～7時）
                 const t = (gameTime - 5) / 2;
-                timeSkyColor = renderCache.tmpColor1.set(0xff9966).lerp(renderCache.tmpColor2.set(0x87CEEB), t);
+                timeSkyColor = _tmpColor1.set(0xff9966).lerp(_tmpColor2.set(0x87CEEB), t);
                 lightIntensity = 0.5 + t * 0.5;
                 ambientIntensity = 0.3 + t * 0.3;
             } else if (gameTime >= 7 && gameTime < 17) {
                 // 昼間（7時～17時）
-                timeSkyColor = renderCache.tmpColor1.set(0x87CEEB);
+                timeSkyColor = _tmpColor1.set(0x87CEEB);
                 lightIntensity = 1.0;
                 ambientIntensity = 0.6;
             } else if (gameTime >= 17 && gameTime < 19) {
                 // 夕焼け（17時～19時）
                 const t = (gameTime - 17) / 2;
-                timeSkyColor = renderCache.tmpColor1.set(0x87CEEB).lerp(renderCache.tmpColor2.set(0xff7733), t);
+                timeSkyColor = _tmpColor1.set(0x87CEEB).lerp(_tmpColor2.set(0xff7733), t);
                 lightIntensity = 1.0 - t * 0.5;
                 ambientIntensity = 0.6 - t * 0.3;
             } else if (gameTime >= 19 && gameTime < 21) {
                 // 日没後（19時～21時）
                 const t = (gameTime - 19) / 2;
-                timeSkyColor = renderCache.tmpColor1.set(0xff7733).lerp(renderCache.tmpColor2.set(0x111133), t);
+                timeSkyColor = _tmpColor1.set(0xff7733).lerp(_tmpColor2.set(0x111133), t);
                 lightIntensity = 0.5 - t * 0.4;
                 ambientIntensity = 0.3 - t * 0.2;
                 isNight = true;
             } else {
                 // 夜間（21時～5時）
                 if (gameTime >= 21) {
-                    timeSkyColor = renderCache.tmpColor1.set(0x111133);
+                    timeSkyColor = _tmpColor1.set(0x111133);
                 } else {
                     // 夜明け前（0時～5時）
                     const t = gameTime / 5;
-                    timeSkyColor = renderCache.tmpColor1.set(0x111133).lerp(renderCache.tmpColor2.set(0xff9966), t);
+                    timeSkyColor = _tmpColor1.set(0x111133).lerp(_tmpColor2.set(0xff9966), t);
                 }
                 lightIntensity = 0.25;  // 0.1から0.25に増加
                 ambientIntensity = 0.2;  // 0.1から0.2に増加
                 isNight = true;
             }
 
-            // 時間帯の色と天気の色を合成（timeSkyColorはrenderCache.tmpColor1を指している）
-            if (weatherSystem.current !== 'sunny') {
+            // 時間帯の色と天気の色を合成（timeSkyColorは_tmpColor1を指している）
+            if (currentWeather !== 'sunny') {
                 // 天気による色の影響を強める（0.7は天気の影響度）
-                timeSkyColor.lerp(renderCache.weatherSkyColor, 0.7);
+                timeSkyColor.lerp(weatherSkyColor, 0.7);
             }
 
             // 空の色を設定
@@ -1549,23 +1258,25 @@
         }
         
         // 街灯の明るさを更新
+        let _streetLightCache = null;
+        let _lastIsNight = null;
         function updateStreetLights(isNight) {
             // 前フレームと同じなら何もしない
-            if (isNight === renderCache.lastIsNight) return;
-            renderCache.lastIsNight = isNight;
+            if (isNight === _lastIsNight) return;
+            _lastIsNight = isNight;
 
             // 街灯参照を初回のみキャッシュ
-            if (!renderCache.streetLights) {
-                renderCache.streetLights = [];
+            if (!_streetLightCache) {
+                _streetLightCache = [];
                 scene.traverse((object) => {
                     if (object.userData && object.userData.isStreetlight) {
-                        renderCache.streetLights.push(object);
+                        _streetLightCache.push(object);
                     }
                 });
             }
 
             // キャッシュ済みの街灯のみ更新
-            for (const object of renderCache.streetLights) {
+            for (const object of _streetLightCache) {
                 if (object.material && object.material.emissive) {
                     if (isNight) {
                         object.material.emissive.set(0xFFDD99);
@@ -2834,7 +2545,7 @@
             lastCheck = performance.now();
             
             // 天気の更新
-            weatherSystem.update(deltaTime, camera);
+            updateWeather(deltaTime);
             metrics.weather = performance.now() - lastCheck;
             lastCheck = performance.now();
             
@@ -3103,7 +2814,7 @@
             setupWeatherButtons();
             
             // 初期天気のボタンをアクティブに
-            updateWeatherButtonState(weatherSystem.current);
+            updateWeatherButtonState(currentWeather);
             
             // ミニマップのクリックイベントを設定
             document.getElementById('minimap-container').addEventListener('click', () => {
@@ -3233,10 +2944,96 @@
         
         // 天気システムの初期化
         function initWeatherSystem() {
-            weatherSystem.createSnowParticles();
-            weatherSystem.createRainParticles();
-            weatherSystem.createCloudParticles();
+            // 雪のパーティクルシステムを作成
+            createSnowParticles();
+            
+            // 雨のパーティクルシステムを作成
+            createRainParticles();
+            
+            // 雲のパーティクルシステム追加
+            const cloudGeometry = new THREE.BufferGeometry();
+            const cloudCount = 500; // 雲は雪より少なく
+            const cloudPositions = new Float32Array(cloudCount * 3);
+            const cloudSizes = new Float32Array(cloudCount);
+            
+            for (let i = 0; i < cloudCount * 3; i += 3) {
+                cloudPositions[i] = Math.random() * 3000 - 1500; // x: -1500 to 1500 (広範囲に配置)
+                cloudPositions[i+1] = 300 + Math.random() * 500; // y: 300 to 800 (高い位置に配置)
+                cloudPositions[i+2] = Math.random() * 3000 - 1500; // z: -1500 to 1500
+                cloudSizes[i/3] = 20.0 + Math.random() * 30.0; // 雲は大きめに
+            }
+            
+            cloudGeometry.setAttribute('position', new THREE.BufferAttribute(cloudPositions, 3));
+            cloudGeometry.setAttribute('size', new THREE.BufferAttribute(cloudSizes, 1));
+            
+            // 雲のテクスチャを使用
+            const cloudTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/sprites/cloud10.png');
+            
+            const cloudMaterial = new THREE.PointsMaterial({
+                color: 0xcccccc,
+                size: 30.0,
+                transparent: true,
+                opacity: 0.7,
+                map: cloudTexture,
+                sizeAttenuation: true,
+                depthWrite: false // 半透明のため、深度書き込みをオフ
+            });
+            
+            cloudParticles = new THREE.Points(cloudGeometry, cloudMaterial);
+            cloudParticles.visible = false;
+            scene.add(cloudParticles);
+            
+            // 初期天気の設定
             timeModeState.initWeather();
+        }
+        
+        // 天気を変更する関数
+        function changeWeather(weather, isFromCurrentLocation = false, temperature = null, windSpeed = null) {
+            currentWeather = weather;
+            updateWeatherDisplay(weather, isFromCurrentLocation, temperature, windSpeed);
+            updateWeatherButtonState(weather);
+            
+            switch(weather) {
+                case 'sunny':
+                    isRaining = false;
+                    isSnowing = false;
+                    isCloudy = false;
+                    if (rainParticles) rainParticles.visible = false;
+                    if (snowParticles) snowParticles.visible = false;
+                    if (cloudParticles) cloudParticles.visible = false;
+                    applyWeatherEnvironment('sunny');
+                    break;
+                    
+                case 'cloudy':
+                    isRaining = false;
+                    isSnowing = false;
+                    isCloudy = true;
+                    if (rainParticles) rainParticles.visible = false;
+                    if (snowParticles) snowParticles.visible = false;
+                    if (cloudParticles) cloudParticles.visible = true;
+                    applyWeatherEnvironment('cloudy');
+                    break;
+                    
+                case 'rain':
+                    isRaining = true;
+                    isSnowing = false;
+                    isCloudy = true;
+                    if (rainParticles) rainParticles.visible = true;
+                    if (snowParticles) snowParticles.visible = false;
+                    if (cloudParticles) cloudParticles.visible = true;
+                    applyWeatherEnvironment('rain');
+                    break;
+                    
+                case 'snow':
+                    isRaining = false;
+                    isSnowing = true;
+                    isCloudy = true;
+                    if (rainParticles) rainParticles.visible = false;
+                    if (snowParticles) snowParticles.visible = true;
+                    if (cloudParticles) cloudParticles.visible = true;
+                    applyWeatherEnvironment('snow');
+                    break;
+            }
         }
         
         // 天気ごとの環境パラメータテーブル
@@ -3298,7 +3095,7 @@
             }
 
             // 空の色を設定
-            renderCache.setWeatherSkyColor(params.skyColor);
+            weatherSkyColor = new THREE.Color(params.skyColor);
 
             // 床マテリアルの更新
             floor.material.color.setHex(params.floorColor);
@@ -3307,6 +3104,127 @@
             floor.material.needsUpdate = true;
         }
         
+        // 天気の更新
+        function updateWeather(deltaTime) {
+            const currentTime = Date.now();
+
+            // 早送りモード時の天気自動変更
+            if (timeModeState.shouldAutoChangeWeather()) {
+                if (currentTime - lastWeatherChangeTime > weatherChangeInterval) {
+                    const availableChoices = availableWeathers.filter(w => w !== currentWeather);
+                    const nextWeather = availableChoices[Math.floor(Math.random() * availableChoices.length)];
+                    changeWeather(nextWeather);
+                    lastWeatherChangeTime = currentTime;
+                    weatherChangeInterval = 20000 + Math.random() * 20000;
+                }
+            }
+
+            // オート・早送りモード時のカメラ自動切り替え
+            if (timeModeState.shouldAutoSwitch()) {
+                if (currentTime - lastCameraChangeTime > cameraChangeInterval) {
+                    const availableViews = availableCameraModes.filter(mode => mode !== cameraMode);
+                    const nextCameraMode = availableViews[Math.floor(Math.random() * availableViews.length)];
+                    cameraMode = nextCameraMode;
+                    updateCameraButtonState();
+
+                    lastCameraChangeTime = currentTime;
+                    cameraChangeInterval = 10000 + Math.random() * 5000;
+                }
+            }
+            
+            // 雲のアニメーション
+            if (isCloudy && cloudParticles) {
+                cloudParticles.visible = true;
+                cloudParticles.position.x = camera.position.x;
+                cloudParticles.position.z = camera.position.z;
+            } else if (cloudParticles) {
+                cloudParticles.visible = false;
+            }
+            
+            // 雨のアニメーション
+            if (isRaining && rainParticles) {
+                const positions = rainParticles.userData.positions;
+                const speeds = rainParticles.userData.speeds;
+                const swayFactors = rainParticles.userData.swayFactors;
+                const phases = rainParticles.userData.phases;
+                const time = Date.now() * 0.001;
+                
+                for (let i = 0; i < positions.length; i += 6) {
+                    const index = i / 6;
+                    
+                    positions[i + 1] -= speeds[index] * deltaTime;
+                    positions[i + 4] -= speeds[index] * deltaTime;
+                    
+                    const swayAmount = swayFactors[index];
+                    const phase = phases[index];
+                    const swayX = Math.sin(time + phase) * swayAmount * 0.1 * deltaTime;
+                    const swayZ = Math.cos(time * 0.8 + phase) * swayAmount * 0.1 * deltaTime;
+                    
+                    positions[i] += swayX;
+                    positions[i + 2] += swayZ;
+                    positions[i + 3] += swayX;
+                    positions[i + 5] += swayZ;
+                    
+                    if (positions[i + 4] < 0) {
+                        const x = Math.random() * 2000 - 1000;
+                        const y = 1000;
+                        const z = Math.random() * 2000 - 1000;
+                        
+                        positions[i] = x;
+                        positions[i + 1] = y;
+                        positions[i + 2] = z;
+                        
+                        positions[i + 3] = x;
+                        positions[i + 4] = y - 10;
+                        positions[i + 5] = z;
+                    }
+                }
+                
+                rainParticles.position.x = camera.position.x;
+                rainParticles.position.z = camera.position.z;
+                
+                rainParticles.geometry.attributes.position.needsUpdate = true;
+            } else if (rainParticles) {
+                rainParticles.visible = false;
+            }
+            
+            // 雪のアニメーション
+            if (isSnowing && snowParticles) {
+                const positions = snowParticles.userData.positions;
+                const speeds = snowParticles.userData.speeds;
+                const swayFactors = snowParticles.userData.swayFactors;
+                const phases = snowParticles.userData.phases;
+                const time = Date.now() * 0.001; // 秒単位の時間
+                
+                for (let i = 0; i < positions.length; i += 3) {
+                    const index = i / 3;
+                    
+                    // Y座標（落下）の更新
+                    positions[i + 1] -= speeds[index] * deltaTime;
+                    
+                    // X座標とZ座標の揺れを更新（サインカーブを使用）
+                    const swayAmount = swayFactors[index];
+                    const phase = phases[index];
+                    positions[i] += Math.sin(time + phase) * swayAmount * 0.1 * deltaTime;
+                    positions[i + 2] += Math.cos(time * 0.8 + phase) * swayAmount * 0.1 * deltaTime;
+                    
+                    // 地面に到達したら上に戻す
+                    if (positions[i + 1] < 0) {
+                        positions[i] = Math.random() * 2000 - 1000;     // X
+                        positions[i + 1] = 1000;                        // Y
+                        positions[i + 2] = Math.random() * 2000 - 1000; // Z
+                    }
+                }
+                
+                // カメラを中心に雪を配置
+                snowParticles.position.x = camera.position.x;
+                snowParticles.position.z = camera.position.z;
+                
+                snowParticles.geometry.attributes.position.needsUpdate = true;
+            } else if (snowParticles) {
+                snowParticles.visible = false;
+            }
+        }
 
         // updateCameraButtonState は updateButtonActiveState に統合済み
         const updateCameraButtonState = updateButtonActiveState;
@@ -3372,7 +3290,7 @@
                 log(`天気を変更します: ${gameWeather}`);
                 
                 // 天気を変更（気温と風速も渡す）
-                weatherSystem.change(gameWeather, true, temperature, windSpeed);
+                changeWeather(gameWeather, true, temperature, windSpeed);
                 
                 return gameWeather;
             } catch (error) {
@@ -3382,8 +3300,8 @@
                 updateWeatherDisplay('-', false); // エラー時は天気表示を非表示に
                 
                 // エラーの場合はランダムな天気を設定（表示はしない）
-                const randomWeather = weatherSystem.available[Math.floor(Math.random() * weatherSystem.available.length)];
-                weatherSystem.change(randomWeather, false);
+                const randomWeather = availableWeathers[Math.floor(Math.random() * availableWeathers.length)];
+                changeWeather(randomWeather, false);
                 
                 return null;
             }
@@ -3442,7 +3360,7 @@
                     this.classList.add('active');
                     
                     // 天気を変更（手動変更なのでisFromCurrentLocation = false）
-                    weatherSystem.change(selectedWeather, false);
+                    changeWeather(selectedWeather, false);
                 });
             });
         }
@@ -3465,7 +3383,111 @@
         let currentPressure = null;
         let currentLocationName = null;
 
+        // 雨のパーティクルシステムを作成
+        function createRainParticles() {
+            const rainGeometry = new THREE.BufferGeometry();
+            const rainCount = 7500; // 15000から7500に減らす
+            
+            // 雨粒の位置配列を作成（各雨粒の開始点と終点）
+            const rainPositions = new Float32Array(rainCount * 6); // 2点（開始点と終点）で1つの線を表現
+            const rainSpeeds = new Float32Array(rainCount);
+            const rainSwayFactors = new Float32Array(rainCount);
+            const rainPhases = new Float32Array(rainCount);
+            
+            for (let i = 0; i < rainCount; i++) {
+                const baseIndex = i * 6;
+                const x = Math.random() * 2000 - 1000;
+                const y = Math.random() * 1000;
+                const z = Math.random() * 2000 - 1000;
+                
+                // 線の開始点
+                rainPositions[baseIndex] = x;
+                rainPositions[baseIndex + 1] = y;
+                rainPositions[baseIndex + 2] = z;
+                
+                // 線の終点（開始点より10単位下）
+                rainPositions[baseIndex + 3] = x;
+                rainPositions[baseIndex + 4] = y - 10;
+                rainPositions[baseIndex + 5] = z;
+                
+                // 個別の雨粒のパラメータを設定
+                rainSpeeds[i] = 20.0 + Math.random() * 10.0;
+                rainSwayFactors[i] = 0.1 + Math.random() * 0.2;
+                rainPhases[i] = Math.random() * Math.PI * 2;
+            }
+            
+            rainGeometry.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
+            
+            const rainMaterial = new THREE.LineBasicMaterial({
+                color: 0x99ccff,
+                opacity: 0.4,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+            
+            rainParticles = new THREE.LineSegments(rainGeometry, rainMaterial);
+            rainParticles.visible = false;
+            scene.add(rainParticles);
+            
+            // アニメーション用のデータをパーティクルシステムに保存
+            rainParticles.userData = {
+                positions: rainPositions,
+                speeds: rainSpeeds,
+                swayFactors: rainSwayFactors,
+                phases: rainPhases
+            };
+        }
+
+        // 雪のパーティクルシステムを作成
+        function createSnowParticles() {
+            const snowGeometry = new THREE.BufferGeometry();
+            const snowCount = 5000; // 10000から5000に減らす
+            
+            // 雪片の位置配列を作成
+            const snowPositions = new Float32Array(snowCount * 3);
+            const snowSpeeds = new Float32Array(snowCount); // 個別の速度を保存
+            const snowSwayFactors = new Float32Array(snowCount); // 揺れの係数を保存
+            const snowPhases = new Float32Array(snowCount); // 位相のずれを保存
+            
+            for (let i = 0; i < snowCount * 3; i += 3) {
+                snowPositions[i] = Math.random() * 2000 - 1000;     // X
+                snowPositions[i + 1] = Math.random() * 1000;        // Y
+                snowPositions[i + 2] = Math.random() * 2000 - 1000; // Z
+                
+                // 個別の雪片のパラメータを設定
+                const index = i / 3;
+                snowSpeeds[index] = 0.5 + Math.random() * 1.0; // 0.5〜1.5の範囲でランダムな速度
+                snowSwayFactors[index] = 0.3 + Math.random() * 0.4; // 0.3〜0.7の範囲で揺れの大きさ
+                snowPhases[index] = Math.random() * Math.PI * 2; // 0〜2πの範囲で初期位相
+            }
+            
+            snowGeometry.setAttribute('position', new THREE.BufferAttribute(snowPositions, 3));
+            
+            const snowMaterial = new THREE.PointsMaterial({
+                color: 0xffffff,
+                size: 2,
+                opacity: 0.8,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+            
+            snowParticles = new THREE.Points(snowGeometry, snowMaterial);
+            snowParticles.visible = false;
+            scene.add(snowParticles);
+            
+            // アニメーション用のデータをパーティクルシステムに保存
+            snowParticles.userData = {
+                positions: snowPositions,
+                speeds: snowSpeeds,
+                swayFactors: snowSwayFactors,
+                phases: snowPhases
+            };
+        }
+
         // ミニマップ: パスポイント・Path2D・スケール情報をキャッシュ
+        let _minimapCache = null;
         function _buildMinimapCache() {
             const canvas = document.getElementById('minimap');
             const margin = 10;
@@ -3489,15 +3511,15 @@
                 if (i === 0) path2d.moveTo(x, z); else path2d.lineTo(x, z);
             }
             path2d.closePath();
-            renderCache.minimap = { margin, minX, minZ, scale, path2d };
+            _minimapCache = { margin, minX, minZ, scale, path2d };
         }
 
         // ミニマップの更新関数
         function updateMinimap() {
             const canvas = document.getElementById('minimap');
             const ctx = canvas.getContext('2d');
-            if (!renderCache.minimap) _buildMinimapCache();
-            const { margin, minX, minZ, scale, path2d } = renderCache.minimap;
+            if (!_minimapCache) _buildMinimapCache();
+            const { margin, minX, minZ, scale, path2d } = _minimapCache;
 
             // キャンバスをクリア
             ctx.clearRect(0, 0, canvas.width, canvas.height);

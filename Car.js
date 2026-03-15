@@ -348,6 +348,7 @@ export class Car {
     const v1 = Car._tmpVec2_0;
     const v2 = Car._tmpVec2_1;
     let angleSum = 0;
+    let totalDist = 0;
 
     for (let i = 0; i < samplePoints - 1; i++) {
         const currentPos = (t + i * sampleDistance) % 1;
@@ -358,14 +359,21 @@ export class Car {
         const nextPoint = this.carPath.getPointAt(nextPos);
         const nextNextPoint = this.carPath.getPointAt(nextNextPos);
 
-        v1.set(nextPoint.x - point.x, nextPoint.z - point.z).normalize();
-        v2.set(nextNextPoint.x - nextPoint.x, nextNextPoint.z - nextPoint.z).normalize();
+        const dx1 = nextPoint.x - point.x, dz1 = nextPoint.z - point.z;
+        const dx2 = nextNextPoint.x - nextPoint.x, dz2 = nextNextPoint.z - nextPoint.z;
+        const segDist = Math.sqrt(dx1 * dx1 + dz1 * dz1);
+
+        v1.set(dx1, dz1).normalize();
+        v2.set(dx2, dz2).normalize();
 
         const angle = Math.acos(Math.min(1, Math.max(-1, v1.dot(v2))));
         angleSum += angle;
+        totalDist += segDist;
     }
 
-    const avgAngle = angleSum / (samplePoints - 1);
+    // 単位距離あたりの曲率に正規化（基準距離で統一）
+    const REF_DIST = 17.0;
+    const avgAngle = totalDist > 0 ? (angleSum / totalDist) * REF_DIST : 0;
 
     const middleIndex = Math.floor(samplePoints / 2);
     const currentPos = (t + middleIndex * sampleDistance) % 1;

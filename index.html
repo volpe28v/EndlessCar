@@ -966,6 +966,15 @@
 
                 results.innerHTML = html;
                 results.style.display = 'flex';
+
+                // Button handlers
+                document.getElementById('raceAgainBtn').addEventListener('click', () => {
+                    results.style.display = 'none';
+                    this.startRace();
+                });
+                document.getElementById('normalModeBtn').addEventListener('click', () => {
+                    this.endRaceMode();
+                });
             }
 
             endRaceMode() {
@@ -2070,52 +2079,6 @@
         // 過去フレームの時間を記録する変数
         let lastFrameTime = Date.now();
         
-        // デバッグラベル描画: 状態文字・ライン戦略・速度・スリップストリームバーを描画
-        function drawDebugInfo(ctx, car, textY, barY) {
-            const strategyLabels = { OUT_IN_OUT: 'OIO', LATE_APEX: 'LA', IN_IN_IN: 'III', WIDE_ENTRY: 'WE' };
-            const strategyColors = { OUT_IN_OUT: '#44aaff', LATE_APEX: '#ffaa00', IN_IN_IN: '#ff4488', WIDE_ENTRY: '#aa44ff' };
-
-            let stateChar = 'N';
-            let stateColor = '#888888';
-            if (car.isOvertaking && !car.isReturning) { stateChar = 'P'; stateColor = '#ff8800'; }
-            else if (car.isReturning) { stateChar = 'R'; stateColor = '#88aaff'; }
-            else if (car.isTandemFollowing) { stateChar = 'T'; stateColor = '#00ff88'; }
-
-            const strat = car.drivingStyle?.lineStrategy || '';
-            const kmh = Math.round(car.speed * Car.SPEED_TO_KMH);
-            const infoText = stateChar + ' ' + (strategyLabels[strat] || '') + ' ' + kmh;
-
-            ctx.font = 'bold 18px sans-serif';
-            const totalW = ctx.measureText(infoText).width;
-            let cx = 128 - totalW / 2;
-            ctx.textAlign = 'left';
-            ctx.fillStyle = stateColor;
-            ctx.fillText(stateChar, cx, textY);
-            cx += ctx.measureText(stateChar + ' ').width;
-            ctx.fillStyle = strategyColors[strat] || '#888888';
-            const stratLabel = strategyLabels[strat] || '';
-            ctx.fillText(stratLabel, cx, textY);
-            cx += ctx.measureText(stratLabel + ' ').width;
-            ctx.fillStyle = '#cccccc';
-            ctx.fillText('' + kmh, cx, textY);
-            ctx.textAlign = 'center';
-
-            // スリップストリームバー
-            const slip = car.slipstreamCharge;
-            if (slip > 0) {
-                const barX = 60, barW = 136, barH = 8;
-                ctx.fillStyle = 'rgba(255,255,255,0.2)';
-                ctx.fillRect(barX, barY, barW, barH);
-                const r = Math.floor(255 * slip);
-                const g = Math.floor(255 * (1 - slip * 0.5));
-                ctx.fillStyle = `rgb(${r},${g},0)`;
-                ctx.fillRect(barX, barY, barW * slip, barH);
-                ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(barX, barY, barW, barH);
-            }
-        }
-
         // アニメーションループ
         let frameCount = 0;
 
@@ -2154,7 +2117,7 @@
             // 車の更新
             for (let i = 0; i < cars.length; i++) {
                 const car = cars[i];
-                car.update(deltaTime);
+                car.update(deltaTime, isNight);
 
                 // 車の上のラベル表示（レース中: 順位 / 通常: デバッグ）
                 if (debugMode || raceManager?.active) {
@@ -2188,7 +2151,48 @@
                         ctx.fillText('P' + rank, 128, debugMode ? 36 : 48);
 
                         if (debugMode) {
-                            drawDebugInfo(ctx, car, 56, 62);
+                            // デバッグ: 状態/ライン戦略/速度
+                            let stateChar = 'N';
+                            let stateColor = '#888888';
+                            if (car.isOvertaking && !car.isReturning) { stateChar = 'P'; stateColor = '#ff8800'; }
+                            else if (car.isReturning) { stateChar = 'R'; stateColor = '#88aaff'; }
+                            else if (car.isTandemFollowing) { stateChar = 'T'; stateColor = '#00ff88'; }
+
+                            const strategyLabels = { OUT_IN_OUT: 'OIO', LATE_APEX: 'LA', IN_IN_IN: 'III', WIDE_ENTRY: 'WE' };
+                            const strategyColors = { OUT_IN_OUT: '#44aaff', LATE_APEX: '#ffaa00', IN_IN_IN: '#ff4488', WIDE_ENTRY: '#aa44ff' };
+                            const strat = car.drivingStyle?.lineStrategy || '';
+                            const kmh = Math.round(car.speed * car.SPEED_TO_KMH);
+                            const infoText = stateChar + ' ' + (strategyLabels[strat] || '') + ' ' + kmh;
+
+                            ctx.font = 'bold 18px sans-serif';
+                            const totalW = ctx.measureText(infoText).width;
+                            let cx = 128 - totalW / 2;
+                            ctx.textAlign = 'left';
+                            ctx.fillStyle = stateColor;
+                            ctx.fillText(stateChar, cx, 56);
+                            cx += ctx.measureText(stateChar + ' ').width;
+                            ctx.fillStyle = strategyColors[strat] || '#888888';
+                            const stratLabel = strategyLabels[strat] || '';
+                            ctx.fillText(stratLabel, cx, 56);
+                            cx += ctx.measureText(stratLabel + ' ').width;
+                            ctx.fillStyle = '#cccccc';
+                            ctx.fillText('' + kmh, cx, 56);
+                            ctx.textAlign = 'center';
+
+                            // スリップストリームバー
+                            const slip = car.slipstreamCharge;
+                            if (slip > 0) {
+                                const barX = 60, barY = 62, barW = 136, barH = 8;
+                                ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                                ctx.fillRect(barX, barY, barW, barH);
+                                const r = Math.floor(255 * slip);
+                                const g = Math.floor(255 * (1 - slip * 0.5));
+                                ctx.fillStyle = `rgb(${r},${g},0)`;
+                                ctx.fillRect(barX, barY, barW * slip, barH);
+                                ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+                                ctx.lineWidth = 1;
+                                ctx.strokeRect(barX, barY, barW, barH);
+                            }
                         }
 
                         if (isPredicted) {
@@ -2198,7 +2202,49 @@
                         }
                     } else if (debugMode) {
                         // 通常モード: レースと同様の表示（順位なし）
-                        drawDebugInfo(ctx, car, 36, 42);
+
+                        // 1行目: 状態/ライン戦略/速度 を詰めて中央表示
+                        let stateCharN = 'N';
+                        let stateColorN = '#888888';
+                        if (car.isOvertaking && !car.isReturning) { stateCharN = 'P'; stateColorN = '#ff8800'; }
+                        else if (car.isReturning) { stateCharN = 'R'; stateColorN = '#88aaff'; }
+                        else if (car.isTandemFollowing) { stateCharN = 'T'; stateColorN = '#00ff88'; }
+
+                        const nStratLabels = { OUT_IN_OUT: 'OIO', LATE_APEX: 'LA', IN_IN_IN: 'III', WIDE_ENTRY: 'WE' };
+                        const nStratColors = { OUT_IN_OUT: '#44aaff', LATE_APEX: '#ffaa00', IN_IN_IN: '#ff4488', WIDE_ENTRY: '#aa44ff' };
+                        const nStrat = car.drivingStyle?.lineStrategy || '';
+                        const nKmh = Math.round(car.speed * car.SPEED_TO_KMH);
+                        const nInfoText = stateCharN + ' ' + (nStratLabels[nStrat] || '') + ' ' + nKmh;
+
+                        ctx.font = 'bold 18px sans-serif';
+                        const nTotalW = ctx.measureText(nInfoText).width;
+                        let ncx = 128 - nTotalW / 2;
+                        ctx.textAlign = 'left';
+                        ctx.fillStyle = stateColorN;
+                        ctx.fillText(stateCharN, ncx, 36);
+                        ncx += ctx.measureText(stateCharN + ' ').width;
+                        ctx.fillStyle = nStratColors[nStrat] || '#888888';
+                        const nStratLabel = nStratLabels[nStrat] || '';
+                        ctx.fillText(nStratLabel, ncx, 36);
+                        ncx += ctx.measureText(nStratLabel + ' ').width;
+                        ctx.fillStyle = '#cccccc';
+                        ctx.fillText('' + nKmh, ncx, 36);
+                        ctx.textAlign = 'center';
+
+                        // スリップストリームバー
+                        const nSlip = car.slipstreamCharge;
+                        if (nSlip > 0) {
+                            const barX = 60, barY = 42, barW = 136, barH = 8;
+                            ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                            ctx.fillRect(barX, barY, barW, barH);
+                            const r = Math.floor(255 * nSlip);
+                            const g = Math.floor(255 * (1 - nSlip * 0.5));
+                            ctx.fillStyle = `rgb(${r},${g},0)`;
+                            ctx.fillRect(barX, barY, barW * nSlip, barH);
+                            ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+                            ctx.lineWidth = 1;
+                            ctx.strokeRect(barX, barY, barW, barH);
+                        }
                     }
                     car._debugTexture.needsUpdate = true;
                     car._debugLabel.position.copy(car.object.position);
@@ -2429,18 +2475,6 @@
                 }
             });
 
-            // リザルト画面ボタン（イベント委譲 - innerHTML再生成のため一度だけ登録）
-            document.getElementById('race-results').addEventListener('click', (e) => {
-                const btn = e.target.closest('button');
-                if (!btn) return;
-                if (btn.id === 'raceAgainBtn') {
-                    document.getElementById('race-results').style.display = 'none';
-                    raceManager.startRace();
-                } else if (btn.id === 'normalModeBtn') {
-                    raceManager.endRaceMode();
-                }
-            });
-
         }
 
         // ページ読み込み完了時に初期化を実行
@@ -2514,6 +2548,9 @@
 
         // DOMContentLoadedイベントリスナーは削除（init関数に移動済み）
 
+        // ページ読み込み完了時に初期化を実行
+        window.onload = init;
+
         // DOMContentLoadedイベントリスナーを削除（重複初期化防止のため）
         
         // 天気システムの初期化
@@ -2575,7 +2612,7 @@
                     if (rainParticles) rainParticles.visible = false;
                     if (snowParticles) snowParticles.visible = false;
                     if (cloudParticles) cloudParticles.visible = false;
-                    applyWeatherEnvironment('sunny');
+                    updateEnvironmentForSunny();
                     break;
                     
                 case 'cloudy':
@@ -2585,7 +2622,7 @@
                     if (rainParticles) rainParticles.visible = false;
                     if (snowParticles) snowParticles.visible = false;
                     if (cloudParticles) cloudParticles.visible = true;
-                    applyWeatherEnvironment('cloudy');
+                    updateEnvironmentForCloudy();
                     break;
                     
                 case 'rain':
@@ -2595,7 +2632,7 @@
                     if (rainParticles) rainParticles.visible = true;
                     if (snowParticles) snowParticles.visible = false;
                     if (cloudParticles) cloudParticles.visible = true;
-                    applyWeatherEnvironment('rain');
+                    updateEnvironmentForRain();
                     break;
                     
                 case 'snow':
@@ -2605,72 +2642,80 @@
                     if (rainParticles) rainParticles.visible = false;
                     if (snowParticles) snowParticles.visible = true;
                     if (cloudParticles) cloudParticles.visible = true;
-                    applyWeatherEnvironment('snow');
+                    updateEnvironmentForSnow();
                     break;
             }
         }
         
-        // 天気ごとの環境パラメータテーブル
-        const weatherEnvironmentTable = {
-            sunny: {
-                fogColor: null,        // 霧なし
-                fogDensityBirdseye: 0,  // 俯瞰視点の霧の濃度
-                fogDensityNormal: 0,    // 通常視点の霧の濃度
-                skyColor: 0x87CEEB,     // 晴れの空の色（明るい青空）
-                floorColor: 0x336633,   // 通常の芝生の色
-                floorRoughness: 0.8,
-                floorMetalness: 0.2,
-            },
-            cloudy: {
-                fogColor: 0xaaaaaa,     // 曇りの霧の色
-                fogDensityBirdseye: 0.0008, // 俯瞰視点の場合
-                fogDensityNormal: 0.003,
-                skyColor: 0x8c8c8c,     // 曇りの空の色（グレーがかった色）
-                floorColor: 0x2a552a,   // 曇り時の芝生の色
-                floorRoughness: 0.8,
-                floorMetalness: 0.2,
-            },
-            rain: {
-                fogColor: 0x555555,     // 雨の霧の色
-                fogDensityBirdseye: 0.001,
-                fogDensityNormal: 0.007,
-                skyColor: 0x4a4a4a,     // 雨の空の色（暗いグレー）
-                floorColor: 0x1c4d1c,   // 地面を濡れた感じに
-                floorRoughness: 0.9,    // より反射するように
-                floorMetalness: 0.5,    // より金属感を増やして反射を強める
-            },
-            snow: {
-                fogColor: 0xaaaaaa,     // 雪の霧の色
-                fogDensityBirdseye: 0.0005,
-                fogDensityNormal: 0.005,
-                skyColor: 0xd8d8d8,     // 雪の空の色（明るいグレー）
-                floorColor: 0xf0f0f0,   // 地面を雪で覆われたように
-                floorRoughness: 0.9,
-                floorMetalness: 0.0,
-            },
-        };
-
-        // 天気に応じた環境を適用
-        function applyWeatherEnvironment(weather) {
-            const params = weatherEnvironmentTable[weather];
-            if (!params) return;
-
-            // 霧の設定（カメラモードに応じて濃度を調整）
-            if (params.fogColor === null) {
-                scene.fog = null;
-            } else if (cameraMode === 0) { // 俯瞰視点の場合
-                scene.fog = new THREE.FogExp2(params.fogColor, params.fogDensityBirdseye);
+        // 曇りの環境更新
+        function updateEnvironmentForCloudy() {
+            // カメラモードに応じて霧の濃度を調整
+            if (cameraMode === 0) { // 俯瞰視点の場合
+                scene.fog = new THREE.FogExp2(0xaaaaaa, 0.0008);
             } else {
-                scene.fog = new THREE.FogExp2(params.fogColor, params.fogDensityNormal);
+                scene.fog = new THREE.FogExp2(0xaaaaaa, 0.003);
             }
-
-            // 空の色を設定
-            weatherSkyColor = new THREE.Color(params.skyColor);
-
-            // 床マテリアルの更新
-            floor.material.color.setHex(params.floorColor);
-            floor.material.roughness = params.floorRoughness;
-            floor.material.metalness = params.floorMetalness;
+            
+            // 曇りの空の色を設定（グレーがかった色）
+            weatherSkyColor = new THREE.Color(0x8c8c8c);
+            
+            // 曇り時の芝生の色
+            floor.material.color.setHex(0x2a552a);
+            floor.material.roughness = 0.8;
+            floor.material.metalness = 0.2;
+            floor.material.needsUpdate = true;
+        }
+        
+        // 雨の環境更新
+        function updateEnvironmentForRain() {
+            // カメラモードに応じて霧の濃度を調整
+            if (cameraMode === 0) {
+                scene.fog = new THREE.FogExp2(0x555555, 0.001);
+            } else {
+                scene.fog = new THREE.FogExp2(0x555555, 0.007);
+            }
+            
+            // 雨の空の色を設定（暗いグレー）
+            weatherSkyColor = new THREE.Color(0x4a4a4a);
+            
+            // 地面を濡れた感じに
+            floor.material.color.setHex(0x1c4d1c);
+            floor.material.roughness = 0.9; // より反射するように
+            floor.material.metalness = 0.5; // より金属感を増やして反射を強める
+            floor.material.needsUpdate = true;
+        }
+        
+        // 雪の環境更新
+        function updateEnvironmentForSnow() {
+            // カメラモードに応じて霧の濃度を調整
+            if (cameraMode === 0) {
+                scene.fog = new THREE.FogExp2(0xaaaaaa, 0.0005);
+            } else {
+                scene.fog = new THREE.FogExp2(0xaaaaaa, 0.005);
+            }
+            
+            // 雪の空の色を設定（明るいグレー）
+            weatherSkyColor = new THREE.Color(0xd8d8d8);
+            
+            // 地面を雪で覆われたように
+            floor.material.color.setHex(0xf0f0f0);
+            floor.material.roughness = 0.9;
+            floor.material.metalness = 0.0
+            floor.material.needsUpdate = true;
+        }
+        
+        // 晴れの環境更新
+        function updateEnvironmentForSunny() {
+            // 霧をなくす
+            scene.fog = null;
+            
+            // 晴れの空の色を設定（明るい青空）
+            weatherSkyColor = new THREE.Color(0x87CEEB);
+            
+            // 通常の芝生の色に戻す
+            floor.material.color.setHex(0x336633);
+            floor.material.roughness = 0.8;
+            floor.material.metalness = 0.2;
             floor.material.needsUpdate = true;
         }
         
@@ -2796,8 +2841,17 @@
             }
         }
 
-        // updateCameraButtonState は updateButtonActiveState に統合済み
-        const updateCameraButtonState = updateButtonActiveState;
+        // カメラモードボタンの表示を更新する関数
+        function updateCameraButtonState() {
+            document.querySelectorAll('.view-buttons .viewButton').forEach(button => {
+                const viewMode = parseInt(button.getAttribute('data-view'));
+                if (viewMode === cameraMode) {
+                    button.classList.add('active');
+                } else {
+                    button.classList.remove('active');
+                }
+            });
+        }
 
         // 現在位置の天気を取得する関数
         async function fetchCurrentWeather() {

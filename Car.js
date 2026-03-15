@@ -317,9 +317,6 @@ export class Car {
       this._tmpVec3_3 = new THREE.Vector3();
       this._tmpVec3_4 = new THREE.Vector3();
       this._tmpVec3_5 = new THREE.Vector3();
-      this._tmpDriftFwd = new THREE.Vector3();
-      this._tmpDriftSide = new THREE.Vector3();
-      this._speedLineFwd = new THREE.Vector3();
       this._tmpMat4 = new THREE.Matrix4();
       this._tmpQuat = new THREE.Quaternion();
       this.raceRank = 0; // レース中の順位（0=レース外, 1=1位...）
@@ -1469,6 +1466,7 @@ export class Car {
       const data = this._speedLineData;
 
       // 車の後方向き（getWorldDirectionで実際の車体方向を取得、プール済みVector3を再利用）
+      if (!this._speedLineFwd) this._speedLineFwd = new THREE.Vector3();
       const fwd = this._speedLineFwd;
       this.object.getWorldDirection(fwd);
       const right = this._frameRight;
@@ -2230,13 +2228,13 @@ export class Car {
           }
       }
 
-      // 調整された進行方向ベクトル（ドリフト時に使用、プール済みVector3を再利用）
-      let adjustedForwardVector = this._tmpDriftFwd.copy(forwardVector);
+      // 調整された進行方向ベクトル（ドリフト時に使用）
+      let adjustedForwardVector = forwardVector.clone();
 
       // 現在のドリフト強度に応じてドリフト効果を適用
       if (this.currentDriftStrength > Car.DRIFT.DRIFT_VISUAL_MIN) { // 非常に小さな値でも効果を適用（滑らかな終了のため）
           // 側方向ベクトル（カーブの方向）を取得
-          const sideVector = this._tmpDriftSide.set(-forwardVector.z, 0, forwardVector.x).normalize();
+          const sideVector = new THREE.Vector3(-forwardVector.z, 0, forwardVector.x).normalize();
 
           // 目標ドリフト角度を計算
           const baseMaxDriftAngle = Car.DRIFT.BASE_MAX_ANGLE;
@@ -2597,36 +2595,6 @@ export class Car {
           this.overtakeDirection = 0;
       }
   }
-
-  // THREE.jsリソースを解放する
-  dispose(scene) {
-      if (this.object) {
-          this.object.traverse(child => {
-              if (child.geometry) child.geometry.dispose();
-              if (child.material) {
-                  if (Array.isArray(child.material)) {
-                      child.material.forEach(m => { m.map?.dispose(); m.dispose(); });
-                  } else {
-                      child.material.map?.dispose();
-                      child.material.dispose();
-                  }
-              }
-          });
-          scene.remove(this.object);
-      }
-      // SpotLight dispose
-      if (this.leftHeadlight) this.leftHeadlight.dispose();
-      if (this.rightHeadlight) this.rightHeadlight.dispose();
-      // SpeedLines
-      if (this._speedLines) {
-          this._speedLines.geometry.dispose();
-          this._speedLines.material.dispose();
-          scene.remove(this._speedLines);
-      }
-      // 参照クリア
-      this.otherCars = null;
-      this._curvatureCache = null;
-  }
 }
 
 // --- 状態クラス ---
@@ -2852,7 +2820,6 @@ class PassState extends CarState {
 
     exit() {
         this.car.speed = Math.min(this.car.speed, this.car.MAX_SPEED);
-        this.target = null;
     }
 
     update(cars) {
@@ -2905,12 +2872,12 @@ class PassState extends CarState {
 
     // 追い抜き方向を計算（-1: 左, 1: 右）
     _calculateDirection(targetCar) {
-        const myDirection = this.car._tmpVec3_0;
+        const myDirection = new THREE.Vector3();
         this.car.object.getWorldDirection(myDirection);
-        const rightVector = this.car._tmpVec3_1.set(-myDirection.z, 0, myDirection.x);
+        const rightVector = new THREE.Vector3(-myDirection.z, 0, myDirection.x);
         const dx = targetCar.object.position.x - this.car.object.position.x;
         const dz = targetCar.object.position.z - this.car.object.position.z;
-        const lateralDot = rightVector.dot(this.car._tmpVec3_2.set(dx, 0, dz));
+        const lateralDot = rightVector.dot(new THREE.Vector3(dx, 0, dz));
         return lateralDot > 0 ? -1 : 1;
     }
 }

@@ -37,7 +37,7 @@ export class RaceManager {
         document.getElementById('race-results').style.display = 'none';
 
         // Create 16 cars for race
-        ctx.createCars(10);
+        ctx.createCars(16);
 
         // Place cars on grid
         this.placeOnGrid();
@@ -318,7 +318,7 @@ export class RaceManager {
         for (const car of ctx.cars) {
             car.frozen = false;
         }
-        ctx.createCars(10);
+        ctx.createCars(16);
         ctx.currentCarIndex = 0;
     }
 

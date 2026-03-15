@@ -759,7 +759,7 @@
                     let debugKey = '';
                     if (raceManager?.active) {
                         const ranked = raceManager._cachedRanked || raceManager.getRankedCars();
-                        const rank = ranked.findIndex(([c]) => c === car) + 1;
+                        const rank = ranked.findIndex(([c]) => c === car) + 1 || car.raceRank || 0;
                         const isPredicted = raceManager.predictedCar === car;
                         const isFocused = !raceManager.predictedCar && car._index === ctx.currentCarIndex;
                         const stateChar = car.isOvertaking && !car.isReturning ? 'P' : car.isReturning ? 'R' : car.isTandemFollowing ? 'T' : 'N';
@@ -780,7 +780,7 @@
 
                         if (raceManager?.active) {
                             const ranked = raceManager._cachedRanked || raceManager.getRankedCars();
-                            const rank = ranked.findIndex(([c]) => c === car) + 1;
+                            const rank = ranked.findIndex(([c]) => c === car) + 1 || car.raceRank || 0;
                             const isPredicted = raceManager.predictedCar === car;
                             const isFocused = !raceManager.predictedCar && car._index === ctx.currentCarIndex;
                             dCtx.font = 'bold 44px sans-serif';

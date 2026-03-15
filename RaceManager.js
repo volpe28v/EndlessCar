@@ -28,6 +28,7 @@ export class RaceManager {
         this.active = true;
         this.phase = 'grid';
         this.carData.clear();
+        this._cachedRanked = null;
         this.fastestLap = { time: Infinity, car: null };
 
         // Hide normal info, show race UI

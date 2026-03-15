@@ -1,6 +1,7 @@
 // Car.js - Car クラス本体（physics, drift, AI, collision, dispose）
 import * as C from './CarConstants.js';
 import { SpeedLineRenderer } from './SpeedLineRenderer.js';
+import { DriftSmokeRenderer } from './DriftSmokeRenderer.js';
 import { buildCarModel } from './CarModelBuilder.js';
 import { NormalState, TandemState, PassState, ReturningState } from './CarStates.js';
 
@@ -102,6 +103,7 @@ export class Car {
       this._driftForward = new THREE.Vector3();
       this._driftSide = new THREE.Vector3();
       this._speedLineRenderer = new SpeedLineRenderer();
+      this._driftSmokeRenderer = new DriftSmokeRenderer();
       this._curvatureCache = new Map();
       this.raceRank = 0;
       this.totalCars = 0;
@@ -170,6 +172,7 @@ export class Car {
 
       scene.add(this.object);
       this.createSpeedLines(scene);
+      this._driftSmokeRenderer.create(scene);
   }
 
   createSpeedLines(scene) {
@@ -178,6 +181,7 @@ export class Car {
 
   updateSpeedLines() {
       this._speedLineRenderer.update(this);
+      this._driftSmokeRenderer.update(this);
   }
 
   update(deltaTime) {
@@ -989,6 +993,7 @@ export class Car {
       if (this.leftHeadlight) this.leftHeadlight.dispose();
       if (this.rightHeadlight) this.rightHeadlight.dispose();
       if (this._speedLineRenderer) this._speedLineRenderer.dispose(scene);
+      if (this._driftSmokeRenderer) this._driftSmokeRenderer.dispose(scene);
       // デバッグラベル（P1等）の削除 — scene直下に追加されているため個別にremove
       if (this._debugLabel) {
           scene.remove(this._debugLabel);
@@ -1003,6 +1008,7 @@ export class Car {
       }
       this._pool = null;
       this._speedLineRenderer = null;
+      this._driftSmokeRenderer = null;
       this._frameFwd = null;
       this._frameRight = null;
       this._driftForward = null;

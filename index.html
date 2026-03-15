@@ -251,6 +251,13 @@
             font-size: 11px;
             font-family: 'Helvetica', monospace;
             width: 130px;
+            box-sizing: border-box;
+        }
+        #race-bottom-bar {
+            display: flex;
+            gap: 3px;
+            margin-top: 3px;
+            width: 130px;
         }
         #race-position-board table {
             width: 100%;
@@ -276,9 +283,8 @@
             border-radius: 5px;
             font-size: 13px;
             font-weight: bold;
-            margin-top: 3px;
             text-align: center;
-            width: 130px;
+            flex: 1;
             box-sizing: border-box;
         }
         #race-countdown {
@@ -377,9 +383,7 @@
             color: #ffdd00;
         }
         .race-auto-btn {
-            width: 130px;
             box-sizing: border-box;
-            margin-top: 3px;
             background-color: rgba(0, 0, 0, 0.5);
             color: white;
             border: 1px solid white;
@@ -388,6 +392,7 @@
             font-size: 11px;
             cursor: pointer;
             text-align: center;
+            flex-shrink: 0;
         }
         .race-auto-btn.active {
             background-color: rgba(100, 100, 255, 0.7);
@@ -410,8 +415,10 @@
                 font-size: 10px;
                 width: 104px;
             }
-            #race-lap-counter {
+            #race-bottom-bar {
                 width: 104px;
+            }
+            #race-lap-counter {
                 font-size: 11px;
             }
             #race-countdown {
@@ -469,8 +476,10 @@
     </div>
     <div id="race-ui" style="display:none;">
         <div id="race-position-board"></div>
-        <div id="race-lap-counter"></div>
-        <button id="race-auto-camera" class="race-auto-btn active" title="カメラ自動切替">Auto</button>
+        <div id="race-bottom-bar">
+            <div id="race-lap-counter"></div>
+            <button id="race-auto-camera" class="race-auto-btn active" title="カメラ自動切替">Auto</button>
+        </div>
     </div>
     <div id="race-predict" style="display:none;">
         <div id="race-predict-text">TAB / クリックで優勝予想を選択</div>

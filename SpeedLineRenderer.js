@@ -82,11 +82,12 @@ export class SpeedLineRenderer {
             d.life--;
 
             let startX, startY, startZ, len;
+            const backShift = 5.0; // 車1台分、後ろにずらす
             if (d.mode === 'tandem') {
                 // TANDEM: 前方から後方へ車を通り過ぎるように流れる
                 const progress = 1 - alpha;
                 const travelDist = d.spawnAhead + lineLength;
-                const headDist = -d.spawnAhead + travelDist * progress;
+                const headDist = -d.spawnAhead + travelDist * progress + backShift;
                 len = lineLength * (0.3 + 0.7 * alpha);
                 startX = carPos.x + d.offset.x + fwd.x * headDist;
                 startY = carPos.y + d.offset.y;
@@ -94,7 +95,7 @@ export class SpeedLineRenderer {
             } else {
                 // PASS: 車の近くからスポーンし後方へ流れ去る
                 const progress = 1 - alpha;
-                const dist = 2 + lineLength * progress;
+                const dist = backShift + lineLength * progress;
                 len = lineLength * alpha;
                 startX = carPos.x + d.offset.x + fwd.x * dist;
                 startY = carPos.y + d.offset.y;

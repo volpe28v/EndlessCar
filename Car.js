@@ -15,11 +15,6 @@ export class Car {
       'KUB', 'BUT', 'NAK', 'SAT', 'KOB',
   ];
   static _usedDriverNames = [];
-  // calculateCurvature用の再利用Vector2
-  static _tmpVec2_0 = new THREE.Vector2();
-  static _tmpVec2_1 = new THREE.Vector2();
-  // 共通の上方向ベクトル
-  static _UP = new THREE.Vector3(0, 1, 0);
 
   static pickDriverName() {
       if (Car._usedDriverNames.length >= Car.DRIVER_NAMES.length) {
@@ -310,15 +305,6 @@ export class Car {
       this._avoidanceOffset = 0; // 横方向回避オフセット（EMA補間）
       this._frameFwd = new THREE.Vector3(0, 0, -1); // フレームキャッシュ（update()で更新）
       this._frameRight = new THREE.Vector3(1, 0, 0); // フレームキャッシュ（update()で更新）
-      // update()用の一時オブジェクトプール
-      this._tmpVec3_0 = new THREE.Vector3();
-      this._tmpVec3_1 = new THREE.Vector3();
-      this._tmpVec3_2 = new THREE.Vector3();
-      this._tmpVec3_3 = new THREE.Vector3();
-      this._tmpVec3_4 = new THREE.Vector3();
-      this._tmpVec3_5 = new THREE.Vector3();
-      this._tmpMat4 = new THREE.Matrix4();
-      this._tmpQuat = new THREE.Quaternion();
       this.raceRank = 0; // レース中の順位（0=レース外, 1=1位...）
       this.totalCars = 0; // レース参加台数
   }
@@ -1465,11 +1451,10 @@ export class Car {
       const colors = this._speedLines.geometry.attributes.color.array;
       const data = this._speedLineData;
 
-      // 車の後方向き（getWorldDirectionで実際の車体方向を取得、プール済みVector3を再利用）
-      if (!this._speedLineFwd) this._speedLineFwd = new THREE.Vector3();
-      const fwd = this._speedLineFwd;
+      // 車の後方向き
+      const fwd = new THREE.Vector3();
       this.object.getWorldDirection(fwd);
-      const right = this._frameRight;
+      const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
       const carPos = this.object.position;
 
       // PASS時: スリップストリーム蓄積量に応じてライン長・密度が変化
@@ -1537,8 +1522,7 @@ export class Car {
       this.updateHeadlights();
 
       // フレーム単位の curvature キャッシュをリセット
-      if (!this._curvatureCache) this._curvatureCache = new Map();
-      else this._curvatureCache.clear();
+      this._curvatureCache = {};
 
       // 速度を更新（カーブに応じて）→ その後に追い抜き処理（ブースト上乗せ）
       this.updateSpeed();
@@ -1546,27 +1530,27 @@ export class Car {
       // 追い抜き処理を実行（updateSpeedの後にブースト上乗せ）
       this.handleOvertaking(this.otherCars);
 
+      // 接触回避（速度制御）
+      this.avoidCollision(this.otherCars);
+
       const speedKmh = this.speed * Car.SPEED_TO_KMH;
       const speedScalingFactor = this._calcDriftScalingFactor(speedKmh);
 
       // 位置を更新
       this.position += this.speed * 0.001;
       if (this.position >= 1) this.position -= 1;
-
+      
       // 道路上の位置を厳密に取得
       const point = this.carPath.getPointAt(this.position);
-
+      
       // パスの接線ベクトルを取得（進行方向）
       const tangent = this.carPath.getTangentAt(this.position).normalize();
       // XZ平面上の接線ベクトル（高さを無視）
-      const flatTangent = this._tmpVec3_0.set(tangent.x, 0, tangent.z).normalize();
+      const flatTangent = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
 
       // フレーム単位の fwd/right キャッシュ（calcLateralAvoidance で使用）
-      this._frameFwd.copy(flatTangent);
-      this._frameRight.set(-flatTangent.z, 0, flatTangent.x);
-
-      // 接触回避（速度制御）— _frameFwd設定後に実行
-      this.avoidCollision(this.otherCars);
+      this._frameFwd = flatTangent;
+      this._frameRight = new THREE.Vector3(-flatTangent.z, 0, flatTangent.x);
 
       // 曲率を計算
       const curvatureData = this.calculateCurvature(this.position);
@@ -1587,7 +1571,7 @@ export class Car {
       const lineOffset = baseLineOffset * (0.7 + outInOutStrength * 0.6);
 
       // カーブに応じたラインオフセットを計算
-      const lineDirection = this._tmpVec3_1.crossVectors(flatTangent, Car._UP).normalize();
+      const lineDirection = new THREE.Vector3().crossVectors(flatTangent, new THREE.Vector3(0, 1, 0)).normalize();
 
       // 次のカーブの方向を予測（近方と遠方の2段階）
       const nextCurveNear = this.calculateCurvature((this.position + 0.05) % 1);
@@ -1618,7 +1602,7 @@ export class Car {
 
       // グリッド配置の横オフセット（走行開始後に減衰）
       if (Math.abs(this.gridLateralOffset) > 0.01) {
-          const gridLineDir = this._tmpVec3_2.crossVectors(flatTangent, Car._UP).normalize();
+          const gridLineDir = new THREE.Vector3().crossVectors(flatTangent, new THREE.Vector3(0, 1, 0)).normalize();
           point.add(gridLineDir.multiplyScalar(this.gridLateralOffset));
           this.gridLateralOffset *= 0.97; // 徐々に減衰
       } else {
@@ -1627,7 +1611,7 @@ export class Car {
 
       // 追い抜き用の追加オフセットを計算（イージングで滑らかに）
       if (this.isOvertaking || this.overtakeProgress > 0) {
-          const overtakeVector = this._tmpVec3_3.set(-flatTangent.z, 0, flatTangent.x).normalize();
+          const overtakeVector = new THREE.Vector3(-flatTangent.z, 0, flatTangent.x).normalize();
           // smoothstep イージング: 出始めと到達時を緩やかに
           const t = this.overtakeProgress;
           const eased = t * t * (3 - 2 * t);
@@ -1637,13 +1621,13 @@ export class Car {
       // 横方向回避オフセット
       const avoidanceOffset = this.calcLateralAvoidance();
       if (Math.abs(avoidanceOffset) > 0.001) {
-          const avoidVec = this._tmpVec3_4.set(-flatTangent.z, 0, flatTangent.x);
+          const avoidVec = new THREE.Vector3(-flatTangent.z, 0, flatTangent.x);
           point.add(avoidVec.multiplyScalar(avoidanceOffset));
       }
 
       // 緊急押し出し（3Dボックス重なり時）
       if (this._emergencyPush && Math.abs(this._emergencyPush) > 0.01) {
-          const pushVec = this._tmpVec3_5.set(-flatTangent.z, 0, flatTangent.x);
+          const pushVec = new THREE.Vector3(-flatTangent.z, 0, flatTangent.x);
           point.add(pushVec.multiplyScalar(this._emergencyPush));
       }
       this._emergencyPush = 0;
@@ -1660,30 +1644,30 @@ export class Car {
       const forwardVector = flatTangent;
       
       // 2. 上向きベクトル（常に世界座標のY軸方向）
-      const upVector = Car._UP;
-
+      const upVector = new THREE.Vector3(0, 1, 0);
+      
       // 3. 右向きベクトル（進行方向と上向きの外積）
-      const rightVector = this._tmpVec3_1.crossVectors(forwardVector, upVector).normalize();
-
+      const rightVector = new THREE.Vector3().crossVectors(forwardVector, upVector).normalize();
+      
       // 4. 最終的な上向きベクトル（右向きと進行方向の外積で再計算）
-      const correctedUpVector = this._tmpVec3_2.crossVectors(rightVector, forwardVector).normalize();
+      const correctedUpVector = new THREE.Vector3().crossVectors(rightVector, forwardVector).normalize();
       
       // ドリフト計算（強度・方向・角度の更新、調整済み進行方向ベクトルを返す）
       const adjustedForwardVector = this.updateDrift(curveAngle, curveTiltDirection, forwardVector, speedScalingFactor);
       
       // 調整した進行方向ベクトルに基づいて、新しい右向きベクトルと上向きベクトルを計算
-      const adjustedRightVector = this._tmpVec3_3.crossVectors(adjustedForwardVector, upVector).normalize();
-      const adjustedUpVector = this._tmpVec3_4.crossVectors(adjustedRightVector, adjustedForwardVector).normalize();
-
+      const adjustedRightVector = new THREE.Vector3().crossVectors(adjustedForwardVector, upVector).normalize();
+      const adjustedUpVector = new THREE.Vector3().crossVectors(adjustedRightVector, adjustedForwardVector).normalize();
+      
       // 5. 回転行列を作成（3つの直交ベクトルから）
-      const rotationMatrix = this._tmpMat4.makeBasis(
+      const rotationMatrix = new THREE.Matrix4().makeBasis(
           adjustedRightVector,
           adjustedUpVector,
           adjustedForwardVector.clone().negate() // THREE.jsの車モデルはZ-方向が前方なので反転
       );
       
       // 6. 回転行列からクォータニオンに変換
-      const targetRotation = this._tmpQuat.setFromRotationMatrix(rotationMatrix);
+      const targetRotation = new THREE.Quaternion().setFromRotationMatrix(rotationMatrix);
       
       // 7. 回転を直接適用
       this.object.quaternion.copy(targetRotation);
@@ -1766,57 +1750,53 @@ export class Car {
 
   calculateCurvature(t, samplePoints = 15, sampleDistance = 0.005) {
     // フレーム内キャッシュ（同じ t に対する再計算を防ぐ）
-    const key = Math.round(t * 10000);
-    if (this._curvatureCache && this._curvatureCache.has(key)) {
-        return this._curvatureCache.get(key);
+    const key = t.toFixed(4);
+    if (this._curvatureCache && this._curvatureCache[key]) {
+        return this._curvatureCache[key];
     }
 
-    // ループ外で再利用するVector2
-    const v1 = Car._tmpVec2_0;
-    const v2 = Car._tmpVec2_1;
-
-    let angleSum = 0;
-
+    const angles = [];
+    
     // 複数のサンプル点で角度を計算し平均を取る
     for (let i = 0; i < samplePoints - 1; i++) {
         const currentPos = (t + i * sampleDistance) % 1;
         const nextPos = (currentPos + sampleDistance) % 1;
         const nextNextPos = (nextPos + sampleDistance) % 1;
-
+        
         const point = this.carPath.getPointAt(currentPos);
         const nextPoint = this.carPath.getPointAt(nextPos);
         const nextNextPoint = this.carPath.getPointAt(nextNextPos);
-
-        v1.set(nextPoint.x - point.x, nextPoint.z - point.z).normalize();
-        v2.set(nextNextPoint.x - nextPoint.x, nextNextPoint.z - nextPoint.z).normalize();
-
+        
+        const v1 = new THREE.Vector2(nextPoint.x - point.x, nextPoint.z - point.z).normalize();
+        const v2 = new THREE.Vector2(nextNextPoint.x - nextPoint.x, nextNextPoint.z - nextPoint.z).normalize();
+        
         // 2つのベクトル間の角度
         const angle = Math.acos(Math.min(1, Math.max(-1, v1.dot(v2))));
-        angleSum += angle;
+        angles.push(angle);
     }
-
+    
     // 角度の平均値を計算
-    const avgAngle = angleSum / (samplePoints - 1);
-
+    const avgAngle = angles.reduce((sum, angle) => sum + angle, 0) / angles.length;
+    
     // 曲がる方向の判定（中央のサンプルポイントで判定）
     const middleIndex = Math.floor(samplePoints / 2);
     const currentPos = (t + middleIndex * sampleDistance) % 1;
     const nextPos = (currentPos + sampleDistance) % 1;
     const nextNextPos = (nextPos + sampleDistance) % 1;
-
+    
     const pointStart = this.carPath.getPointAt(currentPos);
     const pointNext = this.carPath.getPointAt(nextPos);
     const pointNextNext = this.carPath.getPointAt(nextNextPos);
-
-    v1.set(pointNext.x - pointStart.x, pointNext.z - pointStart.z).normalize();
-    v2.set(pointNextNext.x - pointNext.x, pointNextNext.z - pointNext.z).normalize();
-
+    
+    const vec1 = new THREE.Vector2(pointNext.x - pointStart.x, pointNext.z - pointStart.z).normalize();
+    const vec2 = new THREE.Vector2(pointNextNext.x - pointNext.x, pointNextNext.z - pointNext.z).normalize();
+    
     // 曲がり方向を判定（外積）
-    const crossProduct = v1.x * v2.y - v1.y * v2.x;
+    const crossProduct = vec1.x * vec2.y - vec1.y * vec2.x;
     const tiltDirection = Math.sign(crossProduct);
-
+    
     const result = { angle: avgAngle, direction: tiltDirection };
-    if (this._curvatureCache) this._curvatureCache.set(key, result);
+    if (this._curvatureCache) this._curvatureCache[key] = result;
     return result;
   }
 
@@ -2452,8 +2432,9 @@ export class Car {
   isReturnPathBlocked(cars) {
       if (!this.object || !cars || this.overtakeDirection === 0) return false;
       const myPos = this.object.position;
-      const fwd = this._frameFwd;
-      const right = this._frameRight;
+      const tangent = this.carPath.getTangentAt(this.position);
+      const fwd = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
+      const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
 
       for (const other of cars) {
           if (!other.object || other === this) continue;
@@ -2487,8 +2468,9 @@ export class Car {
       if (!this.object || !otherCars) return;
 
       const myPos = this.object.position;
-      const fwd = this._frameFwd;
-      const right = this._frameRight;
+      const tangent = this.carPath.getTangentAt(this.position);
+      const fwd = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
+      const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
 
       // ReturningState（ライン復帰中）のみ判定幅を広げる
       const laneWidth = this.isReturning

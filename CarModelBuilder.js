@@ -932,20 +932,7 @@ export function buildCarModel(car) {
         carGroup.add(stay);
     });
 
-    // === 共通：スポットライト ===
-    const leftLight = new THREE.SpotLight(0xFFFFFF, 5.5, 50, Math.PI / 10, 0.3, 1);
-    leftLight.position.set(0.6, 6.0, -2.0);
-    leftLight.target.position.set(0.3, 0.0, -20);
-    leftLight.visible = true;
-    carGroup.add(leftLight);
-    carGroup.add(leftLight.target);
-
-    const rightLight = new THREE.SpotLight(0xFFFFFF, 5.5, 50, Math.PI / 10, 0.3, 1);
-    rightLight.position.set(-0.6, 6.0, -2.0);
-    rightLight.target.position.set(-0.3, 0.0, -20);
-    rightLight.visible = true;
-    carGroup.add(rightLight);
-    carGroup.add(rightLight.target);
+    // スポットライト: 常時非表示のため生成をスキップ（GPU負荷削減）
 
     // === 共通：タイヤ ===
     function createWheel(x, z) {
@@ -1022,5 +1009,5 @@ export function buildCarModel(car) {
     const initialTarget = new THREE.Vector3().addVectors(carGroup.position, initialDirection);
     carGroup.lookAt(initialTarget);
 
-    return { car: carGroup, wheels, wheelGroups, upVector, leftHeadlight: leftLight, rightHeadlight: rightLight };
+    return { car: carGroup, wheels, wheelGroups, upVector, leftHeadlight: null, rightHeadlight: null };
 }

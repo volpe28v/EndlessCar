@@ -684,11 +684,11 @@
 
             for (let i = 0; i < ctx.cars.length; i++) {
                 const car = ctx.cars[i];
-                const point = carPath.getPointAt(car.position);
-                const x = margin + (point.x - minX) * scale;
-                const y = margin + (point.z - minZ) * scale;
-                const tangent = carPath.getTangentAt(car.position).normalize();
-                const angle = Math.atan2(tangent.z, tangent.x) + Math.PI/2;
+                const pos = car.object.position;
+                const x = margin + (pos.x - minX) * scale;
+                const y = margin + (pos.z - minZ) * scale;
+                const dir = car._frameFwd;
+                const angle = Math.atan2(dir.z, dir.x) + Math.PI/2;
 
                 mmCtx.save();
                 mmCtx.translate(x, y);
@@ -766,13 +766,13 @@
                         const rank = ranked.findIndex(([c]) => c === car) + 1;
                         const isPredicted = raceManager.predictedCar === car;
                         const stateChar = car.isOvertaking && !car.isReturning ? 'P' : car.isReturning ? 'R' : car.isTandemFollowing ? 'T' : 'N';
-                        const kmh = Math.round(car.speed * SPEED_TO_KMH);
-                        const slip = Math.round(car.slipstreamCharge * 10);
+                        const kmh = Math.round(car.speed * SPEED_TO_KMH / 5) * 5;
+                        const slip = Math.round(car.slipstreamCharge * 5);
                         debugKey = `R${rank}${ctx.debugMode?1:0}${stateChar}${kmh}${slip}${isPredicted?1:0}`;
                     } else if (ctx.debugMode) {
                         const stateChar = car.isOvertaking && !car.isReturning ? 'P' : car.isReturning ? 'R' : car.isTandemFollowing ? 'T' : 'N';
-                        const kmh = Math.round(car.speed * SPEED_TO_KMH);
-                        const slip = Math.round(car.slipstreamCharge * 10);
+                        const kmh = Math.round(car.speed * SPEED_TO_KMH / 5) * 5;
+                        const slip = Math.round(car.slipstreamCharge * 5);
                         debugKey = `D${stateChar}${kmh}${slip}`;
                     }
 
@@ -829,7 +829,7 @@
             metrics.camera = performance.now() - lastCheck;
             lastCheck = performance.now();
 
-            updateMinimap();
+            if (frameCount % 3 === 0) updateMinimap();
             metrics.minimap = performance.now() - lastCheck;
             lastCheck = performance.now();
 

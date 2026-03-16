@@ -4,40 +4,36 @@ const CAR_MODEL_PATH = 'models/';
 const OBJ_FILE = 'Low_Poly_City_Cars.obj';
 const MTL_FILE = 'Low_Poly_City_Cars.mtl';
 
-// OBJ: バス(10-12)とPlaneを除外した9車種
+// 複数車OBJ: 3車種（Low_Poly_City_Cars.obj から抽出）
 const OBJ_CAR_NAMES = [
-    'CAR_01', 'CAR_02', 'CAR_03',       // ハッチバック
-    'Car_04', 'Car_05', 'Car_06',        // SUV
-    'Car_07', 'Car_08', 'Car_09',        // セダン
+    'Car_07', 'Car_08', 'Car_09',
 ];
 
 // 単体OBJ: 1ファイル1車種
 const SINGLE_OBJ_CARS = [
-    { obj: 'RedCar.obj', mtl: 'RedCar.mtl', name: 'OBJ_RedCar', bodyColor: 0xCC0404, rotationY: 0 },  // 赤いローポリ車
+    { obj: 'RedCar.obj',      mtl: 'RedCar.mtl',      name: 'OBJ_RedCar',     bodyColor: 0xCC0404, rotationY: 0 },
+    { obj: 'NormalCar1.obj',   mtl: 'NormalCar1.mtl',   name: 'OBJ_NormalCar',  bodyColor: 0x476EA3, rotationY: Math.PI },
+    { obj: 'Cop.obj',          mtl: 'Cop.mtl',          name: 'OBJ_PoliceCar',  bodyColor: 0x8C8C8C, rotationY: Math.PI },
+    { obj: 'SportsCar.obj',    mtl: 'SportsCar.mtl',    name: 'OBJ_SportsCar',  bodyColor: 0xE05520, rotationY: Math.PI },
+    { obj: 'Taxi.obj',         mtl: 'Taxi.mtl',         name: 'OBJ_Taxi',       bodyColor: 0xA37713, rotationY: Math.PI },
 ];
 
 // FBX: 追加車種
 const FBX_CARS = [
-    { file: 'car_1.fbx', name: 'FBX_car_1', bodyColor: 0xFF6633, texture: 'tex/Car Texture 1.png' },  // レーシングカー（オレンジ）
-    { file: 'car_2.fbx', name: 'FBX_car_2', bodyColor: 0x4466AA, texture: 'tex/Car Texture 2.png' },  // パトカー（ブルーグレー）
+    { file: 'car_1.fbx',   name: 'FBX_car_1',  bodyColor: 0xFF6633, texture: 'tex/Car Texture 1.png' },  // レーシングカー
+    { file: 'car_2.fbx',   name: 'FBX_car_2',  bodyColor: 0x4466AA, texture: 'tex/Car Texture 2.png' },  // パトカー
+    { file: 'Car2.fbx',    name: 'FBX_Car2',   bodyColor: 0x3366AA, fixRotation: 'car2' },                // ローポリカー
+    { file: 'Truckk.fbx',  name: 'FBX_Truck',  bodyColor: 0x888888, fixRotation: 'truckk' },              // トラック
 ];
 
-// 各車の代表ボディカラー（テクスチャの主要色）
+// 複数車OBJ内の各車の代表ボディカラー
 const CAR_BODY_COLORS = {
-    'CAR_01': 0xFF4477,  // ピンク
-    'CAR_02': 0x2288FF,  // ブルー
-    'CAR_03': 0x44FFCC,  // シアン
-    'Car_04': 0xFFCC00,  // イエロー
-    'Car_05': 0x0088FF,  // ブルー
-    'Car_06': 0xCCFFFF,  // ライトブルー
-    'Car_07': 0xFFBB00,  // イエロー
-    'Car_08': 0xBB44FF,  // パープル
-    'Car_09': 0x44FFCC,  // シアン
+    'Car_07': 0xFFBB00,
+    'Car_08': 0xBB44FF,
+    'Car_09': 0x44FFCC,
 };
 
-// ゲーム内での車の目標サイズ（長さ方向）
 const TARGET_CAR_LENGTH = 5.0;
-
 const _cache = new Map();
 let _loaded = false;
 
@@ -48,7 +44,7 @@ function log(message) {
 /**
  * モデルを正規化してキャッシュに追加する共通処理
  */
-function normalizeAndCache(child, name, bodyColor, rotationY) {
+function normalizeAndCache(child, name, bodyColor, rotationY, extraRotations) {
     const box = new THREE.Box3().setFromObject(child);
     const size = new THREE.Vector3();
     box.getSize(size);
@@ -71,11 +67,12 @@ function normalizeAndCache(child, name, bodyColor, rotationY) {
     child.scale.multiplyScalar(scale);
 
     // 車の向きをゲーム座標に合わせるための回転
-    if (rotationY !== 0) {
-        child.rotation.y = rotationY;
+    if (rotationY) child.rotation.y = rotationY;
+    if (extraRotations) {
+        if (extraRotations.x) child.rotation.x = extraRotations.x;
+        if (extraRotations.z) child.rotation.z = extraRotations.z;
     }
 
-    // グループでラップ
     const wrapper = new THREE.Group();
     wrapper.add(child);
     wrapper.userData.carName = name;
@@ -86,7 +83,7 @@ function normalizeAndCache(child, name, bodyColor, rotationY) {
 }
 
 /**
- * OBJモデルをロード
+ * 複数車OBJモデルをロード（Low_Poly_City_Cars.obj）
  */
 function loadOBJ() {
     return new Promise((resolve, reject) => {
@@ -94,7 +91,6 @@ function loadOBJ() {
         mtlLoader.setPath(CAR_MODEL_PATH);
         mtlLoader.load(MTL_FILE, (materials) => {
             materials.preload();
-            log('OBJ MTLロード完了');
 
             const objLoader = new THREE.OBJLoader();
             objLoader.setMaterials(materials);
@@ -102,23 +98,13 @@ function loadOBJ() {
             objLoader.load(OBJ_FILE, (object) => {
                 const children = [...object.children];
                 for (const child of children) {
-                    const name = child.name;
-                    if (name === 'Plane') continue;
-                    if (name === 'Car_10' || name === 'Car_11' || name === 'Car_12') continue;
-                    if (!OBJ_CAR_NAMES.includes(name)) continue;
-
-                    normalizeAndCache(child, name, CAR_BODY_COLORS[name] || 0xCCCCCC, Math.PI / 2);
+                    if (!OBJ_CAR_NAMES.includes(child.name)) continue;
+                    normalizeAndCache(child, child.name, CAR_BODY_COLORS[child.name] || 0xCCCCCC, Math.PI / 2);
                 }
-                log(`OBJロード完了: ${_cache.size}車種`);
+                log(`複数車OBJロード完了: ${_cache.size}車種`);
                 resolve();
-            }, null, (error) => {
-                log(`OBJロードエラー: ${error}`);
-                reject(error);
-            });
-        }, null, (error) => {
-            log(`MTLロードエラー: ${error}`);
-            reject(error);
-        });
+            }, null, (error) => { reject(error); });
+        }, null, (error) => { reject(error); });
     });
 }
 
@@ -135,17 +121,12 @@ function loadSingleOBJ(carDef) {
             objLoader.setMaterials(materials);
             objLoader.setPath(CAR_MODEL_PATH);
             objLoader.load(carDef.obj, (object) => {
-                normalizeAndCache(object, carDef.name, carDef.bodyColor, carDef.rotationY !== undefined ? carDef.rotationY : Math.PI / 2);
+                const rotY = carDef.rotationY !== undefined ? carDef.rotationY : Math.PI / 2;
+                normalizeAndCache(object, carDef.name, carDef.bodyColor, rotY, { x: carDef.rotationX, z: carDef.rotationZ });
                 log(`単体OBJロード完了: ${carDef.name}`);
                 resolve();
-            }, null, (error) => {
-                log(`単体OBJロードエラー(${carDef.obj}): ${error}`);
-                reject(error);
-            });
-        }, null, (error) => {
-            log(`単体OBJ MTLロードエラー(${carDef.mtl}): ${error}`);
-            reject(error);
-        });
+            }, null, (error) => { reject(error); });
+        }, null, (error) => { reject(error); });
     });
 }
 
@@ -158,25 +139,29 @@ function loadFBX(carDef) {
         const textureLoader = new THREE.TextureLoader();
 
         loader.load(CAR_MODEL_PATH + carDef.file, (object) => {
-            // テクスチャを手動適用
-            const texture = textureLoader.load(CAR_MODEL_PATH + carDef.texture);
-            texture.encoding = THREE.sRGBEncoding;
-            object.traverse((obj) => {
-                if (obj.isMesh) {
-                    obj.material = new THREE.MeshPhongMaterial({
-                        map: texture,
-                        shininess: 80,
-                        specular: 0x333333,
-                    });
-                }
-            });
+            // テクスチャがある場合は手動適用
+            if (carDef.texture) {
+                const texture = textureLoader.load(CAR_MODEL_PATH + carDef.texture);
+                texture.encoding = THREE.sRGBEncoding;
+                object.traverse((obj) => {
+                    if (obj.isMesh) {
+                        obj.material = new THREE.MeshPhongMaterial({ map: texture, shininess: 80, specular: 0x333333 });
+                    }
+                });
+            }
 
-            // FBXLoaderの座標変換を適用してからジオメトリに焼き込む
+            // FBXLoaderの座標変換をジオメトリに焼き込み + 向き補正
             object.updateMatrixWorld(true);
-            // 向き補正: X軸+90度 + Z軸+90度
-            const fixRotation = new THREE.Matrix4()
-                .makeRotationX(Math.PI / 2)
-                .multiply(new THREE.Matrix4().makeRotationZ(Math.PI / 2));
+            let fixRotation;
+            if (carDef.fixRotation === 'truckk') {
+                fixRotation = new THREE.Matrix4().makeRotationY(-Math.PI / 2);
+            } else if (carDef.fixRotation === 'car2') {
+                fixRotation = new THREE.Matrix4().makeRotationY(Math.PI);
+            } else {
+                fixRotation = new THREE.Matrix4()
+                    .makeRotationX(Math.PI / 2)
+                    .multiply(new THREE.Matrix4().makeRotationZ(Math.PI / 2));
+            }
             object.traverse((obj) => {
                 if (obj.isMesh && obj.geometry) {
                     obj.geometry.applyMatrix4(obj.matrixWorld);
@@ -194,22 +179,17 @@ function loadFBX(carDef) {
             normalizeAndCache(object, carDef.name, carDef.bodyColor, 0);
             log(`FBXロード完了: ${carDef.name}`);
             resolve();
-        }, null, (error) => {
-            log(`FBXロードエラー(${carDef.file}): ${error}`);
-            reject(error);
-        });
+        }, null, (error) => { reject(error); });
     });
 }
 
 /**
- * 全モデルをプリロード
+ * 全モデルをプリロード（OBJ・単体OBJ・FBXを並列ロード）
  */
 async function preload() {
     if (_loaded) return;
-
     log('モデルのプリロード開始');
 
-    // OBJとFBXを並列ロード
     const tasks = [
         loadOBJ().catch(e => { log(`OBJロード失敗: ${e}`); }),
         ...SINGLE_OBJ_CARS.map(car =>
@@ -221,7 +201,6 @@ async function preload() {
     ];
 
     await Promise.all(tasks);
-
     _loaded = true;
     log(`プリロード完了: ${_cache.size}車種キャッシュ`);
 }
@@ -236,18 +215,13 @@ function getCarModel() {
     const randomName = names[Math.floor(Math.random() * names.length)];
     const original = _cache.get(randomName);
 
-    const cloned = original.clone();
-
     return {
-        model: cloned,
+        model: original.clone(),
         bodyColor: original.userData.bodyColor,
         carName: randomName,
     };
 }
 
-/**
- * ロード済みかどうか
- */
 function isLoaded() {
     return _loaded;
 }

@@ -47,11 +47,11 @@ export const GAP = {
 // ターボブースト定数
 export const TURBO = {
     DURATION: 300,
-    INITIAL_MULT: 1.20,
-    DECAY: 0.05,
-    MAX_SPEED_RATIO: 1.20,
-    RAMP_UP: 10,
-    SLIPSTREAM_BONUS: 0.15,
+    INITIAL_MULT: 1.10,
+    DECAY: 0.03,
+    MAX_SPEED_RATIO: 1.12,
+    RAMP_UP: 20,
+    SLIPSTREAM_BONUS: 0.10,
 };
 
 // ライン戦略定数

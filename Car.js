@@ -70,10 +70,10 @@ export class Car {
       this.drivingStyle = this.generateDrivingStyle();
 
       // スペックに基づいて速度制限を設定
-      this.MIN_SPEED = 0.15 * this.specs.acceleration;
+      this.MIN_SPEED = 0.22 * this.specs.acceleration;
       this.MAX_SPEED = 0.4 * this.specs.topSpeed;
-      this.ACCELERATION_RATE = 0.007 * this.specs.acceleration;
-      this.DECELERATION_RATE = 0.014 * this.specs.handling;
+      this.ACCELERATION_RATE = 0.002 * this.specs.acceleration;
+      this.DECELERATION_RATE = 0.004 * this.specs.handling;
 
       // 追い抜き関連
       this.overtakeDirection = 0;
@@ -318,7 +318,7 @@ export class Car {
 
       const effectiveCurvature = Math.max(currentCurvature, upcomingCurvature);
       const maxCurveAngle = 0.3;
-      const curvatureToSpeedRatio = 0.8 * (1 / this.specs.grip);
+      const curvatureToSpeedRatio = 0.55 * (1 / this.specs.grip);
       const cornerAggression = this.drivingStyle.cornerEntryAggression * 0.15;
       const brakingAdjustment = this.drivingStyle.brakingTiming * 0.1;
       const normalizedCurvature = Math.min(1.0, effectiveCurvature / maxCurveAngle);
@@ -334,7 +334,7 @@ export class Car {
           this.speed = Math.min(this.targetSpeed,
               this.speed + (this.ACCELERATION_RATE * (1 + accelerationBoost)));
       } else if (this.speed > this.targetSpeed) {
-          const brakingForce = this.DECELERATION_RATE * (1 + normalizedCurvature * 1.5);
+          const brakingForce = this.DECELERATION_RATE * (1 + normalizedCurvature * 0.8);
           this.speed = Math.max(this.targetSpeed, this.speed - brakingForce);
       }
   }

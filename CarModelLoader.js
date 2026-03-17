@@ -36,6 +36,7 @@ const CAR_BODY_COLORS = {
 const TARGET_CAR_LENGTH = 5.0;
 const _cache = new Map();
 let _loaded = false;
+let _pickQueue = [];  // 未選択の車種キュー（全車種を一巡してからシャッフルし直す）
 
 function log(message) {
     console.log(`[${new Date().toISOString()}] [CarModelLoader] ${message}`);
@@ -206,19 +207,28 @@ async function preload() {
 }
 
 /**
- * キャッシュからランダムな車種のcloneを返す
+ * キャッシュからなるべくダブりなく車種を選んでcloneを返す
+ * 全車種を一巡してからシャッフルし直す
  */
 function getCarModel() {
     if (!_loaded || _cache.size === 0) return null;
 
-    const names = Array.from(_cache.keys());
-    const randomName = names[Math.floor(Math.random() * names.length)];
-    const original = _cache.get(randomName);
+    // キューが空になったらシャッフルして補充
+    if (_pickQueue.length === 0) {
+        _pickQueue = Array.from(_cache.keys());
+        for (let i = _pickQueue.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [_pickQueue[i], _pickQueue[j]] = [_pickQueue[j], _pickQueue[i]];
+        }
+    }
+
+    const name = _pickQueue.pop();
+    const original = _cache.get(name);
 
     return {
         model: original.clone(),
         bodyColor: original.userData.bodyColor,
-        carName: randomName,
+        carName: name,
     };
 }
 

@@ -17,7 +17,6 @@ export class RaceManager {
         this.raceStartTime = 0;
         this.active = false;
         this.autoCameraInterval = null;
-        this.autoCameraMode = false;
         this.playerCarIndex = 15;
         this.lastPlayerRank = 16;
         this._positionNotifyTimer = null;
@@ -38,7 +37,6 @@ export class RaceManager {
         this._cachedRanked = null;
         this.fastestLap = { time: Infinity, car: null };
         this.lastPlayerRank = 16;
-        this.autoCameraMode = false;
 
         // Hide normal info (except time/weather), show race UI
         const infoChildren = document.getElementById('info').children;
@@ -98,7 +96,6 @@ export class RaceManager {
 
         // Show config UI
         document.getElementById('race-config').style.display = 'block';
-        this.updateAutoCameraButton();
 
         if (ctx.updateCarPreview) ctx.updateCarPreview();
     }
@@ -168,9 +165,7 @@ export class RaceManager {
         if (ctx.stopCarPreview) ctx.stopCarPreview();
 
         // プレイヤーカー固定カメラ
-        this.autoCameraMode = false;
         ctx.currentCarIndex = this.playerCarIndex;
-        this.updateAutoCameraButton();
 
         setTimeout(() => this.startCountdown(), 500);
     }
@@ -249,9 +244,8 @@ export class RaceManager {
                 data.lastPosition = car.position;
             }
 
-            if (this.autoCameraMode) {
-                this.startAutoCamera();
-            }
+            // 時間モードに応じてカメラ自動切替を同期
+            this.syncAutoCamera();
         }, 3000);
     }
 
@@ -297,6 +291,9 @@ export class RaceManager {
             car.raceRank = i + 1;
             car.totalCars = ctx.cars.length;
         });
+
+        // 時間モードに応じてカメラ自動切替を同期
+        this.syncAutoCamera();
 
         // プレイヤーカーの順位変動検出
         this.updatePlayerPositionEffects();
@@ -472,11 +469,20 @@ export class RaceManager {
         ctx.currentCarIndex = 0;
     }
 
+    syncAutoCamera() {
+        const shouldAuto = ctx.timeModeState.shouldAutoSwitch();
+        if (shouldAuto && !this.autoCameraInterval) {
+            this.startAutoCamera();
+        } else if (!shouldAuto && this.autoCameraInterval) {
+            this.stopAutoCamera();
+            ctx.currentCarIndex = this.playerCarIndex;
+        }
+    }
+
     startAutoCamera() {
         this.stopAutoCamera();
-        this.autoCameraMode = true;
         this.autoCameraInterval = setInterval(() => {
-            if (!this.autoCameraMode || this.phase !== 'racing') return;
+            if (this.phase !== 'racing') return;
             const ranked = this.getRankedCars();
             const topN = Math.min(5, ranked.length);
             const idx = Math.random() < 0.7
@@ -494,31 +500,6 @@ export class RaceManager {
         if (this.autoCameraInterval) {
             clearInterval(this.autoCameraInterval);
             this.autoCameraInterval = null;
-        }
-    }
-
-    toggleAutoCamera() {
-        this.autoCameraMode = !this.autoCameraMode;
-        if (this.autoCameraMode && this.phase === 'racing') {
-            this.startAutoCamera();
-        } else {
-            this.stopAutoCamera();
-            // Auto解除時はプレイヤーカーに戻す
-            ctx.currentCarIndex = this.playerCarIndex;
-        }
-        this.updateAutoCameraButton();
-    }
-
-    updateAutoCameraButton() {
-        const btn = document.getElementById('race-auto-camera');
-        if (btn) {
-            if (this.autoCameraMode) {
-                btn.classList.add('active');
-                btn.textContent = 'Auto';
-            } else {
-                btn.classList.remove('active');
-                btn.textContent = 'Manual';
-            }
         }
     }
 

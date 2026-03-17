@@ -253,13 +253,6 @@
             width: 130px;
             box-sizing: border-box;
         }
-        #race-bottom-bar {
-            display: flex;
-            flex-direction: column;
-            gap: 3px;
-            margin-top: 3px;
-            width: 130px;
-        }
         #race-position-board table {
             width: 100%;
             border-collapse: collapse;
@@ -458,24 +451,6 @@
             z-index: 5;
             transition: box-shadow 0.5s;
         }
-        .race-auto-btn {
-            box-sizing: border-box;
-            background-color: rgba(0, 0, 0, 0.5);
-            color: white;
-            border: 1px solid white;
-            border-radius: 5px;
-            padding: 3px 6px;
-            font-size: 11px;
-            cursor: pointer;
-            text-align: center;
-            width: 100%;
-        }
-        .race-auto-btn.active {
-            background-color: rgba(100, 100, 255, 0.7);
-        }
-        .race-auto-btn:hover {
-            background-color: rgba(50, 50, 50, 0.7);
-        }
         #race-position-board {
             pointer-events: auto;
         }
@@ -489,9 +464,6 @@
             }
             #race-position-board {
                 font-size: 10px;
-                width: 104px;
-            }
-            #race-bottom-bar {
                 width: 104px;
             }
             #race-countdown {
@@ -553,9 +525,6 @@
     </div>
     <div id="race-ui" style="display:none;">
         <div id="race-position-board"></div>
-        <div id="race-bottom-bar">
-            <button id="race-auto-camera" class="race-auto-btn active" title="カメラ自動切替">Auto</button>
-        </div>
     </div>
     <div id="race-config" style="display:none;">
         <div id="car-preview-container">
@@ -987,11 +956,11 @@
                     if (!car._debugLabel) {
                         const canvas = document.createElement('canvas');
                         canvas.width = 256;
-                        canvas.height = 96;
+                        canvas.height = 128;
                         const texture = new THREE.CanvasTexture(canvas);
                         const material = new THREE.SpriteMaterial({ map: texture, depthTest: false });
                         const sprite = new THREE.Sprite(material);
-                        sprite.scale.set(10, 3.75, 1);
+                        sprite.scale.set(8, 4, 1);
                         scene.add(sprite);
                         car._debugLabel = sprite;
                         car._debugCanvas = canvas;
@@ -1004,11 +973,10 @@
                         const ranked = raceManager._cachedRanked || raceManager.getRankedCars();
                         const rank = ranked.findIndex(([c]) => c === car) + 1 || car.raceRank || 0;
                         const isPlayer = raceManager.isPlayerCar(car);
-                        const isFocused = car._index === ctx.currentCarIndex && !raceManager.isPlayerCar(car);
                         const stateChar = car.isOvertaking && !car.isReturning ? 'P' : car.isReturning ? 'R' : car.isTandemFollowing ? 'T' : 'N';
                         const kmh = Math.round(car.speed * SPEED_TO_KMH / 5) * 5;
                         const slip = Math.round(car.slipstreamCharge * 5);
-                        debugKey = `R${rank}${ctx.debugMode?1:0}${stateChar}${kmh}${slip}${isPlayer?1:0}${isFocused?1:0}`;
+                        debugKey = `R${rank}${ctx.debugMode?1:0}${stateChar}${kmh}${slip}${isPlayer?1:0}`;
                     } else if (ctx.debugMode) {
                         const stateChar = car.isOvertaking && !car.isReturning ? 'P' : car.isReturning ? 'R' : car.isTandemFollowing ? 'T' : 'N';
                         const kmh = Math.round(car.speed * SPEED_TO_KMH / 5) * 5;
@@ -1019,24 +987,70 @@
                     if (debugKey !== car._lastDebugKey) {
                         car._lastDebugKey = debugKey;
                         const dCtx = car._debugCanvas.getContext('2d');
-                        dCtx.clearRect(0, 0, 256, 96);
+                        dCtx.clearRect(0, 0, 256, 128);
 
                         if (raceManager?.active) {
                             const ranked = raceManager._cachedRanked || raceManager.getRankedCars();
                             const rank = ranked.findIndex(([c]) => c === car) + 1 || car.raceRank || 0;
                             const isPlayer = raceManager.isPlayerCar(car);
-                            const isFocused = car._index === ctx.currentCarIndex && !raceManager.isPlayerCar(car);
-                            dCtx.font = 'bold 44px sans-serif';
-                            dCtx.textAlign = 'center';
-                            dCtx.fillStyle = rank <= 3 ? '#ffdd00' : '#ffffff';
-                            dCtx.fillText('P' + rank, 128, ctx.debugMode ? 36 : 48);
-                            if (ctx.debugMode) {
-                                drawDebugInfo(dCtx, car, 56, 62);
+                            const name = car.driverName || '';
+
+                            // 順位に応じた色テーマ
+                            let bgColor, textColor, accentColor;
+                            if (isPlayer) {
+                                bgColor = 'rgba(255, 185, 0, 0.85)';
+                                textColor = '#1a1a1a';
+                                accentColor = '#fff';
+                            } else if (rank === 1) {
+                                bgColor = 'rgba(255, 215, 0, 0.75)';
+                                textColor = '#1a1a1a';
+                                accentColor = '#fff8dc';
+                            } else if (rank <= 3) {
+                                bgColor = 'rgba(200, 200, 210, 0.7)';
+                                textColor = '#1a1a1a';
+                                accentColor = '#e8e8ee';
+                            } else {
+                                bgColor = 'rgba(30, 30, 40, 0.65)';
+                                textColor = '#e0e0e0';
+                                accentColor = '#888';
                             }
-                            if (isPlayer || isFocused) {
-                                dCtx.font = 'bold 18px sans-serif';
-                                dCtx.fillStyle = isPlayer ? '#ffd700' : '#ff8800';
-                                dCtx.fillText('\u2605', 128, ctx.debugMode ? 82 : 70);
+
+                            const cx = 128;
+                            const baseY = ctx.debugMode ? 12 : 24;
+
+                            // 背景ピル（角丸長方形）
+                            const pillW = 120, pillH = 48, pillR = 14;
+                            const pillX = cx - pillW / 2, pillY = baseY;
+                            dCtx.beginPath();
+                            dCtx.moveTo(pillX + pillR, pillY);
+                            dCtx.lineTo(pillX + pillW - pillR, pillY);
+                            dCtx.arcTo(pillX + pillW, pillY, pillX + pillW, pillY + pillR, pillR);
+                            dCtx.lineTo(pillX + pillW, pillY + pillH - pillR);
+                            dCtx.arcTo(pillX + pillW, pillY + pillH, pillX + pillW - pillR, pillY + pillH, pillR);
+                            dCtx.lineTo(pillX + pillR, pillY + pillH);
+                            dCtx.arcTo(pillX, pillY + pillH, pillX, pillY + pillH - pillR, pillR);
+                            dCtx.lineTo(pillX, pillY + pillR);
+                            dCtx.arcTo(pillX, pillY, pillX + pillR, pillY, pillR);
+                            dCtx.closePath();
+                            dCtx.fillStyle = bgColor;
+                            dCtx.fill();
+
+                            // 順位番号（大きく左寄せ）
+                            dCtx.font = 'bold 36px "Helvetica Neue", Helvetica, sans-serif';
+                            dCtx.textAlign = 'right';
+                            dCtx.fillStyle = textColor;
+                            dCtx.fillText('' + rank, cx - 4, baseY + 38);
+
+                            // ドライバー名（右側に小さく）
+                            dCtx.font = '600 16px "Helvetica Neue", Helvetica, sans-serif';
+                            dCtx.textAlign = 'left';
+                            dCtx.fillStyle = textColor;
+                            dCtx.globalAlpha = 0.8;
+                            dCtx.fillText(name, cx + 4, baseY + 36);
+                            dCtx.globalAlpha = 1.0;
+
+                            if (ctx.debugMode) {
+                                drawDebugInfo(dCtx, car, baseY + 66, baseY + 72);
                             }
                         } else if (ctx.debugMode) {
                             drawDebugInfo(dCtx, car, 36, 42);
@@ -1136,9 +1150,7 @@
                 const idx = parseInt(row.getAttribute('data-car-index'));
                 if (!isNaN(idx)) {
                     ctx.currentCarIndex = idx;
-                    raceManager.autoCameraMode = false;
                     raceManager.stopAutoCamera();
-                    raceManager.updateAutoCameraButton();
                 }
             }
         });
@@ -1244,11 +1256,6 @@
                 }
             });
 
-            document.getElementById('race-auto-camera').addEventListener('click', () => {
-                if (raceManager.active) {
-                    raceManager.toggleAutoCamera();
-                }
-            });
 
             document.getElementById('race-results').addEventListener('click', (e) => {
                 const btn = e.target.closest('button');

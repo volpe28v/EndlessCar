@@ -252,6 +252,22 @@ export const AVOIDANCE = {
     OVERTAKE_DAMPING: 0.6,
 };
 
+// パフォーマンスプリセット（プレイヤーカー用）
+export const SPEC_PRESETS = {
+    speed:    { topSpeed: { min: 1.1, max: 1.2 }, acceleration: { min: 0.7, max: 0.9 }, handling: { min: 0.8, max: 1.0 }, grip: { min: 0.8, max: 1.0 } },
+    accel:    { topSpeed: { min: 0.8, max: 1.0 }, acceleration: { min: 1.1, max: 1.3 }, handling: { min: 0.9, max: 1.1 }, grip: { min: 0.9, max: 1.1 } },
+    balanced: { topSpeed: { min: 0.9, max: 1.1 }, acceleration: { min: 0.9, max: 1.1 }, handling: { min: 0.9, max: 1.1 }, grip: { min: 0.9, max: 1.1 } },
+    handling: { topSpeed: { min: 0.9, max: 1.0 }, acceleration: { min: 0.8, max: 1.0 }, handling: { min: 1.0, max: 1.2 }, grip: { min: 1.0, max: 1.2 } },
+};
+
+// ドライビングスタイルプリセット（プレイヤーカー用）
+export const STYLE_PRESETS = {
+    aggressive: { cornerEntry: { min: 0.7, max: 1.0 }, cornerExit: { min: 0.7, max: 1.0 }, braking: { min: 0.6, max: 1.0 }, patience: { min: 0.0, max: 0.3 }, drift: true },
+    balanced:   { cornerEntry: { min: 0.3, max: 0.7 }, cornerExit: { min: 0.3, max: 0.7 }, braking: { min: 0.3, max: 0.7 }, patience: { min: 0.3, max: 0.7 }, drift: true },
+    technical:  { cornerEntry: { min: 0.2, max: 0.5 }, cornerExit: { min: 0.5, max: 0.8 }, braking: { min: 0.1, max: 0.4 }, patience: { min: 0.5, max: 1.0 }, drift: true },
+    smooth:     { cornerEntry: { min: 0.6, max: 0.9 }, cornerExit: { min: 0.4, max: 0.7 }, braking: { min: 0.4, max: 0.8 }, patience: { min: 0.2, max: 0.5 }, drift: true },
+};
+
 // 追い抜き定数
 export const OVERTAKE = {
     DISTANCE: 40.0,

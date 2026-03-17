@@ -146,6 +146,39 @@ export class Car {
       return style;
   }
 
+  applyCustomConfig(specPreset, stylePreset, lineStrategy) {
+      const randomInRange = (min, max) => min + Math.random() * (max - min);
+
+      // スペックプリセット適用
+      if (specPreset && C.SPEC_PRESETS[specPreset]) {
+          const preset = C.SPEC_PRESETS[specPreset];
+          this.specs.topSpeed = randomInRange(preset.topSpeed.min, preset.topSpeed.max);
+          this.specs.acceleration = randomInRange(preset.acceleration.min, preset.acceleration.max);
+          this.specs.handling = randomInRange(preset.handling.min, preset.handling.max);
+          this.specs.grip = randomInRange(preset.grip.min, preset.grip.max);
+
+          this.MIN_SPEED = 0.22 * this.specs.acceleration;
+          this.MAX_SPEED = 0.4 * this.specs.topSpeed;
+          this.ACCELERATION_RATE = 0.002 * this.specs.acceleration;
+          this.DECELERATION_RATE = 0.004 * this.specs.handling;
+      }
+
+      // スタイルプリセット適用
+      if (stylePreset && C.STYLE_PRESETS[stylePreset]) {
+          const preset = C.STYLE_PRESETS[stylePreset];
+          this.drivingStyle.cornerEntryAggression = randomInRange(preset.cornerEntry.min, preset.cornerEntry.max);
+          this.drivingStyle.cornerExitAggression = randomInRange(preset.cornerExit.min, preset.cornerExit.max);
+          this.drivingStyle.brakingTiming = randomInRange(preset.braking.min, preset.braking.max);
+          this.drivingStyle.tandemPatience = randomInRange(preset.patience.min, preset.patience.max);
+          this.drivingStyle.useDrift = preset.drift;
+      }
+
+      // ライン戦略適用
+      if (lineStrategy && C.LINE_STRATEGY[lineStrategy]) {
+          this.drivingStyle.lineStrategy = lineStrategy;
+      }
+  }
+
   createDetailedCar() {
       return buildCarModel(this);
   }

@@ -2,6 +2,7 @@
 import { ctx } from './GameContext.js';
 import { updateButtonActiveState } from './CameraSystem.js';
 import { SPEED_TO_KMH } from './CarConstants.js';
+import { Car } from './Car.js';
 
 function log(message) {
     console.log(`[${new Date().toISOString()}] ${message}`);
@@ -16,12 +17,18 @@ export class RaceManager {
         this.raceStartTime = 0;
         this.active = false;
         this.autoCameraInterval = null;
-        this.autoCameraMode = true;
-        this.predictedCar = null;
+        this.autoCameraMode = false;
+        this.playerCarIndex = 15;
+        this.lastPlayerRank = 16;
+        this._positionNotifyTimer = null;
     }
 
     get isActive() {
         return this.active;
+    }
+
+    getPlayerCar() {
+        return ctx.cars[this.playerCarIndex] || null;
     }
 
     startRace() {
@@ -30,9 +37,14 @@ export class RaceManager {
         this.carData.clear();
         this._cachedRanked = null;
         this.fastestLap = { time: Infinity, car: null };
+        this.lastPlayerRank = 16;
+        this.autoCameraMode = false;
 
-        // Hide normal info, show race UI
-        document.getElementById('info').style.display = 'none';
+        // Hide normal info (except time/weather), show race UI
+        const infoChildren = document.getElementById('info').children;
+        for (const child of infoChildren) {
+            if (child.id !== 'timeWeatherInfo') child.style.display = 'none';
+        }
         document.getElementById('race-ui').style.display = 'block';
         document.getElementById('race-results').style.display = 'none';
 
@@ -74,17 +86,92 @@ export class RaceManager {
             car.totalCars = ctx.cars.length;
         });
 
-        // Focus camera on last car (最後尾)
-        ctx.currentCarIndex = ctx.cars.length - 1;
-        this.predictedCar = null;
+        // プレイヤーカー（最後尾）の設定
+        this.playerCarIndex = ctx.cars.length - 1;
+        const playerCar = this.getPlayerCar();
+        if (playerCar) {
+            playerCar.driverName = 'YOU';
+        }
 
-        // Show prediction UI
-        document.getElementById('race-predict').style.display = 'block';
+        // Focus camera on player car (最後尾)
+        ctx.currentCarIndex = this.playerCarIndex;
+
+        // Show config UI
+        document.getElementById('race-config').style.display = 'block';
+        this.updateAutoCameraButton();
+
+        if (ctx.updateCarPreview) ctx.updateCarPreview();
     }
 
-    confirmPrediction() {
-        this.predictedCar = ctx.cars[ctx.currentCarIndex];
-        document.getElementById('race-predict').style.display = 'none';
+    changePlayerCar() {
+        if (this.phase !== 'grid') return;
+
+        const idx = this.playerCarIndex;
+        const oldCar = ctx.cars[idx];
+        if (!oldCar) return;
+
+        // 旧車の位置・回転を保存
+        const pos = oldCar.object.position.clone();
+        const quat = oldCar.object.quaternion.clone();
+        const pathPos = oldCar.position;
+        const gridOffset = oldCar.gridLateralOffset;
+
+        // デバッグラベルを削除
+        if (oldCar._debugLabel) {
+            ctx.scene.remove(oldCar._debugLabel);
+            oldCar._debugLabel = null;
+        }
+
+        // 旧車を破棄
+        oldCar.dispose(ctx.scene);
+
+        // 新車を生成
+        const newCar = new Car(ctx.carPath);
+        newCar.position = pathPos;
+        newCar._index = idx;
+        newCar.createObject(ctx.scene);
+        newCar.object.position.copy(pos);
+        newCar.object.quaternion.copy(quat);
+        newCar.gridLateralOffset = gridOffset;
+        newCar.frozen = true;
+        newCar.driverName = 'YOU';
+
+        // 配列を更新
+        ctx.cars[idx] = newCar;
+
+        // otherCars を全車再設定
+        for (let i = 0; i < ctx.cars.length; i++) {
+            ctx.cars[i].setOtherCars(ctx.cars.filter((_, j) => j !== i));
+        }
+
+        // carData を引き継ぎ
+        const oldData = this.carData.get(oldCar);
+        this.carData.delete(oldCar);
+        this.carData.set(newCar, oldData);
+
+        // 順位を引き継ぎ
+        newCar.raceRank = oldCar.raceRank;
+        newCar.totalCars = ctx.cars.length;
+
+        ctx.currentCarIndex = idx;
+
+        if (ctx.updateCarPreview) ctx.updateCarPreview();
+    }
+
+    confirmConfig(config) {
+        const playerCar = this.getPlayerCar();
+        if (playerCar && config) {
+            playerCar.applyCustomConfig(config.spec, config.style, config.lineStrategy);
+        }
+
+        document.getElementById('race-config').style.display = 'none';
+        if (ctx.stopCarPreview) ctx.stopCarPreview();
+
+        // プレイヤーカー固定カメラ
+        this.autoCameraMode = false;
+        ctx.currentCarIndex = this.playerCarIndex;
+        this.updateAutoCameraButton();
+
         setTimeout(() => this.startCountdown(), 500);
     }
 
@@ -211,8 +298,55 @@ export class RaceManager {
             car.totalCars = ctx.cars.length;
         });
 
+        // プレイヤーカーの順位変動検出
+        this.updatePlayerPositionEffects();
+
         if (allFinished || this.getFinishedCount() >= ctx.cars.length) {
             this.finishRace();
+        }
+    }
+
+    updatePlayerPositionEffects() {
+        const playerCar = this.getPlayerCar();
+        if (!playerCar) return;
+
+        const currentRank = playerCar.raceRank;
+
+        // 順位変動通知
+        if (currentRank !== this.lastPlayerRank && this.lastPlayerRank > 0) {
+            const notify = document.getElementById('position-notify');
+            if (notify) {
+                const isUp = currentRank < this.lastPlayerRank;
+                const arrow = isUp ? '\u25b2' : '\u25bc';
+                const ordinal = (n) => n + (['st','nd','rd'][((n+90)%100-10)%10-1] || 'th');
+                notify.textContent = `${arrow} ${ordinal(this.lastPlayerRank)} \u2192 ${ordinal(currentRank)}`;
+                notify.style.color = isUp ? '#44ff44' : '#ff4444';
+                notify.style.display = 'block';
+                notify.style.opacity = '1';
+
+                if (this._positionNotifyTimer) clearTimeout(this._positionNotifyTimer);
+                this._positionNotifyTimer = setTimeout(() => {
+                    notify.style.opacity = '0';
+                    setTimeout(() => { notify.style.display = 'none'; }, 500);
+                }, 2000);
+            }
+        }
+        this.lastPlayerRank = currentRank;
+
+        // ビネットエフェクト
+        const vignette = document.getElementById('position-vignette');
+        if (vignette) {
+            if (currentRank === 1) {
+                vignette.style.boxShadow = 'inset 0 0 100px rgba(255,215,0,0.3)';
+            } else if (currentRank <= 3) {
+                vignette.style.boxShadow = 'inset 0 0 100px rgba(192,192,192,0.2)';
+            } else if (currentRank <= 10) {
+                vignette.style.boxShadow = 'none';
+            } else if (currentRank <= 14) {
+                vignette.style.boxShadow = 'inset 0 0 100px rgba(255,165,0,0.15)';
+            } else {
+                vignette.style.boxShadow = 'inset 0 0 100px rgba(255,0,0,0.25)';
+            }
         }
     }
 
@@ -240,19 +374,19 @@ export class RaceManager {
 
         const ranked = this._cachedRanked || this.getRankedCars();
         const board = document.getElementById('race-position-board');
+        const playerCar = this.getPlayerCar();
 
         let html = '<table><tr><th>P</th><th>Car</th><th>Lap</th></tr>';
 
         ranked.forEach(([car, data], i) => {
             const pos = i + 1;
-            const colorHex = '#' + (car.bodyColor || 0xffffff).toString(16).padStart(6, '0');
             const isCurrent = car._index === ctx.currentCarIndex;
+            const isPlayer = (playerCar === car);
 
-            const isPredicted = (this.predictedCar === car);
-            const classes = [isCurrent ? 'current-car' : '', isPredicted ? 'predicted-car' : ''].filter(Boolean).join(' ');
+            const classes = [isCurrent ? 'current-car' : '', isPlayer ? 'player-car' : ''].filter(Boolean).join(' ');
             const rowAttr = classes ? ` class="${classes}"` : '';
 
-            html += `<tr${rowAttr} data-car-index="${car._index}" style="cursor:pointer;"><td>${pos}</td><td><span style="color:${colorHex};">■</span> ${car.driverName || ''}</td><td>${data.laps}/${this.totalLaps}</td></tr>`;
+            html += `<tr${rowAttr} data-car-index="${car._index}" style="cursor:pointer;"><td>${pos}</td><td>${car.driverName || ''}</td><td>${data.laps}/${this.totalLaps}</td></tr>`;
         });
 
         html += '</table>';
@@ -278,19 +412,27 @@ export class RaceManager {
             car.frozen = true;
         }
 
+        // ビネットをクリア
+        const vignette = document.getElementById('position-vignette');
+        if (vignette) vignette.style.boxShadow = 'none';
+
+        const notify = document.getElementById('position-notify');
+        if (notify) notify.style.display = 'none';
+
         const results = document.getElementById('race-results');
         const ranked = this.getRankedCars();
+        const playerCar = this.getPlayerCar();
 
         let html = '<h2>RACE RESULTS</h2>';
         html += '<table><tr><th>Pos</th><th>Car</th><th>Time</th></tr>';
 
         ranked.forEach(([car, data], i) => {
             const pos = i + 1;
-            const colorHex = '#' + (car.bodyColor || 0xffffff).toString(16).padStart(6, '0');
             const time = data.finished ? this.formatTime(data.finishTime) : `DNF (${data.laps}L)`;
 
-            const resPredictClass = (this.predictedCar === car) ? ' class="predicted-car"' : '';
-            html += `<tr${resPredictClass}><td>${pos}</td><td><span style="color:${colorHex};">■</span> ${car.driverName || ''}</td><td>${time}</td></tr>`;
+            const isPlayer = (playerCar === car);
+            const resClass = isPlayer ? ' class="player-car"' : '';
+            html += `<tr${resClass}><td>${pos}</td><td>${car.driverName || ''}</td><td>${time}</td></tr>`;
         });
 
         html += '</table>';
@@ -311,9 +453,17 @@ export class RaceManager {
         document.getElementById('race-ui').style.display = 'none';
         document.getElementById('race-results').style.display = 'none';
         document.getElementById('race-countdown').style.display = 'none';
-        document.getElementById('race-predict').style.display = 'none';
+        document.getElementById('race-config').style.display = 'none';
 
-        document.getElementById('info').style.display = 'block';
+        const vignette = document.getElementById('position-vignette');
+        if (vignette) vignette.style.boxShadow = 'none';
+        const notify = document.getElementById('position-notify');
+        if (notify) notify.style.display = 'none';
+
+        const infoChildren = document.getElementById('info').children;
+        for (const child of infoChildren) {
+            child.style.display = '';
+        }
 
         for (const car of ctx.cars) {
             car.frozen = false;
@@ -353,6 +503,8 @@ export class RaceManager {
             this.startAutoCamera();
         } else {
             this.stopAutoCamera();
+            // Auto解除時はプレイヤーカーに戻す
+            ctx.currentCarIndex = this.playerCarIndex;
         }
         this.updateAutoCameraButton();
     }
@@ -368,5 +520,9 @@ export class RaceManager {
                 btn.textContent = 'Manual';
             }
         }
+    }
+
+    isPlayerCar(car) {
+        return car === this.getPlayerCar();
     }
 }

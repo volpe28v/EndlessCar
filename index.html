@@ -337,37 +337,126 @@
         #race-results .result-buttons button:hover {
             background-color: rgba(130, 130, 255, 0.9);
         }
-        #race-predict {
+        #race-config {
             position: fixed;
             bottom: 60px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 1000;
             text-align: center;
-            background-color: rgba(0, 0, 0, 0.7);
+            background-color: rgba(0, 0, 0, 0.8);
             color: white;
-            padding: 12px 24px;
-            border-radius: 8px;
+            padding: 16px 24px;
+            border-radius: 10px;
             font-family: 'Helvetica', sans-serif;
+            min-width: 320px;
         }
-        #race-predict-text {
-            font-size: 16px;
+        #car-preview-container {
+            text-align: center;
             margin-bottom: 8px;
         }
-        #race-predict-confirm {
+        #car-preview {
+            width: 180px;
+            height: 120px;
+            border-radius: 6px;
+            background-color: rgba(40, 40, 40, 0.8);
+        }
+        #car-preview-name {
+            font-size: 11px;
+            color: #aaa;
+            margin-top: 2px;
+        }
+        #race-config-title {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            letter-spacing: 2px;
+        }
+        .config-section {
+            margin-bottom: 10px;
+        }
+        .config-label {
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 4px;
+            text-align: left;
+        }
+        .config-options {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .config-btn {
+            background-color: rgba(60, 60, 60, 0.8);
+            color: #ccc;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 5px;
+            padding: 6px 10px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex: 1;
+            min-width: 60px;
+        }
+        .config-btn:hover {
+            background-color: rgba(80, 80, 80, 0.9);
+            border-color: rgba(255, 255, 255, 0.6);
+        }
+        .config-btn.active {
             background-color: rgba(100, 100, 255, 0.7);
+            color: white;
+            border-color: rgba(130, 130, 255, 1);
+        }
+        .config-change-car {
+            text-align: center;
+        }
+        .change-car-btn {
+            flex: none !important;
+            min-width: 120px !important;
+            padding: 6px 16px !important;
+            border-style: dashed !important;
+        }
+        #race-config-confirm {
+            margin-top: 12px;
+            background-color: rgba(50, 200, 50, 0.7);
             color: white;
             border: 1px solid white;
             border-radius: 5px;
-            padding: 8px 20px;
-            font-size: 14px;
+            padding: 10px 30px;
+            font-size: 16px;
+            font-weight: bold;
             cursor: pointer;
+            letter-spacing: 1px;
+            transition: background-color 0.3s;
         }
-        #race-predict-confirm:hover {
-            background-color: rgba(130, 130, 255, 0.9);
+        #race-config-confirm:hover {
+            background-color: rgba(70, 230, 70, 0.9);
         }
-        tr.predicted-car td {
-            color: #ffdd00;
+        tr.player-car td {
+            color: #ffd700;
+        }
+        tr.player-car {
+            border-left: 2px solid #ffd700;
+        }
+        #position-notify {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 999;
+            font-size: 28px;
+            font-weight: bold;
+            font-family: 'Helvetica', sans-serif;
+            text-shadow: 0 0 10px rgba(0,0,0,0.8);
+            transition: opacity 0.5s;
+            pointer-events: none;
+        }
+        #position-vignette {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+            z-index: 5;
+            transition: box-shadow 0.5s;
         }
         .race-auto-btn {
             box-sizing: border-box;
@@ -468,10 +557,46 @@
             <button id="race-auto-camera" class="race-auto-btn active" title="カメラ自動切替">Auto</button>
         </div>
     </div>
-    <div id="race-predict" style="display:none;">
-        <div id="race-predict-text">TAB / クリックで優勝予想を選択</div>
-        <button id="race-predict-confirm">この車に決定!</button>
+    <div id="race-config" style="display:none;">
+        <div id="car-preview-container">
+            <canvas id="car-preview"></canvas>
+            <div id="car-preview-name"></div>
+        </div>
+        <div id="race-config-title">CAR SETUP</div>
+        <div class="config-section">
+            <div class="config-label">Tuning</div>
+            <div class="config-options" id="config-spec">
+                <button data-value="speed" class="config-btn">Speed</button>
+                <button data-value="accel" class="config-btn">Accel</button>
+                <button data-value="balanced" class="config-btn active">Balance</button>
+                <button data-value="handling" class="config-btn">Handling</button>
+            </div>
+        </div>
+        <div class="config-section">
+            <div class="config-label">Style</div>
+            <div class="config-options" id="config-style">
+                <button data-value="aggressive" class="config-btn">Aggressive</button>
+                <button data-value="balanced" class="config-btn active">Balanced</button>
+                <button data-value="technical" class="config-btn">Technical</button>
+                <button data-value="smooth" class="config-btn">Smooth</button>
+            </div>
+        </div>
+        <div class="config-section">
+            <div class="config-label">Line</div>
+            <div class="config-options" id="config-line">
+                <button data-value="OUT_IN_OUT" class="config-btn active">Out-In-Out</button>
+                <button data-value="LATE_APEX" class="config-btn">Late Apex</button>
+                <button data-value="IN_IN_IN" class="config-btn">In-In-In</button>
+                <button data-value="WIDE_ENTRY" class="config-btn">Wide Entry</button>
+            </div>
+        </div>
+        <div class="config-section config-change-car">
+            <button id="race-change-car" class="config-btn change-car-btn">Change Car</button>
+        </div>
+        <button id="race-config-confirm">START RACE</button>
     </div>
+    <div id="position-notify" style="display:none;"></div>
+    <div id="position-vignette"></div>
     <div id="race-countdown" style="display:none;"></div>
     <div id="race-results" style="display:none;"></div>
     <script type="module">
@@ -699,23 +824,128 @@
                 const dir = car._frameFwd;
                 const angle = Math.atan2(dir.z, dir.x) + Math.PI/2;
 
+                let carColor = 'white';
+                let markerScale = 1;
+                if (raceManager?.active && raceManager.isPlayerCar(car)) {
+                    carColor = '#ffd700';
+                    markerScale = 1.4;
+                } else if (i === ctx.currentCarIndex) {
+                    carColor = 'red';
+                } else if (car.isTandemFollowing) {
+                    carColor = '#00ffff';
+                } else if (car.isOvertaking) {
+                    carColor = '#ff8800';
+                }
+
                 mmCtx.save();
                 mmCtx.translate(x, y);
                 mmCtx.rotate(angle);
+                mmCtx.scale(markerScale, markerScale);
                 mmCtx.beginPath();
                 mmCtx.moveTo(0, -5);
                 mmCtx.lineTo(-3, 3);
                 mmCtx.lineTo(3, 3);
                 mmCtx.closePath();
-                let carColor = 'white';
-                if (i === ctx.currentCarIndex) carColor = 'red';
-                else if (car.isTandemFollowing) carColor = '#00ffff';
-                else if (car.isOvertaking) carColor = '#ff8800';
                 mmCtx.fillStyle = carColor;
                 mmCtx.fill();
                 mmCtx.restore();
             }
         }
+
+        // === 車プレビュー ===
+        let previewRenderer = null;
+        let previewScene = null;
+        let previewCamera = null;
+        let previewModel = null;
+        let previewAnimId = null;
+
+        function initCarPreview() {
+            const canvas = document.getElementById('car-preview');
+            if (!previewRenderer) {
+                previewRenderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+                previewRenderer.setPixelRatio(window.devicePixelRatio);
+                previewRenderer.setSize(180, 120);
+                previewRenderer.setClearColor(0x282828, 1);
+            }
+            if (!previewScene) {
+                previewScene = new THREE.Scene();
+                const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+                previewScene.add(ambient);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                dirLight.position.set(2, 3, 2);
+                previewScene.add(dirLight);
+            }
+            if (!previewCamera) {
+                previewCamera = new THREE.PerspectiveCamera(40, 180 / 120, 0.1, 100);
+                previewCamera.position.set(4, 3, 5);
+                previewCamera.lookAt(0, 0.5, 0);
+            }
+        }
+
+        function updateCarPreview() {
+            const playerCar = raceManager.getPlayerCar();
+            if (!playerCar || !playerCar.object) return;
+
+            initCarPreview();
+
+            // 旧モデルを除去
+            if (previewModel) {
+                previewScene.remove(previewModel);
+                previewModel = null;
+            }
+
+            // プレイヤーカーのモデルを clone
+            previewModel = playerCar.object.clone();
+            previewModel.position.set(0, 0, 0);
+            previewModel.rotation.set(0, 0, 0);
+            previewModel.quaternion.identity();
+
+            // モデルのバウンディングボックスでフィット
+            const box = new THREE.Box3().setFromObject(previewModel);
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+            previewModel.position.sub(center);
+            previewModel.position.y += size.y * 0.3;
+
+            // 少し斜めに回転
+            previewModel.rotation.y = Math.PI * 0.25;
+
+            previewScene.add(previewModel);
+
+            // 車名表示
+            const nameEl = document.getElementById('car-preview-name');
+            if (nameEl) {
+                nameEl.textContent = playerCar.driverName || '';
+            }
+
+            // プレビューアニメ開始
+            startPreviewAnimation();
+        }
+
+        function startPreviewAnimation() {
+            stopPreviewAnimation();
+            let angle = Math.PI * 0.25;
+            function renderPreview() {
+                previewAnimId = requestAnimationFrame(renderPreview);
+                if (previewModel) {
+                    angle += 0.008;
+                    previewModel.rotation.y = angle;
+                }
+                previewRenderer.render(previewScene, previewCamera);
+            }
+            renderPreview();
+        }
+
+        function stopPreviewAnimation() {
+            if (previewAnimId) {
+                cancelAnimationFrame(previewAnimId);
+                previewAnimId = null;
+            }
+        }
+
+        // ctx にプレビュー更新を公開
+        ctx.updateCarPreview = updateCarPreview;
+        ctx.stopCarPreview = stopPreviewAnimation;
 
         // === アニメーションループ ===
         let frameCount = 0;
@@ -773,12 +1003,12 @@
                     if (raceManager?.active) {
                         const ranked = raceManager._cachedRanked || raceManager.getRankedCars();
                         const rank = ranked.findIndex(([c]) => c === car) + 1 || car.raceRank || 0;
-                        const isPredicted = raceManager.predictedCar === car;
-                        const isFocused = !raceManager.predictedCar && car._index === ctx.currentCarIndex;
+                        const isPlayer = raceManager.isPlayerCar(car);
+                        const isFocused = car._index === ctx.currentCarIndex && !raceManager.isPlayerCar(car);
                         const stateChar = car.isOvertaking && !car.isReturning ? 'P' : car.isReturning ? 'R' : car.isTandemFollowing ? 'T' : 'N';
                         const kmh = Math.round(car.speed * SPEED_TO_KMH / 5) * 5;
                         const slip = Math.round(car.slipstreamCharge * 5);
-                        debugKey = `R${rank}${ctx.debugMode?1:0}${stateChar}${kmh}${slip}${isPredicted?1:0}${isFocused?1:0}`;
+                        debugKey = `R${rank}${ctx.debugMode?1:0}${stateChar}${kmh}${slip}${isPlayer?1:0}${isFocused?1:0}`;
                     } else if (ctx.debugMode) {
                         const stateChar = car.isOvertaking && !car.isReturning ? 'P' : car.isReturning ? 'R' : car.isTandemFollowing ? 'T' : 'N';
                         const kmh = Math.round(car.speed * SPEED_TO_KMH / 5) * 5;
@@ -794,8 +1024,8 @@
                         if (raceManager?.active) {
                             const ranked = raceManager._cachedRanked || raceManager.getRankedCars();
                             const rank = ranked.findIndex(([c]) => c === car) + 1 || car.raceRank || 0;
-                            const isPredicted = raceManager.predictedCar === car;
-                            const isFocused = !raceManager.predictedCar && car._index === ctx.currentCarIndex;
+                            const isPlayer = raceManager.isPlayerCar(car);
+                            const isFocused = car._index === ctx.currentCarIndex && !raceManager.isPlayerCar(car);
                             dCtx.font = 'bold 44px sans-serif';
                             dCtx.textAlign = 'center';
                             dCtx.fillStyle = rank <= 3 ? '#ffdd00' : '#ffffff';
@@ -803,9 +1033,9 @@
                             if (ctx.debugMode) {
                                 drawDebugInfo(dCtx, car, 56, 62);
                             }
-                            if (isPredicted || isFocused) {
+                            if (isPlayer || isFocused) {
                                 dCtx.font = 'bold 18px sans-serif';
-                                dCtx.fillStyle = isFocused ? '#ff8800' : '#ffdd00';
+                                dCtx.fillStyle = isPlayer ? '#ffd700' : '#ff8800';
                                 dCtx.fillText('\u2605', 128, ctx.debugMode ? 82 : 70);
                             }
                         } else if (ctx.debugMode) {
@@ -874,6 +1104,13 @@
                 case '3': ctx.cameraMode = 2; updateButtonActiveState(); break;
                 case '4': ctx.cameraMode = 3; updateButtonActiveState(); break;
                 case '5': ctx.cameraMode = 4; updateButtonActiveState(); break;
+                case 'ArrowLeft':
+                case 'ArrowRight':
+                    if (raceManager.active && raceManager.phase === 'grid') {
+                        event.preventDefault();
+                        raceManager.changePlayerCar();
+                    }
+                    break;
                 case 'd':
                 case 'D':
                     ctx.debugMode = !ctx.debugMode;
@@ -982,9 +1219,28 @@
                 }
             });
 
-            document.getElementById('race-predict-confirm').addEventListener('click', () => {
+            // Config UI ボタンのクリックで同グループ内の active を切り替え
+            document.querySelectorAll('.config-options').forEach(group => {
+                group.addEventListener('click', (e) => {
+                    const btn = e.target.closest('.config-btn');
+                    if (!btn) return;
+                    group.querySelectorAll('.config-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                });
+            });
+
+            document.getElementById('race-change-car').addEventListener('click', () => {
                 if (raceManager.active && raceManager.phase === 'grid') {
-                    raceManager.confirmPrediction();
+                    raceManager.changePlayerCar();
+                }
+            });
+
+            document.getElementById('race-config-confirm').addEventListener('click', () => {
+                if (raceManager.active && raceManager.phase === 'grid') {
+                    const spec = document.querySelector('#config-spec .config-btn.active')?.dataset.value || 'balanced';
+                    const style = document.querySelector('#config-style .config-btn.active')?.dataset.value || 'balanced';
+                    const lineStrategy = document.querySelector('#config-line .config-btn.active')?.dataset.value || 'OUT_IN_OUT';
+                    raceManager.confirmConfig({ spec, style, lineStrategy });
                 }
             });
 

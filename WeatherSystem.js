@@ -384,21 +384,39 @@ function initWeatherSystem() {
     ctx.weatherSystem.createRainParticles();
     ctx.weatherSystem.createCloudParticles();
     ctx.timeModeState.initWeather();
+
+    // 10分ごとに天気情報を再取得
+    setInterval(() => {
+        if (ctx.timeModeState && ctx.timeModeState.shouldShowWeatherText(true)) {
+            log('定期天気更新を実行');
+            fetchCurrentWeather();
+        }
+    }, 10 * 60 * 1000);
 }
 
 // 現在位置の天気を取得する関数
 async function fetchCurrentWeather() {
     try {
-        // 現在位置を取得
-        const position = await new Promise((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, {
-                timeout: 10000,
-                maximumAge: 0
-            });
-        });
+        let lat, lon;
 
-        const lat = position.coords.latitude;
-        const lon = position.coords.longitude;
+        try {
+            // Geolocation API で現在位置を取得
+            const position = await new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    timeout: 5000,
+                    maximumAge: 0
+                });
+            });
+            lat = position.coords.latitude;
+            lon = position.coords.longitude;
+        } catch (geoError) {
+            // フォールバック: IPベースの位置情報
+            log(`Geolocation API 失敗、IPベースにフォールバック: ${geoError.message}`);
+            const geoResp = await fetch('https://ipapi.co/json/');
+            const geoData = await geoResp.json();
+            lat = geoData.latitude;
+            lon = geoData.longitude;
+        }
 
         log(`現在位置を取得しました: 緯度 ${lat}, 経度 ${lon}`);
 

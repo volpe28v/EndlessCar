@@ -732,18 +732,27 @@
             canvasCtx.fillText('' + kmh, cx, textY);
             canvasCtx.textAlign = 'center';
 
+            // 座標・パス位置表示
+            const pos = car.object ? car.object.position : null;
+            if (pos) {
+                const coordText = `t=${car.position.toFixed(3)} (${Math.round(pos.x)}, ${Math.round(pos.z)})`;
+                canvasCtx.font = 'bold 14px sans-serif';
+                canvasCtx.fillStyle = '#88ffaa';
+                canvasCtx.fillText(coordText, 128, textY + 16);
+            }
+
             const slip = car.slipstreamCharge;
             if (slip > 0) {
                 const barX = 60, barW = 136, barH = 8;
                 canvasCtx.fillStyle = 'rgba(255,255,255,0.2)';
-                canvasCtx.fillRect(barX, barY, barW, barH);
+                canvasCtx.fillRect(barX, barY + 16, barW, barH);
                 const r = Math.floor(255 * slip);
                 const g = Math.floor(255 * (1 - slip * 0.5));
                 canvasCtx.fillStyle = `rgb(${r},${g},0)`;
-                canvasCtx.fillRect(barX, barY, barW * slip, barH);
+                canvasCtx.fillRect(barX, barY + 16, barW * slip, barH);
                 canvasCtx.strokeStyle = 'rgba(255,255,255,0.5)';
                 canvasCtx.lineWidth = 1;
-                canvasCtx.strokeRect(barX, barY, barW, barH);
+                canvasCtx.strokeRect(barX, barY + 16, barW, barH);
             }
         }
 
@@ -982,7 +991,10 @@
                         const stateChar = car.isOvertaking && !car.isReturning ? 'P' : car.isReturning ? 'R' : car.isTandemFollowing ? 'T' : 'N';
                         const kmh = Math.round(car.speed * SPEED_TO_KMH / 5) * 5;
                         const slip = Math.round(car.slipstreamCharge * 5);
-                        debugKey = `D${stateChar}${kmh}${slip}`;
+                        const pos = car.object ? car.object.position : null;
+                        const px = pos ? Math.round(pos.x) : 0;
+                        const pz = pos ? Math.round(pos.z) : 0;
+                        debugKey = `D${stateChar}${kmh}${slip}${px},${pz}`;
                     }
 
                     if (debugKey !== car._lastDebugKey) {

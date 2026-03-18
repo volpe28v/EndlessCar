@@ -21,6 +21,9 @@ export function placeEnvironmentObjects() {
     // スタートアーチを配置
     createStartArch();
 
+    // 観客席を配置
+    createGrandstand();
+
     log("環境オブジェクトの配置完了");
 }
 
@@ -693,4 +696,116 @@ function createStartArch() {
     }
 
     log("スタートアーチ作成完了");
+}
+
+// 観客席（グランドスタンド）を作成 — t=0〜0.06 付近のストレート沿い
+function createGrandstand() {
+    const standGroup = new THREE.Group();
+    ctx.roadGroup.add(standGroup);
+
+    // マテリアル
+    const concreteMat = new THREE.MeshPhongMaterial({ color: 0xBBBBBB, shininess: 15 });
+    const seatBlueMat = new THREE.MeshPhongMaterial({ color: 0x2255AA, shininess: 20 });
+    const seatRedMat = new THREE.MeshPhongMaterial({ color: 0xCC2222, shininess: 20 });
+    const roofMat = new THREE.MeshPhongMaterial({ color: 0xDDDDDD, shininess: 30, side: THREE.DoubleSide });
+    const frameMat = new THREE.MeshPhongMaterial({ color: 0x666666, shininess: 40 });
+
+    // 観客席の配置範囲: t=0.01〜0.055（ストレート沿い）
+    const startT = 0.01;
+    const endT = 0.055;
+    const sides = [1, -1]; // 両側に配置
+    sides.forEach(side => {
+    const standOffset = ctx.roadWidth / 2 + 5; // 道路端からの距離
+    const standDepth = 12; // 観客席の奥行き
+    const tiers = 5; // 段数
+    const tierHeight = 1.8; // 各段の高さ
+    const tierDepth = standDepth / tiers;
+
+    // ストレートに沿ってセグメント化して配置
+    const segments = 8;
+    const segLen = (endT - startT) / segments;
+
+    for (let seg = 0; seg < segments; seg++) {
+        const t = startT + segLen * (seg + 0.5);
+        const point = ctx.carPath.getPointAt(t);
+        const tangent = ctx.carPath.getTangentAt(t);
+        const fwd = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
+        const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+        const q = new THREE.Quaternion();
+        q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), fwd);
+
+        // 基準位置（道路の右側外側）
+        const baseX = point.x + right.x * side * standOffset;
+        const baseZ = point.z + right.z * side * standOffset;
+        const baseY = point.y;
+
+        // 階段状の座席を段ごとに生成
+        for (let tier = 0; tier < tiers; tier++) {
+            const offsetDist = standOffset + tier * tierDepth;
+            const tierX = point.x + right.x * side * offsetDist;
+            const tierZ = point.z + right.z * side * offsetDist;
+            const tierY = baseY + tier * tierHeight;
+
+            // 座席の幅（コース沿い方向の長さ）
+            const seatWidth = ctx.carPath.getPointAt(startT + segLen * seg)
+                .distanceTo(ctx.carPath.getPointAt(startT + segLen * (seg + 1))) * 0.95;
+
+            // コンクリート土台
+            const platformGeo = new THREE.BoxGeometry(tierDepth * 0.9, 0.3, seatWidth);
+            const platform = new THREE.Mesh(platformGeo, concreteMat);
+            platform.position.set(tierX, tierY, tierZ);
+            platform.quaternion.copy(q);
+            standGroup.add(platform);
+
+            // 座席（交互に青・赤）
+            const seatMat = (seg + tier) % 2 === 0 ? seatBlueMat : seatRedMat;
+            const seatGeo = new THREE.BoxGeometry(tierDepth * 0.5, 0.8, seatWidth);
+            const seat = new THREE.Mesh(seatGeo, seatMat);
+            seat.position.set(
+                tierX + right.x * side * tierDepth * 0.15,
+                tierY + 0.55,
+                tierZ + right.z * side * tierDepth * 0.15
+            );
+            seat.quaternion.copy(q);
+            standGroup.add(seat);
+        }
+
+        // 最上段の屋根（2セグメントに1つ）
+        if (seg % 2 === 0) {
+            const roofT = startT + segLen * (seg + 1);
+            const roofPoint = ctx.carPath.getPointAt(Math.min(roofT, endT));
+            const topTier = tiers - 1;
+            const roofOffsetDist = standOffset + topTier * tierDepth + tierDepth * 0.5;
+            const roofX = point.x + right.x * side * (roofOffsetDist - tierDepth);
+            const roofZ = point.z + right.z * side * (roofOffsetDist - tierDepth);
+            const roofY = baseY + tiers * tierHeight + 1.5;
+
+            const roofWidth = ctx.carPath.getPointAt(startT + segLen * seg)
+                .distanceTo(ctx.carPath.getPointAt(startT + segLen * Math.min(seg + 2, segments))) * 0.95;
+
+            // 屋根パネル
+            const roofGeo = new THREE.BoxGeometry(standDepth + 2, 0.15, roofWidth);
+            const roof = new THREE.Mesh(roofGeo, roofMat);
+            roof.position.set(roofX, roofY, roofZ);
+            roof.quaternion.copy(q);
+            standGroup.add(roof);
+
+            // 屋根を支える柱（前後2本）
+            [-1, 1].forEach(pSide => {
+                const pillarGeo = new THREE.CylinderGeometry(0.2, 0.2, tiers * tierHeight + 2, 6);
+                const pillar = new THREE.Mesh(pillarGeo, frameMat);
+                const pillarOffsetDist = standOffset + (pSide > 0 ? topTier * tierDepth : 0);
+                pillar.position.set(
+                    point.x + right.x * side * pillarOffsetDist,
+                    baseY + (tiers * tierHeight + 2) / 2,
+                    point.z + right.z * side * pillarOffsetDist
+                );
+                standGroup.add(pillar);
+            });
+        }
+    }
+
+    }); // sides.forEach
+
+    log("観客席作成完了");
 }

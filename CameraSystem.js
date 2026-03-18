@@ -65,6 +65,26 @@ export function updateCamera() {
             ctx.camera.updateProjectionMatrix();
             break;
         }
+        case 5: { // ヘリコプター周回（フォーカス車追従）
+            if (!ctx.camera.userData.heliAngle) {
+                ctx.camera.userData.heliAngle = 0;
+            }
+            ctx.camera.userData.heliAngle += 0.001;
+            const a = ctx.camera.userData.heliAngle;
+            const carPos = currentCar.object.position;
+            const radius = 200;
+            const height = 250;
+            const heliPos = new THREE.Vector3(
+                carPos.x + Math.cos(a) * radius,
+                height,
+                carPos.z + Math.sin(a) * radius
+            );
+            ctx.camera.position.lerp(heliPos, 0.02);
+            ctx.camera.lookAt(new THREE.Vector3(carPos.x, -250, carPos.z));
+            ctx.camera.fov = 95;
+            ctx.camera.updateProjectionMatrix();
+            break;
+        }
     }
 }
 

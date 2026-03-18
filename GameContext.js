@@ -36,7 +36,7 @@ export const ctx = {
     // オート切替用
     lastCameraChangeTime: 0,
     cameraChangeInterval: 30000,
-    availableCameraModes: [0, 1, 2, 3, 4],
+    availableCameraModes: [0, 1, 2, 3, 4, 5],
     lastCarChangeTime: 0,
     carChangeInterval: 20000,
     // フレーム

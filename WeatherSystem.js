@@ -128,7 +128,7 @@ class WeatherSystem {
 
         for (let i = 0; i < cloudCount * 3; i += 3) {
             cloudPositions[i] = Math.random() * 3000 - 1500;
-            cloudPositions[i+1] = 300 + Math.random() * 500;
+            cloudPositions[i+1] = 500 + Math.random() * 500;
             cloudPositions[i+2] = Math.random() * 3000 - 1500;
             cloudSizes[i/3] = 20.0 + Math.random() * 30.0;
         }

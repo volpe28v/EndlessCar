@@ -104,8 +104,8 @@ function createRockFormations() {
 
                 // 高さの計算
                 let h = point.y;
-                // 海岸区間判定（t=0.34〜0.40、左側=side:-1）
-                const isSeaside = side === -1 && t >= 0.34 && t <= 0.40;
+                // 海岸区間判定（t=0.34〜0.43、左側=side:-1）
+                const isSeaside = side === -1 && t >= 0.34 && t <= 0.48;
                 if (r === 0) {
                     // 道路端: 道路面とほぼ同じ高さ（少し下）
                     h = point.y - 0.5;
@@ -225,81 +225,153 @@ function mergeGeos(entries) {
     return merged;
 }
 
-// モナコ風トンネルを作成（ジオメトリ結合で軽量化）
+// トンネルを作成（帯状メッシュで軽量化）
 function createTunnels() {
     const tunnelGroup = new THREE.Group();
     ctx.roadGroup.add(tunnelGroup);
 
     const tunnelSections = [
-        { start: 0.12, length: 0.06 },
+        { start: 0.05, length: 0.06 },
         { start: 0.50, length: 0.08 },
     ];
 
     const tunnelHeight = 7.0;
     const tunnelWidth = ctx.roadWidth + 4;
-    const wallThickness = 0.8;
-    const segmentSpacing = 0.004;
+    const segments = 40;
 
-    function fwdQuat(fwd) {
-        const q = new THREE.Quaternion();
-        q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), fwd);
-        return q;
-    }
+    const wallMat = new THREE.MeshPhongMaterial({ color: 0x888888, shininess: 20, specular: 0x222222, side: THREE.DoubleSide });
+    const ceilingMat = new THREE.MeshPhongMaterial({ color: 0x666666, shininess: 10, side: THREE.DoubleSide });
+    const lightMat = new THREE.MeshPhongMaterial({ color: 0xFFFFDD, emissive: 0xFFFFDD, emissiveIntensity: 0.8 });
+    const stripeMat = new THREE.MeshPhongMaterial({ color: 0xFFAA00, emissive: 0xFFAA00, emissiveIntensity: 0.3 });
+    const archMat = new THREE.MeshPhongMaterial({ color: 0x555555, shininess: 15 });
 
     for (const section of tunnelSections) {
-        const wallEntries = [];
-        const ceilEntries = [];
-        const lightEntries = [];
-        const stripeEntries = [];
+        // 両側の壁（帯状メッシュ）
+        [-1, 1].forEach(side => {
+            const verts = [];
+            const idx = [];
+            const wallDist = tunnelWidth / 2 + 0.4;
 
-        const segLen = 6.0;
-        const wallGeo = new THREE.BoxGeometry(wallThickness, tunnelHeight, segLen);
-        const ceilGeo = new THREE.BoxGeometry(tunnelWidth + wallThickness * 2, 0.6, segLen);
-        const lightGeo = new THREE.BoxGeometry(0.3, 0.08, 6.0);
-        const stripeGeo = new THREE.BoxGeometry(0.15, 0.15, 6.0);
+            for (let i = 0; i <= segments; i++) {
+                const t = (section.start + section.length * (i / segments)) % 1;
+                const p = ctx.carPath.getPointAt(t);
+                const tg = ctx.carPath.getTangentAt(t);
+                const r = new THREE.Vector3(-tg.z, 0, tg.x).normalize();
 
-        for (let t = section.start; t < section.start + section.length; t += segmentSpacing) {
-            const point = ctx.carPath.getPointAt(t % 1);
-            const tangent = ctx.carPath.getTangentAt(t % 1);
-            const fwd = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
-            const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
-            const q = fwdQuat(fwd);
+                const x = p.x + r.x * side * wallDist;
+                const z = p.z + r.z * side * wallDist;
 
-            wallEntries.push({ geo: wallGeo, pos: new THREE.Vector3(
-                point.x - right.x * (tunnelWidth / 2 + wallThickness / 2),
-                point.y + tunnelHeight / 2,
-                point.z - right.z * (tunnelWidth / 2 + wallThickness / 2)
-            ), quat: q });
-            wallEntries.push({ geo: wallGeo, pos: new THREE.Vector3(
-                point.x + right.x * (tunnelWidth / 2 + wallThickness / 2),
-                point.y + tunnelHeight / 2,
-                point.z + right.z * (tunnelWidth / 2 + wallThickness / 2)
-            ), quat: q });
-            ceilEntries.push({ geo: ceilGeo, pos: new THREE.Vector3(
-                point.x, point.y + tunnelHeight + 0.3, point.z
-            ), quat: q });
-            lightEntries.push({ geo: lightGeo, pos: new THREE.Vector3(
-                point.x, point.y + tunnelHeight - 0.1, point.z
-            ), quat: q });
-            [-1, 1].forEach(side => {
-                stripeEntries.push({ geo: stripeGeo, pos: new THREE.Vector3(
-                    point.x + right.x * side * (tunnelWidth / 2 - 0.2),
-                    point.y + 1.5,
-                    point.z + right.z * side * (tunnelWidth / 2 - 0.2)
-                ), quat: q });
-            });
+                verts.push(x, p.y - 0.5, z);
+                verts.push(x, p.y + tunnelHeight, z);
+
+                if (i < segments) {
+                    const base = i * 2;
+                    idx.push(base, base + 2, base + 1);
+                    idx.push(base + 1, base + 2, base + 3);
+                }
+            }
+
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+            geo.setIndex(idx);
+            geo.computeVertexNormals();
+            tunnelGroup.add(new THREE.Mesh(geo, wallMat));
+        });
+
+        // 天井（帯状メッシュ）
+        {
+            const verts = [];
+            const idx = [];
+            const ceilDist = tunnelWidth / 2 + 0.4;
+
+            for (let i = 0; i <= segments; i++) {
+                const t = (section.start + section.length * (i / segments)) % 1;
+                const p = ctx.carPath.getPointAt(t);
+                const tg = ctx.carPath.getTangentAt(t);
+                const r = new THREE.Vector3(-tg.z, 0, tg.x).normalize();
+                const y = p.y + tunnelHeight;
+
+                verts.push(p.x - r.x * ceilDist, y, p.z - r.z * ceilDist);
+                verts.push(p.x + r.x * ceilDist, y, p.z + r.z * ceilDist);
+
+                if (i < segments) {
+                    const base = i * 2;
+                    idx.push(base, base + 2, base + 1);
+                    idx.push(base + 1, base + 2, base + 3);
+                }
+            }
+
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+            geo.setIndex(idx);
+            geo.computeVertexNormals();
+            tunnelGroup.add(new THREE.Mesh(geo, ceilingMat));
         }
 
-        const wallMat = new THREE.MeshPhongMaterial({ color: 0x888888, shininess: 20, specular: 0x222222 });
-        const ceilingMat = new THREE.MeshPhongMaterial({ color: 0x666666, shininess: 10 });
-        const lightMat = new THREE.MeshPhongMaterial({ color: 0xFFFFDD, emissive: 0xFFFFDD, emissiveIntensity: 0.8 });
-        const stripeMat = new THREE.MeshPhongMaterial({ color: 0xFFAA00, emissive: 0xFFAA00, emissiveIntensity: 0.3 });
+        // 天井の照明ライン（帯状メッシュ）
+        {
+            const verts = [];
+            const idx = [];
+            const lightHalfW = 0.15;
 
-        if (wallEntries.length) tunnelGroup.add(new THREE.Mesh(mergeGeos(wallEntries), wallMat));
-        if (ceilEntries.length) tunnelGroup.add(new THREE.Mesh(mergeGeos(ceilEntries), ceilingMat));
-        if (lightEntries.length) tunnelGroup.add(new THREE.Mesh(mergeGeos(lightEntries), lightMat));
-        if (stripeEntries.length) tunnelGroup.add(new THREE.Mesh(mergeGeos(stripeEntries), stripeMat));
+            for (let i = 0; i <= segments; i++) {
+                const t = (section.start + section.length * (i / segments)) % 1;
+                const p = ctx.carPath.getPointAt(t);
+                const tg = ctx.carPath.getTangentAt(t);
+                const r = new THREE.Vector3(-tg.z, 0, tg.x).normalize();
+                const y = p.y + tunnelHeight - 0.05;
 
+                verts.push(p.x - r.x * lightHalfW, y, p.z - r.z * lightHalfW);
+                verts.push(p.x + r.x * lightHalfW, y, p.z + r.z * lightHalfW);
+
+                if (i < segments) {
+                    const base = i * 2;
+                    idx.push(base, base + 2, base + 1);
+                    idx.push(base + 1, base + 2, base + 3);
+                }
+            }
+
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+            geo.setIndex(idx);
+            geo.computeVertexNormals();
+            tunnelGroup.add(new THREE.Mesh(geo, lightMat));
+        }
+
+        // 壁面ストライプ（帯状メッシュ）
+        [-1, 1].forEach(side => {
+            const verts = [];
+            const idx = [];
+            const stripeDist = tunnelWidth / 2 - 0.1;
+            const stripeHalfH = 0.08;
+
+            for (let i = 0; i <= segments; i++) {
+                const t = (section.start + section.length * (i / segments)) % 1;
+                const p = ctx.carPath.getPointAt(t);
+                const tg = ctx.carPath.getTangentAt(t);
+                const r = new THREE.Vector3(-tg.z, 0, tg.x).normalize();
+
+                const x = p.x + r.x * side * stripeDist;
+                const z = p.z + r.z * side * stripeDist;
+
+                verts.push(x, p.y + 1.5 - stripeHalfH, z);
+                verts.push(x, p.y + 1.5 + stripeHalfH, z);
+
+                if (i < segments) {
+                    const base = i * 2;
+                    idx.push(base, base + 2, base + 1);
+                    idx.push(base + 1, base + 2, base + 3);
+                }
+            }
+
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+            geo.setIndex(idx);
+            geo.computeVertexNormals();
+            tunnelGroup.add(new THREE.Mesh(geo, stripeMat));
+        });
+
+        // 入口・出口のポイントライト
         [section.start, (section.start + section.length) % 1].forEach(t => {
             const point = ctx.carPath.getPointAt(t);
             const pLight = new THREE.PointLight(0xFFFFCC, 3.0, 40, 1.5);
@@ -307,15 +379,16 @@ function createTunnels() {
             tunnelGroup.add(pLight);
         });
 
-        const archMat = new THREE.MeshPhongMaterial({ color: 0x555555, shininess: 15 });
+        // 入口・出口のアーチ装飾
         [section.start, (section.start + section.length) % 1].forEach(t => {
             const point = ctx.carPath.getPointAt(t);
             const tangent = ctx.carPath.getTangentAt(t);
             const fwd = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
             const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
-            const q = fwdQuat(fwd);
+            const q = new THREE.Quaternion();
+            q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), fwd);
 
-            const archTop = new THREE.Mesh(new THREE.BoxGeometry(tunnelWidth + wallThickness * 2 + 1, 1.2, 1.5), archMat);
+            const archTop = new THREE.Mesh(new THREE.BoxGeometry(tunnelWidth + 2, 1.2, 1.5), archMat);
             archTop.position.set(point.x, point.y + tunnelHeight + 0.8, point.z);
             archTop.quaternion.copy(q);
             tunnelGroup.add(archTop);
@@ -323,9 +396,9 @@ function createTunnels() {
             [-1, 1].forEach(side => {
                 const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.2, tunnelHeight + 2, 1.5), archMat);
                 pillar.position.set(
-                    point.x + right.x * side * (tunnelWidth / 2 + wallThickness),
+                    point.x + right.x * side * (tunnelWidth / 2 + 0.8),
                     point.y + tunnelHeight / 2,
-                    point.z + right.z * side * (tunnelWidth / 2 + wallThickness)
+                    point.z + right.z * side * (tunnelWidth / 2 + 0.8)
                 );
                 pillar.quaternion.copy(q);
                 tunnelGroup.add(pillar);
@@ -509,13 +582,13 @@ function createCableStayedBridges() {
     log(`斜張橋作成完了: ${bridgeSections.length}箇所`);
 }
 
-// 海岸を作成（t=0.34〜0.40 の左側に海を配置）
+// 海岸を作成（t=0.34〜0.43 の左側に海を配置）
 function createSeaside() {
     const seaGroup = new THREE.Group();
     ctx.roadGroup.add(seaGroup);
 
     const startT = 0.34;
-    const endT = 0.40;
+    const endT = 0.48;
     const side = -1; // 左側（外側）
 
     // 海面の生成（コース沿いに大きな水面を配置）

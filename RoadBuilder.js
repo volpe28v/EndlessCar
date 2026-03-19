@@ -431,7 +431,8 @@ export function createRoadPillars() {
         const tangent = ctx.carPath.getTangentAt(currentT);
 
         // 地上からの高さが1以上の場合のみ柱を設置
-        if (point.y > 1) {
+        // t=0.38〜0.44 は海岸付近でカーブがきつく道路にはみ出すためスキップ
+        if (point.y > 1 && !(currentT >= 0.38 && currentT <= 0.44)) {
             // 道路の左右に柱を設置
             createSinglePillar(point, tangent, 1);  // 右側
             createSinglePillar(point, tangent, -1); // 左側

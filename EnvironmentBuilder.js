@@ -24,6 +24,12 @@ export function placeEnvironmentObjects() {
     // 観客席を配置
     createGrandstand();
 
+    // 海岸を配置
+    createSeaside();
+
+    // 高速道路壁を配置
+    createHighwayWalls();
+
     log("環境オブジェクトの配置完了");
 }
 
@@ -98,9 +104,15 @@ function createRockFormations() {
 
                 // 高さの計算
                 let h = point.y;
+                // 海岸区間判定（t=0.34〜0.40、左側=side:-1）
+                const isSeaside = side === -1 && t >= 0.34 && t <= 0.40;
                 if (r === 0) {
                     // 道路端: 道路面とほぼ同じ高さ（少し下）
                     h = point.y - 0.5;
+                } else if (isSeaside) {
+                    // 海岸区間: 地形を海面近くまで下げる
+                    const seaLevel = point.y - 8;
+                    h = seaLevel - r * 1.5;
                 } else {
                     // ノイズで自然な起伏を生成
                     const nx = pos.x * 0.008;
@@ -117,16 +129,23 @@ function createRockFormations() {
 
                 vertices.push(pos.x, h, pos.z);
 
-                // 頂点カラー（高さに応じて岩色を変化）
-                const heightRatio = Math.min(1, Math.max(0, (h - point.y) / 35));
-                const baseColor = new THREE.Color(0x6B5B4F); // 茶褐色
-                const peakColor = new THREE.Color(0x8B7D6B); // 砂岩色
-                const darkColor = new THREE.Color(0x4A3F35); // 暗い岩色
-                const noiseColor = fractalNoise(pos.x * 0.02, pos.z * 0.02, 2, 0.5, 1.0);
-
-                const color = baseColor.clone().lerp(peakColor, heightRatio);
-                // ノイズで色に変化をつける
-                color.lerp(darkColor, noiseColor * 0.3);
+                // 頂点カラー
+                let color;
+                if (isSeaside && r >= 1) {
+                    // 海岸区間: 砂浜色
+                    const sandColor = new THREE.Color(0xC2B280);
+                    const wetSandColor = new THREE.Color(0x8B7D5E);
+                    const sandNoise = fractalNoise(pos.x * 0.03, pos.z * 0.03, 2, 0.5, 1.0);
+                    color = sandColor.clone().lerp(wetSandColor, sandNoise * 0.5);
+                } else {
+                    const heightRatio = Math.min(1, Math.max(0, (h - point.y) / 35));
+                    const baseColor = new THREE.Color(0x6B5B4F); // 茶褐色
+                    const peakColor = new THREE.Color(0x8B7D6B); // 砂岩色
+                    const darkColor = new THREE.Color(0x4A3F35); // 暗い岩色
+                    const noiseColor = fractalNoise(pos.x * 0.02, pos.z * 0.02, 2, 0.5, 1.0);
+                    color = baseColor.clone().lerp(peakColor, heightRatio);
+                    color.lerp(darkColor, noiseColor * 0.3);
+                }
                 colors.push(color.r, color.g, color.b);
             }
         }
@@ -213,6 +232,7 @@ function createTunnels() {
 
     const tunnelSections = [
         { start: 0.12, length: 0.06 },
+        { start: 0.50, length: 0.08 },
     ];
 
     const tunnelHeight = 7.0;
@@ -487,6 +507,182 @@ function createCableStayedBridges() {
     }
 
     log(`斜張橋作成完了: ${bridgeSections.length}箇所`);
+}
+
+// 海岸を作成（t=0.34〜0.40 の左側に海を配置）
+function createSeaside() {
+    const seaGroup = new THREE.Group();
+    ctx.roadGroup.add(seaGroup);
+
+    const startT = 0.34;
+    const endT = 0.40;
+    const side = -1; // 左側（外側）
+
+    // 海面の生成（コース沿いに大きな水面を配置）
+    const seaSegments = 30;
+    const seaWidth = 200; // 海の幅（道路からの距離方向）
+    const seaVertices = [];
+    const seaIndices = [];
+
+    for (let i = 0; i <= seaSegments; i++) {
+        const t = startT + (endT - startT) * (i / seaSegments);
+        const point = ctx.carPath.getPointAt(t);
+        const tangent = ctx.carPath.getTangentAt(t);
+        const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+        const seaLevel = point.y - 8;
+
+        // 道路端から海方向に2点（近い端と遠い端）
+        const nearDist = ctx.roadWidth / 2 + 8;
+        const farDist = ctx.roadWidth / 2 + seaWidth;
+
+        const nearX = point.x + normal.x * side * nearDist;
+        const nearZ = point.z + normal.z * side * nearDist;
+        const farX = point.x + normal.x * side * farDist;
+        const farZ = point.z + normal.z * side * farDist;
+
+        seaVertices.push(nearX, seaLevel, nearZ);
+        seaVertices.push(farX, seaLevel, farZ);
+
+        if (i < seaSegments) {
+            const base = i * 2;
+            seaIndices.push(base, base + 2, base + 1);
+            seaIndices.push(base + 1, base + 2, base + 3);
+        }
+    }
+
+    const seaGeo = new THREE.BufferGeometry();
+    seaGeo.setAttribute('position', new THREE.Float32BufferAttribute(seaVertices, 3));
+    seaGeo.setIndex(seaIndices);
+    seaGeo.computeVertexNormals();
+
+    const seaMat = new THREE.MeshPhongMaterial({
+        color: 0x1A6B8A,
+        shininess: 150,
+        specular: 0x88CCEE,
+        transparent: true,
+        opacity: 0.75,
+        side: THREE.DoubleSide,
+    });
+    seaGroup.add(new THREE.Mesh(seaGeo, seaMat));
+
+    // 防波堤（ガードレール風のコンクリート壁）
+    const wallEntries = [];
+    const wallGeo = new THREE.BoxGeometry(0.6, 2.5, 4.0);
+    const wallMat = new THREE.MeshPhongMaterial({ color: 0xBBBBBB, shininess: 20 });
+    const wallSpacing = 0.003;
+
+    for (let t = startT; t <= endT; t += wallSpacing) {
+        const p = ctx.carPath.getPointAt(t);
+        const tg = ctx.carPath.getTangentAt(t);
+        const f = new THREE.Vector3(tg.x, 0, tg.z).normalize();
+        const r = new THREE.Vector3(-f.z, 0, f.x);
+        const q = new THREE.Quaternion();
+        q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), f);
+
+        const wallDist = ctx.roadWidth / 2 + 2;
+        wallEntries.push({
+            geo: wallGeo,
+            pos: new THREE.Vector3(
+                p.x + r.x * side * wallDist,
+                p.y + 0.5,
+                p.z + r.z * side * wallDist
+            ),
+            quat: q
+        });
+    }
+
+    if (wallEntries.length) {
+        seaGroup.add(new THREE.Mesh(mergeGeos(wallEntries), wallMat));
+    }
+
+    log("海岸作成完了");
+}
+
+// 高速道路風の防音壁を作成（t=0.70〜0.80 両サイド、帯状メッシュで軽量化）
+function createHighwayWalls() {
+    const wallGroup = new THREE.Group();
+    ctx.roadGroup.add(wallGroup);
+
+    const startT = 0.70;
+    const endT = 0.90;
+    const wallHeight = 6;
+    const wallDist = ctx.roadWidth / 2 + 1.5;
+    const segments = 40;
+    const wallMat = new THREE.MeshPhongMaterial({
+        color: 0x999999,
+        shininess: 15,
+        specular: 0x333333,
+        side: THREE.DoubleSide,
+    });
+
+    [-1, 1].forEach(side => {
+        const vertices = [];
+        const indices = [];
+
+        for (let i = 0; i <= segments; i++) {
+            const t = startT + (endT - startT) * (i / segments);
+            const p = ctx.carPath.getPointAt(t);
+            const tg = ctx.carPath.getTangentAt(t);
+            const r = new THREE.Vector3(-tg.z, 0, tg.x).normalize();
+
+            const x = p.x + r.x * side * wallDist;
+            const z = p.z + r.z * side * wallDist;
+
+            // 底辺と上辺の2頂点
+            vertices.push(x, p.y - 0.5, z);
+            vertices.push(x, p.y + wallHeight, z);
+
+            if (i < segments) {
+                const base = i * 2;
+                indices.push(base, base + 2, base + 1);
+                indices.push(base + 1, base + 2, base + 3);
+            }
+        }
+
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        geo.setIndex(indices);
+        geo.computeVertexNormals();
+        wallGroup.add(new THREE.Mesh(geo, wallMat));
+    });
+
+    // 壁上部のキャップ（薄い天板で壁の厚み感を出す）
+    const capMat = new THREE.MeshPhongMaterial({ color: 0x777777, shininess: 10 });
+
+    [-1, 1].forEach(side => {
+        const capVerts = [];
+        const capIdx = [];
+        const capThickness = 0.8;
+
+        for (let i = 0; i <= segments; i++) {
+            const t = startT + (endT - startT) * (i / segments);
+            const p = ctx.carPath.getPointAt(t);
+            const tg = ctx.carPath.getTangentAt(t);
+            const r = new THREE.Vector3(-tg.z, 0, tg.x).normalize();
+
+            const x = p.x + r.x * side * wallDist;
+            const z = p.z + r.z * side * wallDist;
+            const y = p.y + wallHeight;
+
+            // 内側と外側の2頂点
+            capVerts.push(x - r.x * capThickness / 2, y, z - r.z * capThickness / 2);
+            capVerts.push(x + r.x * capThickness / 2, y, z + r.z * capThickness / 2);
+
+            if (i < segments) {
+                const base = i * 2;
+                capIdx.push(base, base + 2, base + 1);
+                capIdx.push(base + 1, base + 2, base + 3);
+            }
+        }
+
+        const capGeo = new THREE.BufferGeometry();
+        capGeo.setAttribute('position', new THREE.Float32BufferAttribute(capVerts, 3));
+        capGeo.setIndex(capIdx);
+        capGeo.computeVertexNormals();
+        wallGroup.add(new THREE.Mesh(capGeo, capMat));
+    });
+
+    log("高速道路壁作成完了");
 }
 
 // 街灯を作成する関数

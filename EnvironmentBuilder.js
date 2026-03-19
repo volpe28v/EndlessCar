@@ -322,7 +322,7 @@ function createCableStayedBridges() {
     ctx.roadGroup.add(bridgeGroup);
 
     const bridgeSections = [
-        { center: 0.72, span: 0.05 },
+        { center: 0.22, span: 0.03 },
     ];
 
     const concreteMat = new THREE.MeshPhongMaterial({ color: 0xCCCCCC, shininess: 30, specular: 0x333333 });

@@ -431,6 +431,12 @@
         tr.player-car {
             border-left: 2px solid #ffd700;
         }
+        tr.rival-car td {
+            color: #ff4444;
+        }
+        tr.rival-car {
+            border-left: 2px solid #ff4444;
+        }
         #position-notify {
             position: fixed;
             top: 80px;
@@ -805,15 +811,17 @@
 
                 let carColor = 'white';
                 let markerScale = 1;
-                if (raceManager?.active && raceManager.isPlayerCar(car)) {
+                if (raceManager?.active) {
+                    if (raceManager.isPlayerCar(car)) {
+                        carColor = '#ffd700';
+                        markerScale = 1.4;
+                    } else if (car.driverName === 'RIVAL') {
+                        carColor = '#ff4444';
+                        markerScale = 1.3;
+                    }
+                } else if (i === ctx.currentCarIndex) {
                     carColor = '#ffd700';
                     markerScale = 1.4;
-                } else if (i === ctx.currentCarIndex) {
-                    carColor = 'red';
-                } else if (car.isTandemFollowing) {
-                    carColor = '#00ffff';
-                } else if (car.isOvertaking) {
-                    carColor = '#ff8800';
                 }
 
                 mmCtx.save();
@@ -1010,10 +1018,15 @@
 
                             // 順位に応じた色テーマ
                             let bgColor, textColor, accentColor;
+                            const isRival = car.driverName === 'RIVAL';
                             if (isPlayer) {
                                 bgColor = 'rgba(255, 185, 0, 0.85)';
                                 textColor = '#1a1a1a';
                                 accentColor = '#fff';
+                            } else if (isRival) {
+                                bgColor = 'rgba(220, 40, 40, 0.85)';
+                                textColor = '#fff';
+                                accentColor = '#ffaaaa';
                             } else if (rank === 1) {
                                 bgColor = 'rgba(255, 215, 0, 0.75)';
                                 textColor = '#1a1a1a';

@@ -91,6 +91,10 @@ export class RaceManager {
             playerCar.driverName = 'YOU';
         }
 
+        // リッジレーサー方式: AI車のスペックを調整
+        // ほとんどの車はプレイヤーより遅く、1台だけライバルとして同等性能
+        this.applyRivalSystem();
+
         // Focus camera on player car (最後尾)
         ctx.currentCarIndex = this.playerCarIndex;
 
@@ -380,7 +384,8 @@ export class RaceManager {
             const isCurrent = car._index === ctx.currentCarIndex;
             const isPlayer = (playerCar === car);
 
-            const classes = [isCurrent ? 'current-car' : '', isPlayer ? 'player-car' : ''].filter(Boolean).join(' ');
+            const isRival = car.driverName === 'RIVAL';
+            const classes = [isCurrent ? 'current-car' : '', isPlayer ? 'player-car' : '', isRival ? 'rival-car' : ''].filter(Boolean).join(' ');
             const rowAttr = classes ? ` class="${classes}"` : '';
 
             html += `<tr${rowAttr} data-car-index="${car._index}" style="cursor:pointer;"><td>${pos}</td><td>${car.driverName || ''}</td><td>${data.laps}/${this.totalLaps}</td></tr>`;
@@ -428,7 +433,8 @@ export class RaceManager {
             const time = data.finished ? this.formatTime(data.finishTime) : `DNF (${data.laps}L)`;
 
             const isPlayer = (playerCar === car);
-            const resClass = isPlayer ? ' class="player-car"' : '';
+            const isRival = car.driverName === 'RIVAL';
+            const resClass = isPlayer ? ' class="player-car"' : isRival ? ' class="rival-car"' : '';
             html += `<tr${resClass}><td>${pos}</td><td>${car.driverName || ''}</td><td>${time}</td></tr>`;
         });
 
@@ -505,5 +511,42 @@ export class RaceManager {
 
     isPlayerCar(car) {
         return car === this.getPlayerCar();
+    }
+
+    // リッジレーサー方式のライバルシステム
+    // 1台だけライバル（プレイヤーと同等）、残りは遅めに設定
+    applyRivalSystem() {
+        const playerCar = this.getPlayerCar();
+        if (!playerCar) return;
+
+        const aiCars = ctx.cars.filter(c => c !== playerCar);
+        const randomInRange = (min, max) => min + Math.random() * (max - min);
+
+        // ライバルを2台選出（14位・15位 = プレイヤー16位のすぐ前）
+        const rivalIndices = new Set([13, 14]);
+        const rivalCars = new Set([...rivalIndices].map(i => aiCars[i]));
+
+        for (const car of aiCars) {
+            if (rivalCars.has(car)) {
+                // ライバル: プレイヤーよりわずかに速い（独走させない）
+                car.specs.topSpeed = randomInRange(1.05, 1.10);
+                car.specs.acceleration = randomInRange(1.0, 1.08);
+                car.specs.handling = randomInRange(1.0, 1.10);
+                car.specs.grip = randomInRange(1.0, 1.10);
+                car.driverName = 'RIVAL';
+            } else {
+                // その他: プレイヤーよりやや遅い（抜けるが簡単すぎない）
+                car.specs.topSpeed = randomInRange(0.82, 0.95);
+                car.specs.acceleration = randomInRange(0.78, 0.92);
+                car.specs.handling = randomInRange(0.8, 1.0);
+                car.specs.grip = randomInRange(0.8, 1.0);
+            }
+
+            // スペックを速度パラメータに反映
+            car.MIN_SPEED = 0.22 * car.specs.acceleration;
+            car.MAX_SPEED = 0.4 * car.specs.topSpeed;
+            car.ACCELERATION_RATE = 0.002 * car.specs.acceleration;
+            car.DECELERATION_RATE = 0.004 * car.specs.handling;
+        }
     }
 }

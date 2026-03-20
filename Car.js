@@ -362,6 +362,15 @@ export class Car {
 
       this.targetSpeed = Math.max(this.MIN_SPEED * 1.2, this.MAX_SPEED * (curvatureSpeedFactor + brakingAdjustment));
 
+      // ラバーバンド補正（順位に応じて速度を調整し、差がつきにくくする）
+      if (this.totalCars > 1 && this.raceRank > 0) {
+          // rankRatio: 1位=0.0, 最下位=1.0
+          const rankRatio = (this.raceRank - 1) / (this.totalCars - 1);
+          // 1位: -8%減速, 最下位: +8%加速
+          const rubberBand = 1.0 + (rankRatio - 0.5) * 0.16;
+          this.targetSpeed *= rubberBand;
+      }
+
       const accelerationBoost = this.drivingStyle.cornerExitAggression * 0.2;
       if (this.speed < this.targetSpeed) {
           this.speed = Math.min(this.targetSpeed,

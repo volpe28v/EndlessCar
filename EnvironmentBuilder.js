@@ -678,7 +678,7 @@ function createHighwayWalls() {
 
     const startT = 0.70;
     const endT = 0.90;
-    const wallHeight = 6;
+    const wallHeight = 4;
     const wallDist = ctx.roadWidth / 2 + 1.5;
     const segments = 40;
     const wallMat = new THREE.MeshPhongMaterial({

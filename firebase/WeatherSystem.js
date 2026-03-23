@@ -391,7 +391,7 @@ function initWeatherSystem() {
             log('定期天気更新を実行');
             fetchCurrentWeather();
         }
-    }, 10 * 60 * 1000);
+    }, 30 * 60 * 1000);
 }
 
 // デフォルトの位置取得関数（Geolocation API → IPフォールバック）

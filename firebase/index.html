@@ -232,17 +232,43 @@
             font-size: 12px;
             color: #ccc;
         }
-        /* 接続数 */
-        #player-count {
+        /* 接続数 + プレイヤーリスト */
+        #player-panel {
             position: absolute;
             top: 140px;
             left: 10px;
+            z-index: 100;
+        }
+        #player-count {
             background-color: rgba(0, 0, 0, 0.5);
             color: #66ff66;
             padding: 4px 8px;
             border-radius: 3px;
             font-size: 11px;
-            z-index: 100;
+        }
+        #player-list {
+            margin-top: 4px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .player-item {
+            background-color: rgba(0, 0, 0, 0.45);
+            color: #ccc;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 10px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            white-space: nowrap;
+        }
+        .player-item:hover {
+            background-color: rgba(60, 60, 80, 0.7);
+            color: white;
+        }
+        .player-item.active {
+            background-color: rgba(80, 80, 200, 0.6);
+            color: white;
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
@@ -282,7 +308,10 @@
         <span id="currentLocation"></span>
         <span id="currentWeatherText"></span>
     </div>
-    <div id="player-count">Online: 1</div>
+    <div id="player-panel">
+        <div id="player-count">Online: 1</div>
+        <div id="player-list"></div>
+    </div>
     <div id="world-panel">
         <div class="world-label">YOUR WORLD</div>
         <div class="world-location" id="world-location">Loading...</div>
@@ -432,6 +461,9 @@
             if (carIndex === lastFocusedIndex) return;
             lastFocusedIndex = carIndex;
 
+            // プレイヤーリストのactive状態を更新
+            updatePlayerList();
+
             const playerInfo = playerCarManager.getFocusedPlayerWorld(carIndex);
             const panel = document.getElementById('world-panel');
             const labelEl = panel.querySelector('.world-label');
@@ -580,6 +612,7 @@
             });
             ctx.currentCarIndex = playerCarManager.getLocalCarIndex();
             lastFocusedIndex = ctx.currentCarIndex;
+            updatePlayerList();
 
             // テストモード: パネル表示を更新
             if (TEST_MODE && testCity) {
@@ -595,6 +628,7 @@
             // 他プレイヤーの世界情報更新（リアルタイム配信）
             firebaseSync.onWorldUpdate((id, data) => {
                 playerCarManager.updatePlayerWorld(id, data);
+                updatePlayerList();
                 // 現在そのプレイヤーにフォーカスしていたら世界＆表示をリアルタイム更新
                 const focused = playerCarManager.getFocusedPlayerWorld(ctx.currentCarIndex);
                 if (focused && focused.sessionId === id) {
@@ -659,6 +693,27 @@
         function updatePlayerCount() {
             const count = ctx.cars.length;
             document.getElementById('player-count').textContent = `Online: ${count}`;
+            updatePlayerList();
+        }
+
+        function updatePlayerList() {
+            if (!playerCarManager) return;
+            const listEl = document.getElementById('player-list');
+            listEl.innerHTML = '';
+
+            for (const [sessionId, entry] of playerCarManager.playerCars) {
+                const isLocal = sessionId === firebaseSync.getMySessionId();
+                const carIdx = playerCarManager.getCarIndex(sessionId);
+                const name = entry.worldData?.locationName || entry.worldData?.name || sessionId.substring(0, 6);
+
+                const item = document.createElement('div');
+                item.className = 'player-item' + (carIdx === ctx.currentCarIndex ? ' active' : '');
+                item.textContent = isLocal ? `${name} (you)` : name;
+                item.addEventListener('click', () => {
+                    ctx.currentCarIndex = carIdx;
+                });
+                listEl.appendChild(item);
+            }
         }
 
         // === ミニマップ ===

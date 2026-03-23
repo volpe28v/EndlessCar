@@ -3,23 +3,24 @@
     "endlesscar": {
       "players": {
         ".read": true,
+        ".write": true,
         "$sessionId": {
-          ".write": true,
-          ".validate": "newData.hasChildren(['name', 'joinedAt', 'lastUpdate'])",
+          ".write": "!data.exists() || data.child('joinedAt').val() === newData.child('joinedAt').val()",
+          ".validate": "newData.hasChildren(['name', 'joinedAt', 'lastUpdate']) && $sessionId.length <= 30",
           "name":         { ".validate": "newData.isString() && newData.val().length <= 30" },
           "joinedAt":     { ".validate": "newData.isNumber()" },
           "lastUpdate":   { ".validate": "newData.isNumber()" },
           "localTime":    { ".validate": "newData.isString() && newData.val().length <= 10" },
-          "timeOffset":   { ".validate": "newData.isNumber()" },
+          "timeOffset":   { ".validate": "newData.isNumber() && newData.val() >= -720 && newData.val() <= 720" },
           "location":     { ".validate": "newData.isString() && newData.val().length <= 100" },
           "locationName": { ".validate": "newData.isString() && newData.val().length <= 100" },
-          "lat":          { ".validate": "newData.isNumber()" },
-          "lon":          { ".validate": "newData.isNumber()" },
+          "lat":          { ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90" },
+          "lon":          { ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180" },
           "weather":      { ".validate": "newData.isString() && newData.val().length <= 10" },
-          "temperature":  { ".validate": "newData.isNumber()" },
-          "humidity":     { ".validate": "newData.isNumber()" },
-          "windSpeed":    { ".validate": "newData.isNumber()" },
-          "pressure":     { ".validate": "newData.isNumber()" },
+          "temperature":  { ".validate": "newData.isNumber() && newData.val() >= -100 && newData.val() <= 100" },
+          "humidity":     { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
+          "windSpeed":    { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 200" },
+          "pressure":     { ".validate": "newData.isNumber() && newData.val() >= 800 && newData.val() <= 1200" },
           "$other":       { ".validate": false }
         }
       }

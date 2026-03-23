@@ -165,10 +165,10 @@ export class FirebaseSync {
             lat: 0,
             lon: 0,
             weather: 'sunny',
-            temperature: 0,
-            humidity: 0,
+            temperature: 20,
+            humidity: 50,
             windSpeed: 0,
-            pressure: 0,
+            pressure: 1013,
         };
     }
 

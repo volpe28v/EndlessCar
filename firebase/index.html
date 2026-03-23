@@ -344,10 +344,10 @@
         function syncMyWorldToFirebase() {
             firebaseSync.updateMyWorld({
                 weather: ctx.weatherSystem.current || 'sunny',
-                temperature: ctx.currentTemperature || 0,
-                humidity: ctx.currentHumidity || 0,
+                temperature: ctx.currentTemperature || 20,
+                humidity: ctx.currentHumidity || 50,
                 windSpeed: ctx.currentWindSpeed || 0,
-                pressure: ctx.currentPressure || 0,
+                pressure: ctx.currentPressure || 1013,
                 locationName: ctx.currentLocationName || '',
                 lat: ctx.currentLat || 0,
                 lon: ctx.currentLon || 0,

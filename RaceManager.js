@@ -522,9 +522,26 @@ export class RaceManager {
         const aiCars = ctx.cars.filter(c => c !== playerCar);
         const randomInRange = (min, max) => min + Math.random() * (max - min);
 
-        // ライバルを2台選出（14位・15位 = プレイヤー16位のすぐ前）
-        const rivalIndices = new Set([13, 14]);
-        const rivalCars = new Set([...rivalIndices].map(i => aiCars[i]));
+        // ライバル2台: 14位と16位に配置（マイカーは15位）
+        // aiCars[12]=13位, aiCars[13]=14位, aiCars[14]=15位 (プレイヤーは ctx.cars[15]=16位)
+        const rivalFront = aiCars[12]; // 13位のモブをライバルにして14位相当に
+        const rivalBack = aiCars[14]; // 15位のモブをライバルに
+
+        // プレイヤー(16位)とrivalBack(15位)のグリッド位置をスワップ → プレイヤー15位、rivalBack16位
+        const pc = this.getPlayerCar();
+        if (pc && rivalBack) {
+            const tmpPos = pc.position;
+            pc.position = rivalBack.position;
+            rivalBack.position = tmpPos;
+            const pcData = this.carData.get(pc);
+            const rbData = this.carData.get(rivalBack);
+            if (pcData && rbData) {
+                const tmpDist = pcData.totalDistance;
+                pcData.totalDistance = rbData.totalDistance;
+                rbData.totalDistance = tmpDist;
+            }
+        }
+        const rivalCars = new Set([rivalFront, rivalBack]);
 
         for (const car of aiCars) {
             if (rivalCars.has(car)) {

@@ -254,10 +254,10 @@ export const AVOIDANCE = {
 
 // パフォーマンスプリセット（プレイヤーカー用）
 export const SPEC_PRESETS = {
-    speed:    { topSpeed: { min: 1.1, max: 1.2 }, acceleration: { min: 0.7, max: 0.9 }, handling: { min: 0.8, max: 1.0 }, grip: { min: 0.8, max: 1.0 } },
-    accel:    { topSpeed: { min: 0.8, max: 1.0 }, acceleration: { min: 1.1, max: 1.3 }, handling: { min: 0.9, max: 1.1 }, grip: { min: 0.9, max: 1.1 } },
-    balanced: { topSpeed: { min: 0.9, max: 1.1 }, acceleration: { min: 0.9, max: 1.1 }, handling: { min: 0.9, max: 1.1 }, grip: { min: 0.9, max: 1.1 } },
-    handling: { topSpeed: { min: 0.9, max: 1.0 }, acceleration: { min: 0.8, max: 1.0 }, handling: { min: 1.0, max: 1.2 }, grip: { min: 1.0, max: 1.2 } },
+    speed:    { topSpeed: { min: 1.1, max: 1.2 }, acceleration: { min: 0.9, max: 1.0 }, handling: { min: 0.9, max: 1.0 }, grip: { min: 0.9, max: 1.0 } },
+    accel:    { topSpeed: { min: 0.95, max: 1.05 }, acceleration: { min: 1.1, max: 1.2 }, handling: { min: 0.95, max: 1.1 }, grip: { min: 0.95, max: 1.1 } },
+    balanced: { topSpeed: { min: 1.0, max: 1.1 }, acceleration: { min: 1.0, max: 1.1 }, handling: { min: 1.0, max: 1.1 }, grip: { min: 1.0, max: 1.1 } },
+    handling: { topSpeed: { min: 0.95, max: 1.05 }, acceleration: { min: 0.95, max: 1.05 }, handling: { min: 1.05, max: 1.15 }, grip: { min: 1.05, max: 1.15 } },
 };
 
 // ドライビングスタイルプリセット（プレイヤーカー用）

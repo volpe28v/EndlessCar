@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EndlessCar - Multiplayer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Helvetica', sans-serif;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 170px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            max-width: calc(100% - 190px);
+            z-index: 10;
+        }
+        #viewButtons {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            z-index: 100;
+            flex-wrap: nowrap;
+            justify-content: flex-start;
+            max-width: 60px;
+        }
+
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .button-separator {
+            width: 100%;
+            height: 1px;
+            background-color: rgba(255, 255, 255, 0.3);
+            margin: 5px 0;
+        }
+
+        .weather-button {
+            font-size: 16px !important;
+            padding: 2px 6px !important;
+        }
+
+        .weather-button.active {
+            background-color: rgba(100, 100, 255, 0.7);
+        }
+
+        /* ミニマップ用のスタイル */
+        #minimap-container {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 130px;
+            height: 120px;
+            background-color: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 5px;
+            z-index: 99;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        #minimap {
+            height: 100px;
+        }
+
+        #speed-display {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 20px;
+            color: white;
+            font-size: 12px;
+            text-align: center;
+            line-height: 20px;
+            font-family: 'Helvetica', sans-serif;
+            background-color: rgba(0, 0, 0, 0.3);
+        }
+
+        .viewButton {
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: 1px solid white;
+            border-radius: 3px;
+            padding: 4px 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.1s;
+            margin-bottom: 3px;
+            min-width: 30px;
+            text-align: center;
+            width: 100%;
+        }
+        .viewButton:hover {
+            background-color: rgba(50, 50, 50, 0.7);
+        }
+        .viewButton:active {
+            transform: scale(0.95);
+        }
+        .viewButton.active {
+            background-color: rgba(100, 100, 255, 0.7);
+        }
+        @media (max-width: 480px) {
+            #info {
+                left: 120px;
+                font-size: 12px;
+            }
+            .viewButton {
+                padding: 3px 4px;
+                font-size: 10px;
+                min-width: 24px;
+            }
+            #viewButtons {
+                gap: 2px;
+                max-width: 45px;
+            }
+            #minimap-container {
+                width: 104px;
+                height:100px;
+            }
+            #minimap {
+                height: 80px;
+            }
+        }
+
+        #timeWeatherInfo {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .info-row {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        #timeToggleButton {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            padding: 0;
+            margin: 0 5px;
+        }
+
+        #timeToggleButton:hover {
+            opacity: 0.8;
+        }
+
+        /* BGMコントロール */
+        #bgmControl {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 5px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            z-index: 100;
+        }
+
+        #bgmControl button {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #bgmControl button:hover {
+            opacity: 0.8;
+        }
+
+        #bgmVolume {
+            width: 80px;
+            margin: 0 5px;
+        }
+
+        /* 世界情報パネル（左下） */
+        #world-panel {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            z-index: 100;
+            max-width: 320px;
+            backdrop-filter: blur(4px);
+            transition: all 0.5s ease;
+        }
+        #world-panel.remote-world {
+            border: 1px solid rgba(100, 150, 255, 0.5);
+            background-color: rgba(20, 30, 60, 0.8);
+        }
+        #world-panel .world-label {
+            font-size: 10px;
+            color: #aaa;
+            margin-bottom: 3px;
+            letter-spacing: 1px;
+        }
+        #world-panel .world-location {
+            font-size: 15px;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+        #world-panel .world-detail {
+            font-size: 12px;
+            color: #ccc;
+        }
+        /* 接続数 */
+        #player-count {
+            position: absolute;
+            top: 140px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: #66ff66;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            z-index: 100;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/MTLLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/OBJLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fflate@0.6.9/umd/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/FBXLoader.js"></script>
+    <script src="https://unpkg.com/picoaudio/dist/browser/PicoAudio.min.js"></script>
+    <!-- Firebase SDK (compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+</head>
+<body>
+    <div id="viewButtons">
+        <div class="button-group view-buttons">
+            <button class="viewButton" data-view="0" title="Bird's Eye (1)">Bird</button>
+            <button class="viewButton" data-view="1" title="Chase (2)">Chase</button>
+            <button class="viewButton" data-view="2" title="Onboard (3)">FPV</button>
+            <button class="viewButton active" data-view="3" title="Angle (4)">Angle</button>
+            <button class="viewButton" data-view="4" title="Front (5)">Front</button>
+            <button class="viewButton" data-view="5" title="Overview (6)">All</button>
+        </div>
+        <div class="button-separator"></div>
+    </div>
+    <div id="bgmControl">
+        <input type="range" id="bgmVolume" min="0" max="100" value="20" title="音量">
+        <button id="muteBgm" title="ミュート">🔊</button>
+    </div>
+    <div id="minimap-container">
+        <canvas id="minimap"></canvas>
+        <div id="speed-display">0 km/h</div>
+    </div>
+    <!-- 非表示だがJS参照用にDOMは残す -->
+    <div id="info" style="display:none;">
+        <button id="timeToggleButton">🕒</button>
+        <span id="currentTime"></span>
+        <span id="currentLocation"></span>
+        <span id="currentWeatherText"></span>
+    </div>
+    <div id="player-count">Online: 1</div>
+    <div id="world-panel">
+        <div class="world-label">YOUR WORLD</div>
+        <div class="world-location" id="world-location">Loading...</div>
+        <div class="world-detail" id="world-detail"></div>
+    </div>
+    <script type="module">
+        import { ctx } from './GameContext.js';
+        import { Car } from './Car.js';
+        import { SPEED_TO_KMH } from './CarConstants.js';
+        import { createTrack } from './TrackData.js';
+        import { createRoadSurface, createCurbstones, createRoadPillars } from './RoadBuilder.js';
+        import { placeEnvironmentObjects } from './EnvironmentBuilder.js';
+        import { RenderCache, WeatherSystem, initWeatherSystem, setupWeatherButtons, updateWeatherButtonState } from './WeatherSystem.js';
+        import { updateDayNightCycle } from './DayNightCycle.js';
+        import { updateCamera, setupViewButtons, updateButtonActiveState } from './CameraSystem.js';
+        import { RealtimeState, toggleTimeMode } from './TimeModeStates.js';
+        import { CarModelLoader } from './CarModelLoader.js';
+        import { FirebaseSync, TEST_MODE, WORLD_CITIES, getRandomCity, getCityLocalTime, getCityGameTime } from './FirebaseSync.js';
+        import { PlayerCarManager } from './GhostCar.js';
+
+        function log(message) {
+            console.log(`[${new Date().toISOString()}] ${message}`);
+        }
+
+        log("スクリプト開始（マルチプレイヤー版）");
+
+        // === テストモード: 同期的に（async外で）都市を割り当て & 関数を差し替え ===
+        // これにより initWeatherSystem → fetchCurrentWeather が走る前に差し替えが完了する
+        let _assignedTestCity = null;
+        if (TEST_MODE) {
+            _assignedTestCity = getRandomCity();
+            log(`[TestMode] 割り当て都市: ${_assignedTestCity.name}`);
+        }
+
+        // === 基本設定 ===
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        if (isMobile) {
+            renderer.setPixelRatio(0.8);
+        }
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x646464);
+        document.body.appendChild(renderer.domElement);
+
+        ctx.scene = scene;
+        ctx.camera = camera;
+        ctx.renderer = renderer;
+        ctx.updateButtonActiveState = updateButtonActiveState;
+
+        // テストモード: 位置・時刻・地名の取得関数を差し替え（同期的に、initWeatherSystemより先に）
+        if (TEST_MODE && _assignedTestCity) {
+            ctx._testCity = _assignedTestCity;
+
+            // 位置取得 → テスト都市の座標を返す
+            ctx._getLocation = () => ({
+                lat: _assignedTestCity.lat,
+                lon: _assignedTestCity.lon,
+            });
+
+            // 地名取得 → テスト都市名を返す
+            ctx._getLocationName = (_apiName) => _assignedTestCity.name;
+
+            // 現在時刻取得 → テスト都市のローカル時刻を返す
+            ctx._getCurrentGameTime = () => getCityGameTime(_assignedTestCity);
+
+            ctx.currentLocationName = _assignedTestCity.name;
+        }
+
+        // 天気データ取得完了時のコールバック（同期的にセット → initWeatherSystemより先に有効）
+        ctx._onWeatherDataUpdated = () => {
+            // Firebase初期化済みならすぐ送信、未初期化なら保留
+            if (firebaseSync.myRef) {
+                ctx._myWeather = ctx.weatherSystem.current;
+                syncMyWorldToFirebase();
+                log(`天気データをFirebaseに同期: ${ctx.weatherSystem.current}, ${ctx.currentTemperature}℃`);
+            } else {
+                ctx._pendingWeatherSync = true;
+            }
+        };
+
+        const HORIZONTAL_SCALE = ctx.HORIZONTAL_SCALE;
+
+        // === トラック生成 ===
+        const { carPath, detailedPathPoints } = createTrack();
+        ctx.carPath = carPath;
+        ctx.detailedPathPoints = detailedPathPoints;
+
+        const roadGroup = new THREE.Group();
+        scene.add(roadGroup);
+        ctx.roadGroup = roadGroup;
+
+        // === Firebase & プレイヤー車管理 ===
+        const firebaseSync = new FirebaseSync();
+        let playerCarManager = null;
+        let lastFocusedIndex = -1; // 前回フォーカスしていた車のインデックス
+
+        // === 自分の世界情報をFirebaseにリアルタイム同期 ===
+        let _lastSyncedWeather = null;
+        let _lastSyncedHour = -1;
+
+        function syncMyWorldToFirebase() {
+            const worldData = {
+                weather: ctx.weatherSystem.current,
+                temperature: ctx.currentTemperature,
+                humidity: ctx.currentHumidity,
+                windSpeed: ctx.currentWindSpeed,
+                pressure: ctx.currentPressure,
+                locationName: ctx.currentLocationName || '',
+            };
+            firebaseSync.updateMyWorld(worldData);
+            _lastSyncedWeather = worldData.weather;
+            _lastSyncedHour = new Date().getHours();
+        }
+
+        // 天気や時刻が変わったかチェックして自動同期（毎秒呼ばれる）
+        function checkAndSyncWorld() {
+            const currentWeather = ctx.weatherSystem.current;
+            const currentHour = new Date().getHours();
+
+            let needSync = false;
+            if (currentWeather !== _lastSyncedWeather) needSync = true;
+            if (currentHour !== _lastSyncedHour) needSync = true;
+
+            if (needSync) {
+                syncMyWorldToFirebase();
+            }
+        }
+
+        // === 世界情報のフォーマット ===
+        function formatWorldDetails(data) {
+            const weatherMap = { sunny: '☀️', cloudy: '☁️', rain: '🌧️', snow: '❄️' };
+            const parts = [];
+            if (data.localTime) parts.push(data.localTime);
+            if (data.weather) parts.push(weatherMap[data.weather] || data.weather);
+            if (data.temperature != null) parts.push(`${Math.round(data.temperature)}℃`);
+            if (data.humidity != null) parts.push(`💧${data.humidity}%`);
+            if (data.windSpeed != null) parts.push(`${Math.round(data.windSpeed)}m/s`);
+            if (data.pressure != null) parts.push(`${data.pressure}hPa`);
+            return parts.join(' / ');
+        }
+
+        // === 世界切替：フォーカスした車のプレイヤーの世界に切り替える ===
+        function switchWorld(carIndex) {
+            if (!playerCarManager) return;
+            if (carIndex === lastFocusedIndex) return;
+            lastFocusedIndex = carIndex;
+
+            const playerInfo = playerCarManager.getFocusedPlayerWorld(carIndex);
+            const panel = document.getElementById('world-panel');
+            const labelEl = panel.querySelector('.world-label');
+            const locationEl = document.getElementById('world-location');
+            const detailEl = document.getElementById('world-detail');
+
+            if (!playerInfo || playerInfo.isLocal) {
+                // 自分の世界に戻す
+                panel.classList.remove('remote-world');
+                labelEl.textContent = 'YOUR WORLD';
+                locationEl.textContent = ctx.currentLocationName || 'Your Location';
+                updateLocalWorldDisplay();
+                restoreLocalWorld();
+            } else {
+                // 他プレイヤーの世界に切り替え
+                panel.classList.add('remote-world');
+                labelEl.textContent = 'OTHER WORLD';
+                locationEl.textContent = playerInfo.locationName || playerInfo.location || 'Unknown';
+
+                detailEl.textContent = formatWorldDetails(playerInfo);
+
+                applyRemoteWorld(playerInfo);
+            }
+        }
+
+        // 自分のローカル天気情報を表示に反映
+        function updateLocalWorldDisplay() {
+            const detailEl = document.getElementById('world-detail');
+            let localTime;
+            const testCity = firebaseSync.getTestCity?.();
+            if (TEST_MODE && testCity) {
+                localTime = getCityLocalTime(testCity);
+            } else {
+                const now = new Date();
+                localTime = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+            }
+            detailEl.textContent = formatWorldDetails({
+                localTime,
+                weather: ctx.weatherSystem.current,
+                temperature: ctx.currentTemperature,
+                humidity: ctx.currentHumidity,
+                windSpeed: ctx.currentWindSpeed,
+                pressure: ctx.currentPressure,
+            });
+        }
+
+        // 他プレイヤーの世界を適用
+        function applyRemoteWorld(worldData) {
+            // 天気を変更
+            if (worldData.weather && ctx.weatherSystem) {
+                ctx.weatherSystem.change(worldData.weather, false, worldData.temperature, worldData.windSpeed);
+            }
+
+            // 時刻を変更（タイムゾーンオフセットから計算）
+            if (worldData.timeOffset != null) {
+                const localOffset = new Date().getTimezoneOffset();
+                const diffMinutes = localOffset - worldData.timeOffset;
+                const now = new Date();
+                const remoteTime = new Date(now.getTime() + diffMinutes * 60000);
+                const remoteHour = remoteTime.getHours() + remoteTime.getMinutes() / 60;
+                ctx.gameTime = remoteHour;
+                // 時間モードを一時的に固定時間に
+                ctx._remoteWorldActive = true;
+                ctx._remoteGameTime = remoteHour;
+            }
+        }
+
+        // 自分の世界に戻す
+        function restoreLocalWorld() {
+            ctx._remoteWorldActive = false;
+            ctx._remoteGameTime = null;
+            // 天気を自分のものに戻す
+            if (ctx._myWeather) {
+                ctx.weatherSystem.change(ctx._myWeather, true, ctx.currentTemperature, ctx.currentWindSpeed);
+            }
+        }
+
+        // === 光源 ===
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        ctx.ambientLight = ambientLight;
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        directionalLight.position.set(1, 1, 1).normalize();
+        scene.add(directionalLight);
+        ctx.directionalLight = directionalLight;
+
+        // === 地面 ===
+        const floorSize = 5000;
+        const floorGeometry = new THREE.PlaneGeometry(floorSize, floorSize);
+        const floorMaterial = new THREE.MeshStandardMaterial({
+            color: 0x336633,
+            roughness: 0.8,
+            metalness: 0.2
+        });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -5;
+        scene.add(floor);
+        ctx.floor = floor;
+
+        // === レンダリングキャッシュ・天気システム ===
+        const renderCache = new RenderCache();
+        ctx.renderCache = renderCache;
+
+        const weatherSystem = new WeatherSystem(scene);
+        ctx.weatherSystem = weatherSystem;
+
+        // === 時間モード ===
+        ctx.timeModeState = new RealtimeState();
+        ctx.lastCameraChangeTime = Date.now();
+        ctx.lastCarChangeTime = Date.now();
+        ctx.currentFrameTime = Date.now();
+
+        // === 道路の可視化 ===
+        createRoadSurface();
+        createRoadPillars();
+        createCurbstones();
+        log("道路の作成完了");
+
+        // === OBJモデルのプリロード & 初期化 ===
+        (async () => {
+            try {
+                await CarModelLoader.preload();
+                log("OBJモデルのプリロード完了");
+            } catch(e) {
+                console.warn("OBJモデルロード失敗、プロシージャルにフォールバック:", e);
+            }
+
+            // プレイヤー車マネージャー初期化
+            playerCarManager = new PlayerCarManager(carPath, scene, ctx.cars);
+
+            // Firebase初期化（テストモードでは既に選ばれた都市を渡す）
+            if (TEST_MODE && _assignedTestCity) {
+                firebaseSync.testCity = _assignedTestCity;
+            }
+            firebaseSync.init();
+            playerCarManager.setLocalSessionId(firebaseSync.getMySessionId());
+
+            // 自分の車を追加
+            const testCity = firebaseSync.getTestCity();
+            const myName = testCity ? testCity.name : 'YOU';
+            playerCarManager.addPlayerCar(firebaseSync.getMySessionId(), {
+                name: myName,
+                locationName: testCity ? testCity.name : '',
+            });
+            ctx.currentCarIndex = playerCarManager.getLocalCarIndex();
+            lastFocusedIndex = ctx.currentCarIndex;
+
+            // テストモード: パネル表示を更新
+            if (TEST_MODE && testCity) {
+                document.getElementById('world-location').textContent = testCity.name;
+            }
+
+            // 他プレイヤーの参加 → 車を1台追加
+            firebaseSync.onPlayerJoin((id, data) => {
+                playerCarManager.addPlayerCar(id, data);
+                updatePlayerCount();
+            });
+
+            // 他プレイヤーの世界情報更新（リアルタイム配信）
+            firebaseSync.onWorldUpdate((id, data) => {
+                playerCarManager.updatePlayerWorld(id, data);
+                // 現在そのプレイヤーにフォーカスしていたら世界＆表示をリアルタイム更新
+                const focused = playerCarManager.getFocusedPlayerWorld(ctx.currentCarIndex);
+                if (focused && focused.sessionId === id) {
+                    applyRemoteWorld(data);
+                    // パネル表示も更新
+                    const locationEl = document.getElementById('world-location');
+                    const detailEl = document.getElementById('world-detail');
+                    locationEl.textContent = data.locationName || data.location || 'Unknown';
+                    detailEl.textContent = formatWorldDetails(data);
+                }
+            });
+
+            // 他プレイヤーの離脱 → 車を削除
+            firebaseSync.onPlayerLeave((id) => {
+                // フォーカスが削除される車だったら自分に戻す
+                const removingIdx = playerCarManager.getCarIndex(id);
+                if (ctx.currentCarIndex === removingIdx) {
+                    ctx.currentCarIndex = playerCarManager.getLocalCarIndex();
+                    switchWorld(ctx.currentCarIndex);
+                } else if (ctx.currentCarIndex > removingIdx && removingIdx >= 0) {
+                    ctx.currentCarIndex--;
+                }
+                playerCarManager.removePlayerCar(id);
+                updatePlayerCount();
+            });
+
+            // 天気変更時にFirebaseにリアルタイム同期（手動・API取得どちらでも）
+            const origChange = weatherSystem.change.bind(weatherSystem);
+            weatherSystem.change = function(weather, isFromCurrentLocation, temperature, windSpeed) {
+                origChange(weather, isFromCurrentLocation, temperature, windSpeed);
+                // 自分の世界にいるときだけ同期（リモート切替中は除外）
+                if (!ctx._remoteWorldActive) {
+                    ctx._myWeather = weather;
+                    syncMyWorldToFirebase();
+                    const focused = playerCarManager?.getFocusedPlayerWorld(ctx.currentCarIndex);
+                    if (!focused || focused.isLocal) {
+                        document.getElementById('world-location').textContent = ctx.currentLocationName || 'Your Location';
+                        updateLocalWorldDisplay();
+                    }
+                }
+            };
+
+            // 定期的にlocalTimeを更新 + 世界情報の変更検知（1秒ごと）
+            firebaseSync.startWorldUpdates();
+            setInterval(checkAndSyncWorld, 1000);
+
+            // コールバック経由で保留されていた天気データがあればFirebaseに送信
+            if (ctx._pendingWeatherSync && ctx.currentTemperature != null) {
+                ctx._myWeather = ctx.weatherSystem.current;
+                syncMyWorldToFirebase();
+                ctx._pendingWeatherSync = false;
+                log(`保留中の天気データをFirebaseに同期: ${ctx.weatherSystem.current}, ${ctx.currentTemperature}℃`);
+            }
+
+            log("Firebase接続完了、マルチプレイヤー開始");
+        })();
+
+        // === カメラ初期位置 ===
+        camera.position.set(100, 70, 90);
+
+        // === プレイヤー数表示更新 ===
+        function updatePlayerCount() {
+            const count = ctx.cars.length;
+            document.getElementById('player-count').textContent = `Online: ${count}`;
+        }
+
+        // === ミニマップ ===
+        function _buildMinimapCache() {
+            const canvas = document.getElementById('minimap');
+            const margin = 10;
+            const pathPoints = [];
+            for (let i = 0; i <= 100; i++) {
+                pathPoints.push(carPath.getPointAt(i / 100));
+            }
+            let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+            for (const p of pathPoints) {
+                minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+                minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z);
+            }
+            const width = canvas.width - margin * 2;
+            const height = canvas.height - margin * 2;
+            const scale = Math.min(width / (maxX - minX), height / (maxZ - minZ));
+            const path2d = new Path2D();
+            for (let i = 0; i < pathPoints.length; i++) {
+                const x = margin + (pathPoints[i].x - minX) * scale;
+                const z = margin + (pathPoints[i].z - minZ) * scale;
+                if (i === 0) path2d.moveTo(x, z); else path2d.lineTo(x, z);
+            }
+            path2d.closePath();
+            renderCache.minimap = { margin, minX, minZ, scale, path2d };
+        }
+
+        function updateMinimap() {
+            const canvas = document.getElementById('minimap');
+            const mmCtx = canvas.getContext('2d');
+            if (!renderCache.minimap) _buildMinimapCache();
+            const { margin, minX, minZ, scale, path2d } = renderCache.minimap;
+
+            mmCtx.clearRect(0, 0, canvas.width, canvas.height);
+            mmCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            mmCtx.fillRect(0, 0, canvas.width, canvas.height);
+            mmCtx.strokeStyle = 'white';
+            mmCtx.lineWidth = 1;
+            mmCtx.stroke(path2d);
+
+            for (let i = 0; i < ctx.cars.length; i++) {
+                const car = ctx.cars[i];
+                if (!car.object) continue;
+                const pos = car.object.position;
+                const x = margin + (pos.x - minX) * scale;
+                const y = margin + (pos.z - minZ) * scale;
+                const dir = car._frameFwd;
+                const angle = Math.atan2(dir.z, dir.x) + Math.PI/2;
+
+                let carColor = 'white';
+                let markerScale = 1.0;
+                if (i === ctx.currentCarIndex) {
+                    carColor = '#ffd700';
+                    markerScale = 1.4;
+                }
+
+                mmCtx.save();
+                mmCtx.translate(x, y);
+                mmCtx.rotate(angle);
+                mmCtx.scale(markerScale, markerScale);
+                mmCtx.beginPath();
+                mmCtx.moveTo(0, -5);
+                mmCtx.lineTo(-3, 3);
+                mmCtx.lineTo(3, 3);
+                mmCtx.closePath();
+                mmCtx.fillStyle = carColor;
+                mmCtx.fill();
+                mmCtx.restore();
+            }
+        }
+
+        // === アニメーションループ ===
+        let frameCount = 0;
+        let lastFrameTime = Date.now();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            ctx.currentFrameTime = Date.now();
+            const deltaTime = (ctx.currentFrameTime - lastFrameTime) / 16.67;
+            lastFrameTime = ctx.currentFrameTime;
+
+            // リモートの世界が有効なら、gameTimeを固定
+            if (ctx._remoteWorldActive && ctx._remoteGameTime != null) {
+                // リモートの時刻を毎フレーム再計算（リアルタイムで進行）
+                const focused = playerCarManager?.getFocusedPlayerWorld(ctx.currentCarIndex);
+                if (focused && !focused.isLocal && focused.timeOffset != null) {
+                    const localOffset = new Date().getTimezoneOffset();
+                    const diffMinutes = localOffset - focused.timeOffset;
+                    const now = new Date();
+                    const remoteTime = new Date(now.getTime() + diffMinutes * 60000);
+                    ctx.gameTime = remoteTime.getHours() + remoteTime.getMinutes() / 60;
+                }
+            }
+
+            updateDayNightCycle();
+            weatherSystem.update(deltaTime, camera);
+
+            // 車の更新
+            for (let i = 0; i < ctx.cars.length; i++) {
+                ctx.cars[i].update(deltaTime);
+            }
+
+            // 世界切替チェック
+            switchWorld(ctx.currentCarIndex);
+
+            // 自分の世界パネルを定期更新（時刻が進むため、60フレームごと）
+            if (frameCount % 60 === 0 && !ctx._remoteWorldActive) {
+                updateLocalWorldDisplay();
+            }
+
+            // 速度表示の更新
+            const currentCar = ctx.cars[ctx.currentCarIndex];
+            if (currentCar) {
+                const speedKmh = Math.round(currentCar.speed * HORIZONTAL_SCALE * 3.6);
+                document.getElementById('speed-display').textContent = `${speedKmh} km/h`;
+            }
+
+            updateCamera();
+            if (frameCount % 3 === 0) updateMinimap();
+            renderer.render(scene, camera);
+            frameCount++;
+        }
+
+        // === リサイズ処理 ===
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // === キーボード操作 ===
+        document.addEventListener('keydown', (event) => {
+            switch (event.key) {
+                case 'Tab':
+                    event.preventDefault();
+                    ctx.currentCarIndex = (ctx.currentCarIndex + 1) % ctx.cars.length;
+                    break;
+                case '1': ctx.cameraMode = 0; updateButtonActiveState(); break;
+                case '2': ctx.cameraMode = 1; updateButtonActiveState(); break;
+                case '3': ctx.cameraMode = 2; updateButtonActiveState(); break;
+                case '4': ctx.cameraMode = 3; updateButtonActiveState(); break;
+                case '5': ctx.cameraMode = 4; updateButtonActiveState(); break;
+                case 'd':
+                case 'D':
+                    ctx.debugMode = !ctx.debugMode;
+                    if (!ctx.debugMode) {
+                        for (const car of ctx.cars) {
+                            if (car._debugLabel) car._debugLabel.visible = false;
+                        }
+                    }
+                    break;
+            }
+        });
+
+        // === 時間モード切替ボタン ===
+        document.getElementById('timeToggleButton').addEventListener('click', function() {
+            toggleTimeMode();
+        });
+
+        // === BGM初期化 ===
+        async function initBgm() {
+            let isBgmMuted = true;
+            let bgmVolume = 0.2;
+            const bgms = ['RRR-01.mid', 'RR-01.mid', 'RR4-01.mid', 'RR4-02.mid'];
+            const picoAudio = new PicoAudio();
+            picoAudio.init();
+            picoAudio.setMasterVolume(0.2);
+
+            async function playRandomBgm() {
+                const randomIndex = Math.floor(Math.random() * bgms.length);
+                const midiName = `midi/${bgms[randomIndex]}`;
+                fetch(midiName)
+                .then(response => response.arrayBuffer())
+                .then(data => {
+                    const smfData = picoAudio.parseSMF(data);
+                    picoAudio.setData(smfData);
+                    picoAudio.play();
+                });
+            }
+
+            try {
+                document.getElementById('muteBgm').textContent = '🔇';
+                document.getElementById('bgmVolume').addEventListener('input', function() {
+                    bgmVolume = this.value / 100;
+                    if (!isBgmMuted) {
+                        picoAudio.setMasterVolume(bgmVolume);
+                    }
+                });
+                document.getElementById('muteBgm').addEventListener('click', function() {
+                    isBgmMuted = !isBgmMuted;
+                    if (isBgmMuted) {
+                        picoAudio.setMasterVolume(0);
+                        this.textContent = '🔇';
+                        picoAudio.stop();
+                    } else {
+                        picoAudio.setMasterVolume(bgmVolume);
+                        this.textContent = '🔊';
+                        playRandomBgm();
+                    }
+                });
+                picoAudio.addEventListener('songEnd', () => {
+                    playRandomBgm();
+                });
+            } catch (error) {
+                console.error('BGMの初期化エラー:', error);
+            }
+        }
+
+        // === 初期化関数 ===
+        function init() {
+            placeEnvironmentObjects();
+            setupViewButtons();
+            setupWeatherButtons();
+            updateWeatherButtonState(weatherSystem.current);
+
+            document.getElementById('minimap-container').addEventListener('click', () => {
+                ctx.currentCarIndex = (ctx.currentCarIndex + 1) % ctx.cars.length;
+            });
+
+            initBgm();
+            log("アニメーション開始");
+            animate();
+            initWeatherSystem();
+        }
+
+        // 離脱時にFirebase切断
+        window.addEventListener('beforeunload', () => {
+            firebaseSync.destroy();
+        });
+
+        window.onload = init;
+    </script>
+</body>
+</html>

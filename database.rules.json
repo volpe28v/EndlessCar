@@ -1,0 +1,12 @@
+{
+  "rules": {
+    "endlesscar": {
+      "players": {
+        "$sessionId": {
+          ".read": true,
+          ".write": "auth == null"
+        }
+      }
+    }
+  }
+}

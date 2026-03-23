@@ -1,0 +1,1080 @@
+import { ctx } from './GameContext.js';
+
+function log(message) { console.log(`[${new Date().toISOString()}] ${message}`); }
+
+// 環境オブジェクトを配置
+export function placeEnvironmentObjects() {
+    log("環境オブジェクトの配置開始");
+
+    // 街灯を配置
+    createStreetlights();
+
+    // 岩肌の構造物を配置
+    createRockFormations();
+
+    // トンネルを配置
+    createTunnels();
+
+    // 斜張橋を配置
+    createCableStayedBridges();
+
+    // スタートアーチを配置
+    createStartArch();
+
+    // 観客席を配置
+    createGrandstand();
+
+    // 海岸を配置
+    createSeaside();
+
+    // 高速道路壁を配置
+    createHighwayWalls();
+
+    log("環境オブジェクトの配置完了");
+}
+
+// コース全周の連続地形メッシュを作成（リッジレーサー風）
+function createRockFormations() {
+    const terrainGroup = new THREE.Group();
+    ctx.scene.add(terrainGroup);
+
+    // シード付き乱数
+    function seededRandom(seed) {
+        const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+        return x - Math.floor(x);
+    }
+
+    // シンプルなノイズ関数（2Dバリューノイズ）
+    function noise2D(x, z) {
+        const ix = Math.floor(x);
+        const iz = Math.floor(z);
+        const fx = x - ix;
+        const fz = z - iz;
+        // スムーズステップ補間
+        const ux = fx * fx * (3 - 2 * fx);
+        const uz = fz * fz * (3 - 2 * fz);
+        // 4隅の値
+        const a = seededRandom(ix * 73.7 + iz * 157.3);
+        const b = seededRandom((ix + 1) * 73.7 + iz * 157.3);
+        const c = seededRandom(ix * 73.7 + (iz + 1) * 157.3);
+        const d = seededRandom((ix + 1) * 73.7 + (iz + 1) * 157.3);
+        return a + (b - a) * ux + (c - a) * uz + (a - b - c + d) * ux * uz;
+    }
+
+    // フラクタルノイズ（オクターブ重ね）
+    function fractalNoise(x, z, octaves, persistence, scale) {
+        let total = 0;
+        let amplitude = 1;
+        let frequency = scale;
+        let maxVal = 0;
+        for (let i = 0; i < octaves; i++) {
+            total += noise2D(x * frequency, z * frequency) * amplitude;
+            maxVal += amplitude;
+            amplitude *= persistence;
+            frequency *= 2;
+        }
+        return total / maxVal;
+    }
+
+    // コース沿いの地形帯（strips）を両サイドに生成
+    // 各帯: 道路端→外側に広がる複数リングの頂点
+    const pathSegments = 200; // コース周方向の分割数
+    const radialSteps = 6;   // 道路端から外側への帯数
+    const radialDistances = [0, 5, 15, 30, 55, 90]; // 道路端からの距離
+    const baseHeights =      [0, 2, 8, 18, 30, 40]; // 各帯の基本的な高さ上昇
+
+    function createSideTerrain(side) {
+        const vertices = [];
+        const indices = [];
+        const colors = [];
+
+        // 頂点を生成
+        for (let i = 0; i <= pathSegments; i++) {
+            const t = (i / pathSegments) % 1;
+            const point = ctx.carPath.getPointAt(t);
+            const tangent = ctx.carPath.getTangentAt(t);
+            const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+            for (let r = 0; r < radialSteps; r++) {
+                const dist = ctx.roadWidth / 2 + 1.2 + radialDistances[r]; // ガードレール外側から
+                const pos = new THREE.Vector3().addVectors(
+                    point,
+                    normal.clone().multiplyScalar(side * dist)
+                );
+
+                // 高さの計算
+                let h = point.y;
+                // 海岸区間判定（t=0.34〜0.43、左側=side:-1）
+                const isSeaside = side === -1 && t >= 0.34 && t <= 0.48;
+                if (r === 0) {
+                    // 道路端: 道路面とほぼ同じ高さ（少し下）
+                    h = point.y - 0.5;
+                } else if (isSeaside) {
+                    // 海岸区間: 地形を海面近くまで下げる
+                    const seaLevel = point.y - 8;
+                    h = seaLevel - r * 1.5;
+                } else {
+                    // ノイズで自然な起伏を生成
+                    const nx = pos.x * 0.008;
+                    const nz = pos.z * 0.008;
+                    const noiseVal = fractalNoise(nx, nz, 3, 0.5, 1.0);
+                    // 基本高さ + ノイズによる変動
+                    h = point.y - 2 + baseHeights[r] * (0.5 + noiseVal * 1.0);
+
+                    // 高架部分は地形を下げない（柱が地面から出るように）
+                    if (point.y > 3 && r >= 2) {
+                        h = Math.min(h, point.y * 0.3);
+                    }
+                }
+
+                vertices.push(pos.x, h, pos.z);
+
+                // 頂点カラー
+                let color;
+                if (isSeaside && r >= 1) {
+                    // 海岸区間: 砂浜色
+                    const sandColor = new THREE.Color(0xC2B280);
+                    const wetSandColor = new THREE.Color(0x8B7D5E);
+                    const sandNoise = fractalNoise(pos.x * 0.03, pos.z * 0.03, 2, 0.5, 1.0);
+                    color = sandColor.clone().lerp(wetSandColor, sandNoise * 0.5);
+                } else {
+                    const heightRatio = Math.min(1, Math.max(0, (h - point.y) / 35));
+                    const baseColor = new THREE.Color(0x6B5B4F); // 茶褐色
+                    const peakColor = new THREE.Color(0x8B7D6B); // 砂岩色
+                    const darkColor = new THREE.Color(0x4A3F35); // 暗い岩色
+                    const noiseColor = fractalNoise(pos.x * 0.02, pos.z * 0.02, 2, 0.5, 1.0);
+                    color = baseColor.clone().lerp(peakColor, heightRatio);
+                    color.lerp(darkColor, noiseColor * 0.3);
+                }
+                colors.push(color.r, color.g, color.b);
+            }
+        }
+
+        // インデックス生成（帯をつなぐ三角形）
+        for (let i = 0; i < pathSegments; i++) {
+            for (let r = 0; r < radialSteps - 1; r++) {
+                const v0 = i * radialSteps + r;
+                const v1 = v0 + 1;
+                const v2 = v0 + radialSteps;
+                const v3 = v2 + 1;
+
+                if (side > 0) {
+                    indices.push(v0, v2, v1);
+                    indices.push(v1, v2, v3);
+                } else {
+                    indices.push(v0, v1, v2);
+                    indices.push(v1, v3, v2);
+                }
+            }
+        }
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        geometry.setIndex(indices);
+        geometry.computeVertexNormals();
+
+        const material = new THREE.MeshLambertMaterial({
+            vertexColors: true,
+            flatShading: true,
+            side: THREE.DoubleSide,
+        });
+
+        terrainGroup.add(new THREE.Mesh(geometry, material));
+    }
+
+    // 両サイドに地形を生成
+    createSideTerrain(1);  // 右側
+    createSideTerrain(-1); // 左側
+
+    log("連続地形の生成完了");
+}
+
+// ジオメトリ結合ヘルパー: 個別Meshの位置・回転を焼き込んで1つのジオメトリに
+function mergeGeos(entries) {
+    const merged = new THREE.BufferGeometry();
+    let totalVerts = 0, totalIdx = 0;
+    for (const e of entries) { totalVerts += e.geo.attributes.position.count; totalIdx += (e.geo.index ? e.geo.index.count : 0); }
+    const pos = new Float32Array(totalVerts * 3);
+    const nrm = new Float32Array(totalVerts * 3);
+    const idx = totalIdx > 0 ? new Uint32Array(totalIdx) : null;
+    let vOff = 0, iOff = 0, vBase = 0;
+    const m4 = new THREE.Matrix4();
+    const n3 = new THREE.Matrix3();
+    for (const e of entries) {
+        m4.compose(e.pos, e.quat, new THREE.Vector3(1,1,1));
+        n3.getNormalMatrix(m4);
+        const gp = e.geo.attributes.position;
+        const gn = e.geo.attributes.normal;
+        const v = new THREE.Vector3();
+        for (let i = 0; i < gp.count; i++) {
+            v.set(gp.getX(i), gp.getY(i), gp.getZ(i)).applyMatrix4(m4);
+            pos[vOff] = v.x; pos[vOff+1] = v.y; pos[vOff+2] = v.z;
+            if (gn) { v.set(gn.getX(i), gn.getY(i), gn.getZ(i)).applyMatrix3(n3).normalize(); nrm[vOff] = v.x; nrm[vOff+1] = v.y; nrm[vOff+2] = v.z; }
+            vOff += 3;
+        }
+        if (e.geo.index && idx) {
+            for (let i = 0; i < e.geo.index.count; i++) { idx[iOff++] = e.geo.index.array[i] + vBase; }
+        }
+        vBase += gp.count;
+    }
+    merged.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    merged.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+    if (idx) merged.setIndex(new THREE.BufferAttribute(idx, 1));
+    merged.computeBoundingSphere();
+    return merged;
+}
+
+// トンネルを作成（帯状メッシュで軽量化）
+function createTunnels() {
+    const tunnelGroup = new THREE.Group();
+    ctx.roadGroup.add(tunnelGroup);
+
+    const tunnelSections = [
+        { start: 0.05, length: 0.06 },
+        { start: 0.50, length: 0.08 },
+    ];
+
+    const tunnelHeight = 7.0;
+    const tunnelWidth = ctx.roadWidth + 4;
+    const segments = 40;
+
+    const wallMat = new THREE.MeshPhongMaterial({ color: 0x888888, shininess: 20, specular: 0x222222, side: THREE.DoubleSide });
+    const ceilingMat = new THREE.MeshPhongMaterial({ color: 0x666666, shininess: 10, side: THREE.DoubleSide });
+    const lightMat = new THREE.MeshPhongMaterial({ color: 0xFFFFDD, emissive: 0xFFFFDD, emissiveIntensity: 0.8 });
+    const stripeMat = new THREE.MeshPhongMaterial({ color: 0xFFAA00, emissive: 0xFFAA00, emissiveIntensity: 0.3 });
+    const archMat = new THREE.MeshPhongMaterial({ color: 0x555555, shininess: 15 });
+
+    for (const section of tunnelSections) {
+        // 両側の壁（帯状メッシュ）
+        [-1, 1].forEach(side => {
+            const verts = [];
+            const idx = [];
+            const wallDist = tunnelWidth / 2 + 0.4;
+
+            for (let i = 0; i <= segments; i++) {
+                const t = (section.start + section.length * (i / segments)) % 1;
+                const p = ctx.carPath.getPointAt(t);
+                const tg = ctx.carPath.getTangentAt(t);
+                const r = new THREE.Vector3(-tg.z, 0, tg.x).normalize();
+
+                const x = p.x + r.x * side * wallDist;
+                const z = p.z + r.z * side * wallDist;
+
+                verts.push(x, p.y - 0.5, z);
+                verts.push(x, p.y + tunnelHeight, z);
+
+                if (i < segments) {
+                    const base = i * 2;
+                    idx.push(base, base + 2, base + 1);
+                    idx.push(base + 1, base + 2, base + 3);
+                }
+            }
+
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+            geo.setIndex(idx);
+            geo.computeVertexNormals();
+            tunnelGroup.add(new THREE.Mesh(geo, wallMat));
+        });
+
+        // 天井（帯状メッシュ）
+        {
+            const verts = [];
+            const idx = [];
+            const ceilDist = tunnelWidth / 2 + 0.4;
+
+            for (let i = 0; i <= segments; i++) {
+                const t = (section.start + section.length * (i / segments)) % 1;
+                const p = ctx.carPath.getPointAt(t);
+                const tg = ctx.carPath.getTangentAt(t);
+                const r = new THREE.Vector3(-tg.z, 0, tg.x).normalize();
+                const y = p.y + tunnelHeight;
+
+                verts.push(p.x - r.x * ceilDist, y, p.z - r.z * ceilDist);
+                verts.push(p.x + r.x * ceilDist, y, p.z + r.z * ceilDist);
+
+                if (i < segments) {
+                    const base = i * 2;
+                    idx.push(base, base + 2, base + 1);
+                    idx.push(base + 1, base + 2, base + 3);
+                }
+            }
+
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+            geo.setIndex(idx);
+            geo.computeVertexNormals();
+            tunnelGroup.add(new THREE.Mesh(geo, ceilingMat));
+        }
+
+        // 天井の照明ライン（帯状メッシュ）
+        {
+            const verts = [];
+            const idx = [];
+            const lightHalfW = 0.15;
+
+            for (let i = 0; i <= segments; i++) {
+                const t = (section.start + section.length * (i / segments)) % 1;
+                const p = ctx.carPath.getPointAt(t);
+                const tg = ctx.carPath.getTangentAt(t);
+                const r = new THREE.Vector3(-tg.z, 0, tg.x).normalize();
+                const y = p.y + tunnelHeight - 0.05;
+
+                verts.push(p.x - r.x * lightHalfW, y, p.z - r.z * lightHalfW);
+                verts.push(p.x + r.x * lightHalfW, y, p.z + r.z * lightHalfW);
+
+                if (i < segments) {
+                    const base = i * 2;
+                    idx.push(base, base + 2, base + 1);
+                    idx.push(base + 1, base + 2, base + 3);
+                }
+            }
+
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+            geo.setIndex(idx);
+            geo.computeVertexNormals();
+            tunnelGroup.add(new THREE.Mesh(geo, lightMat));
+        }
+
+        // 壁面ストライプ（帯状メッシュ）
+        [-1, 1].forEach(side => {
+            const verts = [];
+            const idx = [];
+            const stripeDist = tunnelWidth / 2 - 0.1;
+            const stripeHalfH = 0.08;
+
+            for (let i = 0; i <= segments; i++) {
+                const t = (section.start + section.length * (i / segments)) % 1;
+                const p = ctx.carPath.getPointAt(t);
+                const tg = ctx.carPath.getTangentAt(t);
+                const r = new THREE.Vector3(-tg.z, 0, tg.x).normalize();
+
+                const x = p.x + r.x * side * stripeDist;
+                const z = p.z + r.z * side * stripeDist;
+
+                verts.push(x, p.y + 1.5 - stripeHalfH, z);
+                verts.push(x, p.y + 1.5 + stripeHalfH, z);
+
+                if (i < segments) {
+                    const base = i * 2;
+                    idx.push(base, base + 2, base + 1);
+                    idx.push(base + 1, base + 2, base + 3);
+                }
+            }
+
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+            geo.setIndex(idx);
+            geo.computeVertexNormals();
+            tunnelGroup.add(new THREE.Mesh(geo, stripeMat));
+        });
+
+        // 入口・出口のポイントライト
+        [section.start, (section.start + section.length) % 1].forEach(t => {
+            const point = ctx.carPath.getPointAt(t);
+            const pLight = new THREE.PointLight(0xFFFFCC, 3.0, 40, 1.5);
+            pLight.position.set(point.x, point.y + tunnelHeight - 1, point.z);
+            tunnelGroup.add(pLight);
+        });
+
+        // 入口・出口のアーチ装飾
+        [section.start, (section.start + section.length) % 1].forEach(t => {
+            const point = ctx.carPath.getPointAt(t);
+            const tangent = ctx.carPath.getTangentAt(t);
+            const fwd = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
+            const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+            const q = new THREE.Quaternion();
+            q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), fwd);
+
+            const archTop = new THREE.Mesh(new THREE.BoxGeometry(tunnelWidth + 2, 1.2, 1.5), archMat);
+            archTop.position.set(point.x, point.y + tunnelHeight + 0.8, point.z);
+            archTop.quaternion.copy(q);
+            tunnelGroup.add(archTop);
+
+            [-1, 1].forEach(side => {
+                const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.2, tunnelHeight + 2, 1.5), archMat);
+                pillar.position.set(
+                    point.x + right.x * side * (tunnelWidth / 2 + 0.8),
+                    point.y + tunnelHeight / 2,
+                    point.z + right.z * side * (tunnelWidth / 2 + 0.8)
+                );
+                pillar.quaternion.copy(q);
+                tunnelGroup.add(pillar);
+            });
+        });
+    }
+
+    log(`トンネル作成完了: ${tunnelSections.length}箇所`);
+}
+
+// リッジレーサー風 斜張橋を作成（ジオメトリ結合で軽量化）
+function createCableStayedBridges() {
+    const bridgeGroup = new THREE.Group();
+    ctx.roadGroup.add(bridgeGroup);
+
+    const bridgeSections = [
+        { center: 0.22, span: 0.03 },
+    ];
+
+    const concreteMat = new THREE.MeshPhongMaterial({ color: 0xCCCCCC, shininess: 30, specular: 0x333333 });
+    const cableMat = new THREE.MeshPhongMaterial({ color: 0xAAAAAAA, shininess: 80, specular: 0x666666 });
+    const towerMat = new THREE.MeshPhongMaterial({ color: 0xDDDDDD, shininess: 40, specular: 0x444444 });
+
+    const bridgeWidth = ctx.roadWidth + 6;
+    const towerHeight = 55;
+    const cableRadius = 0.08;
+
+    for (const section of bridgeSections) {
+        const towerPoint = ctx.carPath.getPointAt(section.center);
+        const towerTangent = ctx.carPath.getTangentAt(section.center);
+        const towerFwd = new THREE.Vector3(towerTangent.x, 0, towerTangent.z).normalize();
+        const towerRight = new THREE.Vector3(-towerFwd.z, 0, towerFwd.x);
+
+        [-1, 1].forEach(side => {
+            const baseX = towerPoint.x + towerRight.x * side * (bridgeWidth / 2 + 1);
+            const baseZ = towerPoint.z + towerRight.z * side * (bridgeWidth / 2 + 1);
+            const baseY = towerPoint.y;
+
+            const pillarGeo = new THREE.BoxGeometry(1.5, towerHeight, 2.0);
+            const pillar = new THREE.Mesh(pillarGeo, towerMat);
+            pillar.position.set(baseX, baseY + towerHeight / 2, baseZ);
+            const q = new THREE.Quaternion();
+            q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), towerFwd);
+            pillar.quaternion.copy(q);
+            bridgeGroup.add(pillar);
+
+            const beamGeo = new THREE.BoxGeometry(3.0, 1.5, 2.0);
+            const beam = new THREE.Mesh(beamGeo, towerMat);
+            beam.position.set(baseX, baseY + towerHeight - 2, baseZ);
+            beam.quaternion.copy(q);
+            bridgeGroup.add(beam);
+        });
+
+        const cableCount = 8;
+        [-1, 1].forEach(side => {
+            const towerTopX = towerPoint.x + towerRight.x * side * (bridgeWidth / 2 + 1);
+            const towerTopZ = towerPoint.z + towerRight.z * side * (bridgeWidth / 2 + 1);
+            const towerTopY = towerPoint.y + towerHeight - 3;
+
+            [-1, 1].forEach(dir => {
+                for (let i = 1; i <= cableCount; i++) {
+                    const ratio = i / cableCount;
+                    const anchorT = (section.center + dir * ratio * section.span + 1) % 1;
+                    const anchorPoint = ctx.carPath.getPointAt(anchorT);
+                    const anchorRight = new THREE.Vector3(
+                        -ctx.carPath.getTangentAt(anchorT).z, 0, ctx.carPath.getTangentAt(anchorT).x
+                    ).normalize();
+
+                    const anchorX = anchorPoint.x + anchorRight.x * side * (bridgeWidth / 2 - 1);
+                    const anchorY = anchorPoint.y + 2.0;
+                    const anchorZ = anchorPoint.z + anchorRight.z * side * (bridgeWidth / 2 - 1);
+
+                    const dx = anchorX - towerTopX;
+                    const dy = anchorY - towerTopY;
+                    const dz = anchorZ - towerTopZ;
+                    const cableLen = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+                    const cableGeo = new THREE.CylinderGeometry(cableRadius, cableRadius, cableLen, 4);
+                    const cable = new THREE.Mesh(cableGeo, cableMat);
+
+                    cable.position.set(
+                        (towerTopX + anchorX) / 2,
+                        (towerTopY + anchorY) / 2,
+                        (towerTopZ + anchorZ) / 2
+                    );
+
+                    const cableDir = new THREE.Vector3(dx, dy, dz).normalize();
+                    const cableQ = new THREE.Quaternion();
+                    cableQ.setFromUnitVectors(new THREE.Vector3(0, 1, 0), cableDir);
+                    cable.quaternion.copy(cableQ);
+
+                    bridgeGroup.add(cable);
+                }
+            });
+        });
+
+        // 橋桁（道路の両側の壁・欄干）
+        const railEntries = [];
+        const railGeo = new THREE.BoxGeometry(0.4, 1.8, 5.0);
+        const railSpacing = 0.003;
+        const startT = (section.center - section.span + 1) % 1;
+        const endT = (section.center + section.span) % 1;
+
+        for (let t = startT; t !== endT; t = (t + railSpacing) % 1) {
+            if (Math.abs(t - endT) < railSpacing) break;
+            const p = ctx.carPath.getPointAt(t);
+            const tg = ctx.carPath.getTangentAt(t);
+            const f = new THREE.Vector3(tg.x, 0, tg.z).normalize();
+            const r = new THREE.Vector3(-f.z, 0, f.x);
+            const q = new THREE.Quaternion();
+            q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), f);
+
+            [-1, 1].forEach(side => {
+                railEntries.push({
+                    geo: railGeo,
+                    pos: new THREE.Vector3(
+                        p.x + r.x * side * (bridgeWidth / 2),
+                        p.y + 0.9,
+                        p.z + r.z * side * (bridgeWidth / 2)
+                    ),
+                    quat: q
+                });
+            });
+        }
+
+        if (railEntries.length) {
+            bridgeGroup.add(new THREE.Mesh(mergeGeos(railEntries), concreteMat));
+        }
+    }
+
+    // 川の生成（橋の下を横切る）
+    for (const section of bridgeSections) {
+        const centerPoint = ctx.carPath.getPointAt(section.center);
+        const centerTangent = ctx.carPath.getTangentAt(section.center);
+        const roadDir = new THREE.Vector3(centerTangent.x, 0, centerTangent.z).normalize();
+        const riverDir = new THREE.Vector3(-roadDir.z, 0, roadDir.x);
+
+        const riverWidth = 60;
+        const riverLength = 300;
+        const riverY = centerPoint.y - 6;
+
+        const riverGeo = new THREE.PlaneGeometry(riverWidth, riverLength, 1, 1);
+        const riverMat = new THREE.MeshPhongMaterial({
+            color: 0x225588,
+            shininess: 120,
+            specular: 0x88AACC,
+            transparent: true,
+            opacity: 0.7,
+        });
+        const river = new THREE.Mesh(riverGeo, riverMat);
+        river.rotation.x = -Math.PI / 2;
+        river.position.set(centerPoint.x, riverY, centerPoint.z);
+        const riverAngle = Math.atan2(riverDir.z, riverDir.x);
+        river.rotation.z = -riverAngle + Math.PI / 2;
+        bridgeGroup.add(river);
+
+        const bedGeo = new THREE.PlaneGeometry(riverWidth + 10, riverLength + 20, 1, 1);
+        const bedMat = new THREE.MeshPhongMaterial({ color: 0x334422, shininess: 5 });
+        const bed = new THREE.Mesh(bedGeo, bedMat);
+        bed.rotation.x = -Math.PI / 2;
+        bed.position.set(centerPoint.x, riverY - 1.5, centerPoint.z);
+        bed.rotation.z = river.rotation.z;
+        bridgeGroup.add(bed);
+
+        const bankMat = new THREE.MeshPhongMaterial({ color: 0x556633, shininess: 10 });
+        [-1, 1].forEach(side => {
+            const bankGeo = new THREE.BoxGeometry(8, 4, riverLength + 20);
+            const bank = new THREE.Mesh(bankGeo, bankMat);
+            bank.position.set(
+                centerPoint.x + riverDir.x * side * (riverWidth / 2 + 4),
+                riverY - 0.5,
+                centerPoint.z + riverDir.z * side * (riverWidth / 2 + 4)
+            );
+            const bankQ = new THREE.Quaternion();
+            bankQ.setFromUnitVectors(new THREE.Vector3(0, 0, 1), riverDir);
+            bank.quaternion.copy(bankQ);
+            bridgeGroup.add(bank);
+        });
+    }
+
+    log(`斜張橋作成完了: ${bridgeSections.length}箇所`);
+}
+
+// 海岸を作成（t=0.34〜0.43 の左側に海を配置）
+function createSeaside() {
+    const seaGroup = new THREE.Group();
+    ctx.roadGroup.add(seaGroup);
+
+    const startT = 0.34;
+    const endT = 0.48;
+    const side = -1; // 左側（外側）
+
+    // 海面の生成（コース沿いに大きな水面を配置）
+    const seaSegments = 30;
+    const seaWidth = 200; // 海の幅（道路からの距離方向）
+    const seaVertices = [];
+    const seaIndices = [];
+
+    for (let i = 0; i <= seaSegments; i++) {
+        const t = startT + (endT - startT) * (i / seaSegments);
+        const point = ctx.carPath.getPointAt(t);
+        const tangent = ctx.carPath.getTangentAt(t);
+        const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+        const seaLevel = point.y - 8;
+
+        // 道路端から海方向に2点（近い端と遠い端）
+        const nearDist = ctx.roadWidth / 2 + 8;
+        const farDist = ctx.roadWidth / 2 + seaWidth;
+
+        const nearX = point.x + normal.x * side * nearDist;
+        const nearZ = point.z + normal.z * side * nearDist;
+        const farX = point.x + normal.x * side * farDist;
+        const farZ = point.z + normal.z * side * farDist;
+
+        seaVertices.push(nearX, seaLevel, nearZ);
+        seaVertices.push(farX, seaLevel, farZ);
+
+        if (i < seaSegments) {
+            const base = i * 2;
+            seaIndices.push(base, base + 2, base + 1);
+            seaIndices.push(base + 1, base + 2, base + 3);
+        }
+    }
+
+    const seaGeo = new THREE.BufferGeometry();
+    seaGeo.setAttribute('position', new THREE.Float32BufferAttribute(seaVertices, 3));
+    seaGeo.setIndex(seaIndices);
+    seaGeo.computeVertexNormals();
+
+    const seaMat = new THREE.MeshPhongMaterial({
+        color: 0x1A6B8A,
+        shininess: 150,
+        specular: 0x88CCEE,
+        transparent: true,
+        opacity: 0.75,
+        side: THREE.DoubleSide,
+    });
+    seaGroup.add(new THREE.Mesh(seaGeo, seaMat));
+
+    // 防波堤（ガードレール風のコンクリート壁）
+    const wallEntries = [];
+    const wallGeo = new THREE.BoxGeometry(0.6, 2.5, 4.0);
+    const wallMat = new THREE.MeshPhongMaterial({ color: 0xBBBBBB, shininess: 20 });
+    const wallSpacing = 0.003;
+
+    for (let t = startT; t <= endT; t += wallSpacing) {
+        const p = ctx.carPath.getPointAt(t);
+        const tg = ctx.carPath.getTangentAt(t);
+        const f = new THREE.Vector3(tg.x, 0, tg.z).normalize();
+        const r = new THREE.Vector3(-f.z, 0, f.x);
+        const q = new THREE.Quaternion();
+        q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), f);
+
+        const wallDist = ctx.roadWidth / 2 + 2;
+        wallEntries.push({
+            geo: wallGeo,
+            pos: new THREE.Vector3(
+                p.x + r.x * side * wallDist,
+                p.y + 0.5,
+                p.z + r.z * side * wallDist
+            ),
+            quat: q
+        });
+    }
+
+    if (wallEntries.length) {
+        seaGroup.add(new THREE.Mesh(mergeGeos(wallEntries), wallMat));
+    }
+
+    log("海岸作成完了");
+}
+
+// 高速道路風の防音壁を作成（t=0.70〜0.80 両サイド、帯状メッシュで軽量化）
+function createHighwayWalls() {
+    const wallGroup = new THREE.Group();
+    ctx.roadGroup.add(wallGroup);
+
+    const startT = 0.70;
+    const endT = 0.90;
+    const wallHeight = 4;
+    const wallDist = ctx.roadWidth / 2 + 1.5;
+    const segments = 40;
+    const wallMat = new THREE.MeshPhongMaterial({
+        color: 0x999999,
+        shininess: 15,
+        specular: 0x333333,
+        side: THREE.DoubleSide,
+    });
+
+    [-1, 1].forEach(side => {
+        const vertices = [];
+        const indices = [];
+
+        for (let i = 0; i <= segments; i++) {
+            const t = startT + (endT - startT) * (i / segments);
+            const p = ctx.carPath.getPointAt(t);
+            const tg = ctx.carPath.getTangentAt(t);
+            const r = new THREE.Vector3(-tg.z, 0, tg.x).normalize();
+
+            const x = p.x + r.x * side * wallDist;
+            const z = p.z + r.z * side * wallDist;
+
+            // 底辺と上辺の2頂点
+            vertices.push(x, p.y - 0.5, z);
+            vertices.push(x, p.y + wallHeight, z);
+
+            if (i < segments) {
+                const base = i * 2;
+                indices.push(base, base + 2, base + 1);
+                indices.push(base + 1, base + 2, base + 3);
+            }
+        }
+
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        geo.setIndex(indices);
+        geo.computeVertexNormals();
+        wallGroup.add(new THREE.Mesh(geo, wallMat));
+    });
+
+    // 壁上部のキャップ（薄い天板で壁の厚み感を出す）
+    const capMat = new THREE.MeshPhongMaterial({ color: 0x777777, shininess: 10 });
+
+    [-1, 1].forEach(side => {
+        const capVerts = [];
+        const capIdx = [];
+        const capThickness = 0.8;
+
+        for (let i = 0; i <= segments; i++) {
+            const t = startT + (endT - startT) * (i / segments);
+            const p = ctx.carPath.getPointAt(t);
+            const tg = ctx.carPath.getTangentAt(t);
+            const r = new THREE.Vector3(-tg.z, 0, tg.x).normalize();
+
+            const x = p.x + r.x * side * wallDist;
+            const z = p.z + r.z * side * wallDist;
+            const y = p.y + wallHeight;
+
+            // 内側と外側の2頂点
+            capVerts.push(x - r.x * capThickness / 2, y, z - r.z * capThickness / 2);
+            capVerts.push(x + r.x * capThickness / 2, y, z + r.z * capThickness / 2);
+
+            if (i < segments) {
+                const base = i * 2;
+                capIdx.push(base, base + 2, base + 1);
+                capIdx.push(base + 1, base + 2, base + 3);
+            }
+        }
+
+        const capGeo = new THREE.BufferGeometry();
+        capGeo.setAttribute('position', new THREE.Float32BufferAttribute(capVerts, 3));
+        capGeo.setIndex(capIdx);
+        capGeo.computeVertexNormals();
+        wallGroup.add(new THREE.Mesh(capGeo, capMat));
+    });
+
+    log("高速道路壁作成完了");
+}
+
+// 街灯を作成する関数
+function createStreetlights() {
+    // 街灯の間隔（パスの割合）
+    const streetlightSpacing = 0.04; // コース全体で約25本の街灯
+
+    // 街灯用のグループを作成
+    const streetlightGroup = new THREE.Group();
+    ctx.roadGroup.add(streetlightGroup);
+
+    // コース全体に街灯を配置
+    let currentT = 0;
+    while (currentT < 1) {
+        // パス上の位置と接線を取得
+        const point = ctx.carPath.getPointAt(currentT);
+        const tangent = ctx.carPath.getTangentAt(currentT);
+
+        // 垂直方向ベクトル（外側方向）
+        const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+        // 道路の右側に街灯を設置
+        createSingleStreetlight(point, normal, 1); // 右側
+
+        currentT += streetlightSpacing;
+    }
+
+    // 1本の街灯を作成する関数
+    function createSingleStreetlight(point, normal, side) {
+        // 街灯の位置（道路の外側）
+        const lightPosition = new THREE.Vector3().addVectors(
+            point,
+            normal.clone().multiplyScalar(side * (ctx.roadWidth / 2 + 2.0))
+        );
+
+        // 街灯の支柱
+        const poleGeometry = new THREE.CylinderGeometry(0.15, 0.2, 8, 8);
+        const poleMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
+        const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+
+        // 支柱の位置を設定
+        pole.position.copy(new THREE.Vector3(
+            lightPosition.x,
+            point.y + 4, // 地面からの高さ
+            lightPosition.z
+        ));
+
+        // 支柱を垂直に立てる
+        pole.rotation.x = Math.PI / 2;
+
+        streetlightGroup.add(pole);
+
+        // 街灯の頭部
+        const headGeometry = new THREE.BoxGeometry(1.0, 0.4, 0.4);
+        const headMaterial = new THREE.MeshStandardMaterial({
+            color: 0x333333,
+            emissive: 0xFFDD99,
+            emissiveIntensity: 0.1 // 初期値は低く
+        });
+        const head = new THREE.Mesh(headGeometry, headMaterial);
+
+        // 頭部の位置を設定
+        head.position.copy(new THREE.Vector3(
+            lightPosition.x,
+            point.y + 8, // 支柱の上部
+            lightPosition.z
+        ));
+
+        // 頭部を道路に向ける
+        head.lookAt(new THREE.Vector3(
+            point.x,
+            point.y + 8,
+            point.z
+        ));
+
+        // ユーザーデータに街灯フラグを設定
+        head.userData.isStreetlight = true;
+
+        streetlightGroup.add(head);
+
+        // 街灯のライト
+        const light = new THREE.PointLight(0xFFDD99, 0.2, 10, 2);
+        light.position.copy(new THREE.Vector3(
+            lightPosition.x,
+            point.y + 8, // 支柱の上部
+            lightPosition.z
+        ));
+
+        // ライトを街灯の頭部に関連付ける
+        head.userData.pointLight = light;
+
+        streetlightGroup.add(light);
+    }
+}
+
+// スタート/フィニッシュアーチを作成（サーキットのゲートリー風）
+function createStartArch() {
+    const archGroup = new THREE.Group();
+    ctx.roadGroup.add(archGroup);
+
+    const t = 0.0;
+    const point = ctx.carPath.getPointAt(t);
+    const tangent = ctx.carPath.getTangentAt(t);
+    const fwd = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
+    const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+    const q = new THREE.Quaternion();
+    q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), fwd);
+
+    const archWidth = ctx.roadWidth + 4;
+    const archHeight = 9.0;
+    const pillarWidth = 1.0;
+    const pillarDepth = 0.8;
+
+    // メインカラー（白＋赤のサーキットカラー）
+    const whiteMat = new THREE.MeshPhongMaterial({ color: 0xEEEEEE, shininess: 40, specular: 0x333333 });
+    const redMat = new THREE.MeshPhongMaterial({ color: 0xCC2222, shininess: 30 });
+    const darkMat = new THREE.MeshPhongMaterial({ color: 0x333333, shininess: 20 });
+    const checkerMat = new THREE.MeshPhongMaterial({ color: 0x111111 });
+
+    // 左右の支柱
+    [-1, 1].forEach(side => {
+        const pillarGeo = new THREE.BoxGeometry(pillarWidth, archHeight, pillarDepth);
+        const pillar = new THREE.Mesh(pillarGeo, whiteMat);
+        pillar.position.set(
+            point.x + right.x * side * (archWidth / 2 + pillarWidth / 2),
+            point.y + archHeight / 2,
+            point.z + right.z * side * (archWidth / 2 + pillarWidth / 2)
+        );
+        pillar.quaternion.copy(q);
+        archGroup.add(pillar);
+
+        // 支柱の赤いアクセントライン
+        const accentGeo = new THREE.BoxGeometry(pillarWidth + 0.1, 0.5, pillarDepth + 0.1);
+        const accent = new THREE.Mesh(accentGeo, redMat);
+        accent.position.set(
+            pillar.position.x,
+            point.y + archHeight - 1.0,
+            pillar.position.z
+        );
+        accent.quaternion.copy(q);
+        archGroup.add(accent);
+
+        // 支柱のベース（台座）
+        const baseGeo = new THREE.BoxGeometry(pillarWidth + 0.6, 0.8, pillarDepth + 0.6);
+        const base = new THREE.Mesh(baseGeo, darkMat);
+        base.position.set(
+            pillar.position.x,
+            point.y + 0.4,
+            pillar.position.z
+        );
+        base.quaternion.copy(q);
+        archGroup.add(base);
+    });
+
+    // 上部の横梁（メインビーム）
+    const beamGeo = new THREE.BoxGeometry(archWidth + pillarWidth * 2, 1.8, pillarDepth + 0.4);
+    const beam = new THREE.Mesh(beamGeo, whiteMat);
+    beam.position.set(
+        point.x,
+        point.y + archHeight + 0.9,
+        point.z
+    );
+    beam.quaternion.copy(q);
+    archGroup.add(beam);
+
+    // 横梁の上部に赤いライン
+    const topAccentGeo = new THREE.BoxGeometry(archWidth + pillarWidth * 2 + 0.2, 0.3, pillarDepth + 0.5);
+    const topAccent = new THREE.Mesh(topAccentGeo, redMat);
+    topAccent.position.set(
+        point.x,
+        point.y + archHeight + 1.85,
+        point.z
+    );
+    topAccent.quaternion.copy(q);
+    archGroup.add(topAccent);
+
+    // 横梁の下部に赤いライン
+    const bottomAccentGeo = new THREE.BoxGeometry(archWidth + pillarWidth * 2 + 0.2, 0.3, pillarDepth + 0.5);
+    const bottomAccent = new THREE.Mesh(bottomAccentGeo, redMat);
+    bottomAccent.position.set(
+        point.x,
+        point.y + archHeight + 0.0,
+        point.z
+    );
+    bottomAccent.quaternion.copy(q);
+    archGroup.add(bottomAccent);
+
+    // チェッカーフラッグパターン（横梁の前面に装飾）
+    const checkerSize = 0.45;
+    const cols = Math.floor(archWidth / checkerSize);
+    const rows = 2;
+    for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+            if ((row + col) % 2 === 0) continue; // 白マスはスキップ（横梁が白なので）
+            const checkerGeo = new THREE.BoxGeometry(checkerSize, checkerSize, 0.05);
+            const checker = new THREE.Mesh(checkerGeo, checkerMat);
+            const localX = (col - cols / 2 + 0.5) * checkerSize;
+            const localY = point.y + archHeight + 0.3 + (row + 0.5) * checkerSize;
+            checker.position.set(
+                point.x + right.x * localX + fwd.x * (pillarDepth / 2 + 0.03),
+                localY,
+                point.z + right.z * localX + fwd.z * (pillarDepth / 2 + 0.03)
+            );
+            checker.quaternion.copy(q);
+            archGroup.add(checker);
+        }
+    }
+
+    log("スタートアーチ作成完了");
+}
+
+// 観客席（グランドスタンド）を作成 — t=0〜0.06 付近のストレート沿い
+function createGrandstand() {
+    const standGroup = new THREE.Group();
+    ctx.roadGroup.add(standGroup);
+
+    // マテリアル
+    const concreteMat = new THREE.MeshPhongMaterial({ color: 0xBBBBBB, shininess: 15 });
+    const seatBlueMat = new THREE.MeshPhongMaterial({ color: 0x2255AA, shininess: 20 });
+    const seatRedMat = new THREE.MeshPhongMaterial({ color: 0xCC2222, shininess: 20 });
+    const roofMat = new THREE.MeshPhongMaterial({ color: 0xDDDDDD, shininess: 30, side: THREE.DoubleSide });
+    const frameMat = new THREE.MeshPhongMaterial({ color: 0x666666, shininess: 40 });
+
+    // 観客席の配置範囲: t=0.01〜0.055（ストレート沿い）
+    const startT = 0.01;
+    const endT = 0.055;
+    const sides = [1, -1]; // 両側に配置
+    sides.forEach(side => {
+    const standOffset = ctx.roadWidth / 2 + 5; // 道路端からの距離
+    const standDepth = 12; // 観客席の奥行き
+    const tiers = 5; // 段数
+    const tierHeight = 1.8; // 各段の高さ
+    const tierDepth = standDepth / tiers;
+
+    // ストレートに沿ってセグメント化して配置
+    const segments = 8;
+    const segLen = (endT - startT) / segments;
+
+    for (let seg = 0; seg < segments; seg++) {
+        const t = startT + segLen * (seg + 0.5);
+        const point = ctx.carPath.getPointAt(t);
+        const tangent = ctx.carPath.getTangentAt(t);
+        const fwd = new THREE.Vector3(tangent.x, 0, tangent.z).normalize();
+        const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+        const q = new THREE.Quaternion();
+        q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), fwd);
+
+        // 基準位置（道路の右側外側）
+        const baseX = point.x + right.x * side * standOffset;
+        const baseZ = point.z + right.z * side * standOffset;
+        const baseY = point.y;
+
+        // 階段状の座席を段ごとに生成
+        for (let tier = 0; tier < tiers; tier++) {
+            const offsetDist = standOffset + tier * tierDepth;
+            const tierX = point.x + right.x * side * offsetDist;
+            const tierZ = point.z + right.z * side * offsetDist;
+            const tierY = baseY + tier * tierHeight;
+
+            // 座席の幅（コース沿い方向の長さ）
+            const seatWidth = ctx.carPath.getPointAt(startT + segLen * seg)
+                .distanceTo(ctx.carPath.getPointAt(startT + segLen * (seg + 1))) * 0.95;
+
+            // コンクリート土台
+            const platformGeo = new THREE.BoxGeometry(tierDepth * 0.9, 0.3, seatWidth);
+            const platform = new THREE.Mesh(platformGeo, concreteMat);
+            platform.position.set(tierX, tierY, tierZ);
+            platform.quaternion.copy(q);
+            standGroup.add(platform);
+
+            // 座席（交互に青・赤）
+            const seatMat = (seg + tier) % 2 === 0 ? seatBlueMat : seatRedMat;
+            const seatGeo = new THREE.BoxGeometry(tierDepth * 0.5, 0.8, seatWidth);
+            const seat = new THREE.Mesh(seatGeo, seatMat);
+            seat.position.set(
+                tierX + right.x * side * tierDepth * 0.15,
+                tierY + 0.55,
+                tierZ + right.z * side * tierDepth * 0.15
+            );
+            seat.quaternion.copy(q);
+            standGroup.add(seat);
+        }
+
+        // 最上段の屋根（2セグメントに1つ）
+        if (seg % 2 === 0) {
+            const roofT = startT + segLen * (seg + 1);
+            const roofPoint = ctx.carPath.getPointAt(Math.min(roofT, endT));
+            const topTier = tiers - 1;
+            const roofOffsetDist = standOffset + topTier * tierDepth + tierDepth * 0.5;
+            const roofX = point.x + right.x * side * (roofOffsetDist - tierDepth);
+            const roofZ = point.z + right.z * side * (roofOffsetDist - tierDepth);
+            const roofY = baseY + tiers * tierHeight + 1.5;
+
+            const roofWidth = ctx.carPath.getPointAt(startT + segLen * seg)
+                .distanceTo(ctx.carPath.getPointAt(startT + segLen * Math.min(seg + 2, segments))) * 0.95;
+
+            // 屋根パネル
+            const roofGeo = new THREE.BoxGeometry(standDepth + 2, 0.15, roofWidth);
+            const roof = new THREE.Mesh(roofGeo, roofMat);
+            roof.position.set(roofX, roofY, roofZ);
+            roof.quaternion.copy(q);
+            standGroup.add(roof);
+
+            // 屋根を支える柱（前後2本）
+            [-1, 1].forEach(pSide => {
+                const pillarGeo = new THREE.CylinderGeometry(0.2, 0.2, tiers * tierHeight + 2, 6);
+                const pillar = new THREE.Mesh(pillarGeo, frameMat);
+                const pillarOffsetDist = standOffset + (pSide > 0 ? topTier * tierDepth : 0);
+                pillar.position.set(
+                    point.x + right.x * side * pillarOffsetDist,
+                    baseY + (tiers * tierHeight + 2) / 2,
+                    point.z + right.z * side * pillarOffsetDist
+                );
+                standGroup.add(pillar);
+            });
+        }
+    }
+
+    }); // sides.forEach
+
+    log("観客席作成完了");
+}

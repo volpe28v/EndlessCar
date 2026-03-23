@@ -22,52 +22,20 @@
             max-width: calc(100% - 190px);
             z-index: 10;
         }
-        #viewButtons {
+        /* 右上パネル（コース + 視点ボタン） */
+        #top-right-panel {
             position: absolute;
             top: 10px;
             right: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
             z-index: 100;
-            flex-wrap: nowrap;
-            justify-content: flex-start;
-            max-width: 60px;
         }
 
-        .button-group {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-
-        .button-separator {
-            width: 100%;
-            height: 1px;
-            background-color: rgba(255, 255, 255, 0.3);
-            margin: 5px 0;
-        }
-
-        .weather-button {
-            font-size: 16px !important;
-            padding: 2px 6px !important;
-        }
-
-        .weather-button.active {
-            background-color: rgba(100, 100, 255, 0.7);
-        }
-
-        /* ミニマップ用のスタイル */
         #minimap-container {
-            position: absolute;
-            top: 10px;
-            left: 10px;
             width: 130px;
             height: 120px;
             background-color: rgba(0, 0, 0, 0.5);
             border: 1px solid rgba(255, 255, 255, 0.5);
             border-radius: 5px;
-            z-index: 99;
             overflow: hidden;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
         }
@@ -77,10 +45,6 @@
         }
 
         #speed-display {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
             height: 20px;
             color: white;
             font-size: 12px;
@@ -90,19 +54,24 @@
             background-color: rgba(0, 0, 0, 0.3);
         }
 
+        #view-buttons-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3px;
+            margin-top: 4px;
+            width: 130px;
+        }
+
         .viewButton {
             background-color: rgba(0, 0, 0, 0.5);
             color: white;
-            border: 1px solid white;
+            border: 1px solid rgba(255,255,255,0.4);
             border-radius: 3px;
-            padding: 4px 6px;
-            font-size: 12px;
+            padding: 5px 0;
+            font-size: 11px;
             cursor: pointer;
-            transition: background-color 0.3s, transform 0.1s;
-            margin-bottom: 3px;
-            min-width: 30px;
+            transition: background-color 0.2s;
             text-align: center;
-            width: 100%;
         }
         .viewButton:hover {
             background-color: rgba(50, 50, 50, 0.7);
@@ -112,27 +81,22 @@
         }
         .viewButton.active {
             background-color: rgba(100, 100, 255, 0.7);
+            border-color: rgba(130, 130, 255, 0.8);
         }
         @media (max-width: 480px) {
-            #info {
-                left: 120px;
-                font-size: 12px;
-            }
-            .viewButton {
-                padding: 3px 4px;
-                font-size: 10px;
-                min-width: 24px;
-            }
-            #viewButtons {
-                gap: 2px;
-                max-width: 45px;
-            }
             #minimap-container {
-                width: 104px;
-                height:100px;
+                width: 100px;
+                height: 95px;
             }
             #minimap {
-                height: 80px;
+                height: 75px;
+            }
+            #view-buttons-row {
+                width: 100px;
+            }
+            .viewButton {
+                font-size: 9px;
+                padding: 4px 0;
             }
         }
 
@@ -198,77 +162,54 @@
             margin: 0 5px;
         }
 
-        /* 世界情報パネル（左下） */
-        #world-panel {
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            background-color: rgba(0, 0, 0, 0.7);
+        /* 世界情報（地図直下） */
+        #world-info {
+            background-color: rgba(0, 0, 0, 0.65);
             color: white;
-            padding: 10px 14px;
-            border-radius: 8px;
-            font-size: 12px;
-            z-index: 100;
-            max-width: 320px;
-            backdrop-filter: blur(4px);
-            transition: all 0.5s ease;
+            padding: 8px 10px;
+            border-radius: 5px;
+            margin-top: 4px;
+            transition: all 0.3s ease;
         }
-        #world-panel.remote-world {
-            border: 1px solid rgba(100, 150, 255, 0.5);
-            background-color: rgba(20, 30, 60, 0.8);
+        #world-info.remote {
+            border-left: 3px solid rgba(100, 150, 255, 0.7);
         }
-        #world-panel .world-label {
-            font-size: 10px;
-            color: #aaa;
-            margin-bottom: 3px;
-            letter-spacing: 1px;
-        }
-        #world-panel .world-location {
-            font-size: 15px;
+        #world-location {
+            display: block;
+            font-size: 14px;
             font-weight: bold;
             margin-bottom: 2px;
         }
-        #world-panel .world-detail {
-            font-size: 12px;
+        #world-detail {
+            display: block;
+            font-size: 11px;
             color: #ccc;
         }
         /* 接続数 + プレイヤーリスト */
         #player-panel {
             position: absolute;
-            top: 140px;
+            top: 10px;
             left: 10px;
             z-index: 100;
+        }
+        #worldmap-container {
+            background-color: rgba(10, 20, 40, 0.75);
+            border-radius: 4px;
+            margin-bottom: 4px;
+            position: relative;
+            cursor: pointer;
+        }
+        #worldmap {
+            display: block;
+            border-radius: 4px;
         }
         #player-count {
             background-color: rgba(0, 0, 0, 0.5);
             color: #66ff66;
-            padding: 4px 8px;
-            border-radius: 3px;
-            font-size: 11px;
-        }
-        #player-list {
-            margin-top: 4px;
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-        .player-item {
-            background-color: rgba(0, 0, 0, 0.45);
-            color: #ccc;
-            padding: 3px 8px;
+            padding: 3px 6px;
             border-radius: 3px;
             font-size: 10px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-            white-space: nowrap;
-        }
-        .player-item:hover {
-            background-color: rgba(60, 60, 80, 0.7);
-            color: white;
-        }
-        .player-item.active {
-            background-color: rgba(80, 80, 200, 0.6);
-            color: white;
+            margin-top: 3px;
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
@@ -282,8 +223,12 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 </head>
 <body>
-    <div id="viewButtons">
-        <div class="button-group view-buttons">
+    <div id="top-right-panel">
+        <div id="minimap-container">
+            <canvas id="minimap"></canvas>
+            <div id="speed-display">0 km/h</div>
+        </div>
+        <div id="view-buttons-row" class="view-buttons">
             <button class="viewButton" data-view="0" title="Bird's Eye (1)">Bird</button>
             <button class="viewButton" data-view="1" title="Chase (2)">Chase</button>
             <button class="viewButton" data-view="2" title="Onboard (3)">FPV</button>
@@ -291,15 +236,10 @@
             <button class="viewButton" data-view="4" title="Front (5)">Front</button>
             <button class="viewButton" data-view="5" title="Overview (6)">All</button>
         </div>
-        <div class="button-separator"></div>
     </div>
     <div id="bgmControl">
         <input type="range" id="bgmVolume" min="0" max="100" value="20" title="音量">
         <button id="muteBgm" title="ミュート">🔊</button>
-    </div>
-    <div id="minimap-container">
-        <canvas id="minimap"></canvas>
-        <div id="speed-display">0 km/h</div>
     </div>
     <!-- 非表示だがJS参照用にDOMは残す -->
     <div id="info" style="display:none;">
@@ -309,13 +249,14 @@
         <span id="currentWeatherText"></span>
     </div>
     <div id="player-panel">
+        <div id="worldmap-container">
+            <canvas id="worldmap" width="200" height="100"></canvas>
+        </div>
+        <div id="world-info">
+            <div id="world-location">Loading...</div>
+            <div id="world-detail"></div>
+        </div>
         <div id="player-count">Online: 1</div>
-        <div id="player-list"></div>
-    </div>
-    <div id="world-panel">
-        <div class="world-label">YOUR WORLD</div>
-        <div class="world-location" id="world-location">Loading...</div>
-        <div class="world-detail" id="world-detail"></div>
     </div>
     <script type="module">
         import { ctx } from './GameContext.js';
@@ -382,17 +323,6 @@
             ctx.currentLocationName = _assignedTestCity.name;
         }
 
-        // 天気データ取得完了時のコールバック（同期的にセット → initWeatherSystemより先に有効）
-        ctx._onWeatherDataUpdated = () => {
-            // Firebase初期化済みならすぐ送信、未初期化なら保留
-            if (firebaseSync.myRef) {
-                ctx._myWeather = ctx.weatherSystem.current;
-                syncMyWorldToFirebase();
-                log(`天気データをFirebaseに同期: ${ctx.weatherSystem.current}, ${ctx.currentTemperature}℃`);
-            } else {
-                ctx._pendingWeatherSync = true;
-            }
-        };
 
         const HORIZONTAL_SCALE = ctx.HORIZONTAL_SCALE;
 
@@ -410,49 +340,37 @@
         let playerCarManager = null;
         let lastFocusedIndex = -1; // 前回フォーカスしていた車のインデックス
 
-        // === 自分の世界情報をFirebaseにリアルタイム同期 ===
-        let _lastSyncedWeather = null;
-        let _lastSyncedHour = -1;
-
+        // === 自分の世界情報をFirebaseに書き込み ===
         function syncMyWorldToFirebase() {
-            const worldData = {
-                weather: ctx.weatherSystem.current,
-                temperature: ctx.currentTemperature,
-                humidity: ctx.currentHumidity,
-                windSpeed: ctx.currentWindSpeed,
-                pressure: ctx.currentPressure,
+            firebaseSync.updateMyWorld({
+                weather: ctx.weatherSystem.current || 'sunny',
+                temperature: ctx.currentTemperature || 0,
+                humidity: ctx.currentHumidity || 0,
+                windSpeed: ctx.currentWindSpeed || 0,
+                pressure: ctx.currentPressure || 0,
                 locationName: ctx.currentLocationName || '',
-            };
-            firebaseSync.updateMyWorld(worldData);
-            _lastSyncedWeather = worldData.weather;
-            _lastSyncedHour = new Date().getHours();
-        }
-
-        // 天気や時刻が変わったかチェックして自動同期（毎秒呼ばれる）
-        function checkAndSyncWorld() {
-            const currentWeather = ctx.weatherSystem.current;
-            const currentHour = new Date().getHours();
-
-            let needSync = false;
-            if (currentWeather !== _lastSyncedWeather) needSync = true;
-            if (currentHour !== _lastSyncedHour) needSync = true;
-
-            if (needSync) {
-                syncMyWorldToFirebase();
-            }
+                lat: ctx.currentLat || 0,
+                lon: ctx.currentLon || 0,
+            });
         }
 
         // === 世界情報のフォーマット ===
-        function formatWorldDetails(data) {
+        // 都市名 + 時刻（1行目用）
+        function formatWorldTitle(name, data) {
+            let title = name || '';
+            if (data.localTime) title += `  ${data.localTime}`;
+            return title;
+        }
+        // 天気情報（2行目用）
+        function formatWorldWeather(data) {
             const weatherMap = { sunny: '☀️', cloudy: '☁️', rain: '🌧️', snow: '❄️' };
             const parts = [];
-            if (data.localTime) parts.push(data.localTime);
             if (data.weather) parts.push(weatherMap[data.weather] || data.weather);
             if (data.temperature != null) parts.push(`${Math.round(data.temperature)}℃`);
             if (data.humidity != null) parts.push(`💧${data.humidity}%`);
             if (data.windSpeed != null) parts.push(`${Math.round(data.windSpeed)}m/s`);
             if (data.pressure != null) parts.push(`${data.pressure}hPa`);
-            return parts.join(' / ');
+            return parts.join('  ');
         }
 
         // === 世界切替：フォーカスした車のプレイヤーの世界に切り替える ===
@@ -461,36 +379,27 @@
             if (carIndex === lastFocusedIndex) return;
             lastFocusedIndex = carIndex;
 
-            // プレイヤーリストのactive状態を更新
-            updatePlayerList();
-
             const playerInfo = playerCarManager.getFocusedPlayerWorld(carIndex);
-            const panel = document.getElementById('world-panel');
-            const labelEl = panel.querySelector('.world-label');
+            const infoEl = document.getElementById('world-info');
             const locationEl = document.getElementById('world-location');
             const detailEl = document.getElementById('world-detail');
 
             if (!playerInfo || playerInfo.isLocal) {
-                // 自分の世界に戻す
-                panel.classList.remove('remote-world');
-                labelEl.textContent = 'YOUR WORLD';
-                locationEl.textContent = ctx.currentLocationName || 'Your Location';
+                infoEl.classList.remove('remote');
                 updateLocalWorldDisplay();
                 restoreLocalWorld();
             } else {
-                // 他プレイヤーの世界に切り替え
-                panel.classList.add('remote-world');
-                labelEl.textContent = 'OTHER WORLD';
-                locationEl.textContent = playerInfo.locationName || playerInfo.location || 'Unknown';
-
-                detailEl.textContent = formatWorldDetails(playerInfo);
-
+                infoEl.classList.add('remote');
+                const name = playerInfo.locationName || playerInfo.location || 'Unknown';
+                locationEl.textContent = formatWorldTitle(name, playerInfo);
+                detailEl.textContent = formatWorldWeather(playerInfo);
                 applyRemoteWorld(playerInfo);
             }
         }
 
         // 自分のローカル天気情報を表示に反映
         function updateLocalWorldDisplay() {
+            const locationEl = document.getElementById('world-location');
             const detailEl = document.getElementById('world-detail');
             let localTime;
             const testCity = firebaseSync.getTestCity?.();
@@ -500,14 +409,17 @@
                 const now = new Date();
                 localTime = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
             }
-            detailEl.textContent = formatWorldDetails({
+            const name = ctx.currentLocationName || 'Your Location';
+            const data = {
                 localTime,
                 weather: ctx.weatherSystem.current,
                 temperature: ctx.currentTemperature,
                 humidity: ctx.currentHumidity,
                 windSpeed: ctx.currentWindSpeed,
                 pressure: ctx.currentPressure,
-            });
+            };
+            locationEl.textContent = formatWorldTitle(name, data);
+            detailEl.textContent = formatWorldWeather(data);
         }
 
         // 他プレイヤーの世界を適用
@@ -600,6 +512,7 @@
             if (TEST_MODE && _assignedTestCity) {
                 firebaseSync.testCity = _assignedTestCity;
             }
+
             firebaseSync.init();
             playerCarManager.setLocalSessionId(firebaseSync.getMySessionId());
 
@@ -609,10 +522,12 @@
             playerCarManager.addPlayerCar(firebaseSync.getMySessionId(), {
                 name: myName,
                 locationName: testCity ? testCity.name : '',
+                lat: testCity ? testCity.lat : null,
+                lon: testCity ? testCity.lon : null,
             });
             ctx.currentCarIndex = playerCarManager.getLocalCarIndex();
             lastFocusedIndex = ctx.currentCarIndex;
-            updatePlayerList();
+
 
             // テストモード: パネル表示を更新
             if (TEST_MODE && testCity) {
@@ -625,10 +540,19 @@
                 updatePlayerCount();
             });
 
+            // 自分のDB更新をリアルタイムに反映（位置・天気等）
+            firebaseSync.onSelfUpdate((id, data) => {
+                playerCarManager.updatePlayerWorld(id, data);
+                if (data.locationName) ctx.currentLocationName = data.locationName;
+                if (!ctx._remoteWorldActive) {
+                    updateLocalWorldDisplay();
+                }
+            });
+
             // 他プレイヤーの世界情報更新（リアルタイム配信）
             firebaseSync.onWorldUpdate((id, data) => {
                 playerCarManager.updatePlayerWorld(id, data);
-                updatePlayerList();
+    
                 // 現在そのプレイヤーにフォーカスしていたら世界＆表示をリアルタイム更新
                 const focused = playerCarManager.getFocusedPlayerWorld(ctx.currentCarIndex);
                 if (focused && focused.sessionId === id) {
@@ -636,8 +560,9 @@
                     // パネル表示も更新
                     const locationEl = document.getElementById('world-location');
                     const detailEl = document.getElementById('world-detail');
-                    locationEl.textContent = data.locationName || data.location || 'Unknown';
-                    detailEl.textContent = formatWorldDetails(data);
+                    const name = data.locationName || data.location || 'Unknown';
+                    locationEl.textContent = formatWorldTitle(name, data);
+                    detailEl.textContent = formatWorldWeather(data);
                 }
             });
 
@@ -655,33 +580,12 @@
                 updatePlayerCount();
             });
 
-            // 天気変更時にFirebaseにリアルタイム同期（手動・API取得どちらでも）
-            const origChange = weatherSystem.change.bind(weatherSystem);
-            weatherSystem.change = function(weather, isFromCurrentLocation, temperature, windSpeed) {
-                origChange(weather, isFromCurrentLocation, temperature, windSpeed);
-                // 自分の世界にいるときだけ同期（リモート切替中は除外）
-                if (!ctx._remoteWorldActive) {
-                    ctx._myWeather = weather;
-                    syncMyWorldToFirebase();
-                    const focused = playerCarManager?.getFocusedPlayerWorld(ctx.currentCarIndex);
-                    if (!focused || focused.isLocal) {
-                        document.getElementById('world-location').textContent = ctx.currentLocationName || 'Your Location';
-                        updateLocalWorldDisplay();
-                    }
-                }
-            };
-
-            // 定期的にlocalTimeを更新 + 世界情報の変更検知（1秒ごと）
-            firebaseSync.startWorldUpdates();
-            setInterval(checkAndSyncWorld, 1000);
-
-            // コールバック経由で保留されていた天気データがあればFirebaseに送信
-            if (ctx._pendingWeatherSync && ctx.currentTemperature != null) {
-                ctx._myWeather = ctx.weatherSystem.current;
+            // 定期的に自分の世界情報をDBに同期（3秒ごと）
+            // fetchCurrentWeather完了前でも安全（デフォルト値0が送られる）
+            // 完了後は実際の値が送られ、child_changedで全クライアントに配信
+            setInterval(() => {
                 syncMyWorldToFirebase();
-                ctx._pendingWeatherSync = false;
-                log(`保留中の天気データをFirebaseに同期: ${ctx.weatherSystem.current}, ${ctx.currentTemperature}℃`);
-            }
+            }, 3000);
 
             log("Firebase接続完了、マルチプレイヤー開始");
         })();
@@ -693,28 +597,176 @@
         function updatePlayerCount() {
             const count = ctx.cars.length;
             document.getElementById('player-count').textContent = `Online: ${count}`;
-            updatePlayerList();
+
         }
 
-        function updatePlayerList() {
+
+        // === 世界地図 ===
+        // 簡易大陸アウトライン（[lon, lat] ペアの配列群）
+        const CONTINENTS = [
+            // North America (mainland)
+            [[-168,72],[-145,70],[-140,60],[-130,55],[-125,50],[-124,40],[-117,33],[-110,32],[-105,30],[-100,28],[-97,26],[-90,29],[-85,30],[-82,25],[-80,25],[-81,31],[-75,35],[-70,41],[-67,45],[-66,48],[-60,47],[-65,52],[-58,50],[-55,52],[-60,54],[-65,60],[-75,62],[-80,64],[-85,68],[-95,72],[-110,72],[-125,72],[-140,70],[-168,72]],
+            // Central America
+            [[-105,25],[-100,20],[-95,18],[-90,16],[-85,14],[-83,10],[-80,8],[-78,8],[-82,10],[-85,12],[-88,16],[-92,18],[-97,20],[-100,22],[-105,25]],
+            // South America
+            [[-80,10],[-75,12],[-70,12],[-65,10],[-55,5],[-50,0],[-45,-2],[-40,-5],[-38,-10],[-35,-12],[-38,-18],[-42,-22],[-48,-28],[-52,-33],[-55,-35],[-58,-38],[-65,-42],[-68,-47],[-72,-50],[-75,-52],[-70,-55],[-68,-54],[-65,-46],[-70,-40],[-72,-35],[-71,-30],[-70,-25],[-70,-18],[-75,-15],[-76,-10],[-77,-5],[-80,0],[-80,10]],
+            // Europe
+            [[-10,36],[-5,37],[0,38],[3,43],[0,45],[2,46],[5,48],[8,48],[6,52],[4,52],[5,54],[8,55],[10,55],[12,54],[14,54],[16,55],[18,55],[20,54],[24,55],[28,56],[24,58],[22,60],[18,60],[15,62],[12,58],[8,58],[5,60],[0,58],[-5,50],[-8,43],[-10,36]],
+            // Scandinavia
+            [[5,60],[8,62],[12,64],[15,68],[18,70],[25,71],[30,70],[30,65],[28,62],[25,60],[20,58],[18,60],[15,62],[12,58],[8,58],[5,60]],
+            // Africa
+            [[-15,30],[-17,15],[-15,10],[-10,5],[-5,5],[0,5],[5,4],[10,4],[10,2],[8,4],[5,3],[2,6],[5,5],[10,5],[12,0],[15,-5],[20,-10],[25,-15],[30,-20],[33,-25],[35,-30],[33,-34],[28,-34],[25,-30],[20,-28],[15,-25],[12,-18],[10,-10],[12,-5],[15,0],[20,5],[22,10],[30,10],[35,12],[40,12],[45,12],[50,12],[43,15],[38,20],[35,25],[32,30],[35,32],[30,35],[25,35],[20,35],[15,35],[10,35],[5,36],[0,35],[-5,35],[-10,33],[-15,30]],
+            // Asia (mainland)
+            [[30,35],[35,37],[40,38],[42,42],[45,40],[50,38],[52,42],[55,42],[58,40],[60,38],[62,40],[68,38],[72,35],[75,28],[72,20],[75,15],[78,10],[80,7],[82,10],[85,15],[88,22],[90,22],[92,20],[95,16],[98,16],[100,14],[103,2],[105,0],[107,2],[108,5],[110,5],[110,10],[108,15],[110,20],[115,22],[118,25],[120,30],[122,30],[122,37],[120,40],[124,40],[128,42],[130,43],[132,40],[131,35],[128,35],[122,30],[120,25],[118,22],[115,18],[110,12],[110,5],[115,5],[120,18],[125,20],[122,12],[118,5],[115,0],[110,-5],[106,-6],[108,0],[105,5],[103,8],[100,12],[100,15],[98,20],[95,22],[90,25],[88,25],[85,25],[82,22],[80,15],[78,8],[76,10],[72,22],[70,25],[68,25],[65,26],[60,25],[55,27],[52,25],[50,30],[48,30],[45,33],[42,37],[40,40],[38,42],[35,38],[30,35]],
+            // Russia/Siberia extension
+            [[30,60],[40,62],[50,58],[55,55],[60,55],[65,55],[70,55],[80,55],[90,55],[100,55],[110,55],[120,55],[130,55],[135,58],[140,55],[140,50],[135,45],[140,45],[145,50],[150,55],[160,60],[170,62],[175,65],[180,68],[-180,68],[-170,65],[-168,72],[-180,72],[180,72],[170,70],[160,68],[150,62],[145,60],[140,55],[130,58],[120,60],[110,58],[100,60],[90,62],[80,62],[70,63],[60,62],[50,60],[40,58],[30,60]],
+            // India/Sri Lanka
+            [[68,25],[72,22],[75,20],[77,15],[78,10],[80,8],[80,12],[78,15],[76,15],[74,20],[72,22]],
+            // Australia
+            [[115,-14],[120,-14],[125,-13],[130,-12],[135,-13],[137,-16],[136,-14],[140,-12],[142,-11],[145,-15],[148,-18],[150,-22],[153,-25],[153,-28],[151,-32],[150,-35],[147,-38],[144,-38],[140,-36],[137,-35],[134,-33],[131,-32],[128,-33],[124,-34],[120,-34],[116,-32],[114,-28],[114,-25],[114,-22],[116,-20],[118,-20],[120,-18],[118,-17],[115,-14]],
+            // Japan
+            [[130,31],[131,33],[132,34],[134,34],[135,35],[136,37],[137,37],[139,36],[140,38],[140,40],[141,41],[141,43],[140,43],[139,42],[137,38],[135,35],[133,34],[131,32],[130,31]],
+            // Hokkaido
+            [[140,42],[141,43],[143,43],[145,44],[145,45],[143,45],[141,45],[140,44],[140,42]],
+            // British Isles
+            [[-6,50],[-5,52],[-3,53],[-5,55],[-5,57],[-3,58],[-5,58],[-6,56],[-7,55],[-8,52],[-6,50]],
+            // Iceland
+            [[-24,64],[-22,66],[-18,66],[-14,65],[-14,64],[-18,63],[-22,64],[-24,64]],
+            // New Zealand
+            [[166,-46],[168,-45],[170,-43],[175,-41],[178,-38],[178,-36],[176,-37],[174,-39],[172,-41],[170,-44],[168,-46],[166,-46]],
+            // Hawaii (Big Island area)
+            [[-156,20],[-155,20],[-155,19],[-156,19],[-156,20]],
+            // Maui/nearby
+            [[-157,21],[-156,21],[-156,20.5],[-157,20.5],[-157,21]],
+            // Indonesia (Sumatra/Java rough)
+            [[95,6],[98,4],[100,1],[104,-2],[106,-6],[108,-7],[110,-7],[112,-8],[115,-8],[116,-8],[114,-6],[110,-6],[108,-5],[105,-3],[102,0],[98,2],[95,6]],
+            // Borneo
+            [[109,1],[110,2],[112,2],[115,4],[117,5],[118,6],[118,5],[117,2],[116,0],[115,-1],[113,-2],[111,-1],[110,0],[109,1]],
+            // Philippines
+            [[120,18],[121,19],[122,18],[123,14],[122,12],[121,10],[120,10],[118,12],[118,14],[120,18]],
+            // Taiwan
+            [[120,22],[121,23],[122,25],[121,25],[120,24],[120,22]],
+            // Madagascar
+            [[44,-12],[46,-14],[48,-18],[49,-22],[48,-25],[45,-25],[44,-22],[44,-18],[43,-15],[44,-12]],
+        ];
+
+        function drawWorldMap() {
+            const canvas = document.getElementById('worldmap');
+            const mCtx = canvas.getContext('2d');
+            const W = canvas.width;
+            const H = canvas.height;
+
+            // 座標変換: lon(-180~180) → x(0~W), lat(-90~90) → y(H~0)
+            const lonToX = (lon) => (lon + 180) / 360 * W;
+            const latToY = (lat) => (90 - lat) / 180 * H;
+
+            // 背景
+            mCtx.clearRect(0, 0, W, H);
+            mCtx.fillStyle = 'rgba(10, 25, 50, 0.9)';
+            mCtx.fillRect(0, 0, W, H);
+
+            // グリッド線
+            mCtx.strokeStyle = 'rgba(60, 80, 120, 0.3)';
+            mCtx.lineWidth = 0.5;
+            for (let lon = -180; lon <= 180; lon += 60) {
+                mCtx.beginPath();
+                mCtx.moveTo(lonToX(lon), 0);
+                mCtx.lineTo(lonToX(lon), H);
+                mCtx.stroke();
+            }
+            for (let lat = -60; lat <= 60; lat += 30) {
+                mCtx.beginPath();
+                mCtx.moveTo(0, latToY(lat));
+                mCtx.lineTo(W, latToY(lat));
+                mCtx.stroke();
+            }
+
+            // 大陸描画
+            mCtx.strokeStyle = 'rgba(100, 140, 180, 0.5)';
+            mCtx.fillStyle = 'rgba(60, 90, 120, 0.3)';
+            mCtx.lineWidth = 0.8;
+            for (const continent of CONTINENTS) {
+                mCtx.beginPath();
+                for (let i = 0; i < continent.length; i++) {
+                    const x = lonToX(continent[i][0]);
+                    const y = latToY(continent[i][1]);
+                    if (i === 0) mCtx.moveTo(x, y); else mCtx.lineTo(x, y);
+                }
+                mCtx.closePath();
+                mCtx.fill();
+                mCtx.stroke();
+            }
+
+            // プレイヤーのピン描画（自分も他人も同じデータソース: worldData）
             if (!playerCarManager) return;
-            const listEl = document.getElementById('player-list');
-            listEl.innerHTML = '';
+            const myId = firebaseSync.getMySessionId();
+            const pins = [];
 
             for (const [sessionId, entry] of playerCarManager.playerCars) {
-                const isLocal = sessionId === firebaseSync.getMySessionId();
-                const carIdx = playerCarManager.getCarIndex(sessionId);
-                const name = entry.worldData?.locationName || entry.worldData?.name || sessionId.substring(0, 6);
+                const lat = entry.worldData?.lat;
+                const lon = entry.worldData?.lon;
+                if (!lat && !lon) continue; // 0,0 は未取得
 
-                const item = document.createElement('div');
-                item.className = 'player-item' + (carIdx === ctx.currentCarIndex ? ' active' : '');
-                item.textContent = isLocal ? `${name} (you)` : name;
-                item.addEventListener('click', () => {
-                    ctx.currentCarIndex = carIdx;
-                });
-                listEl.appendChild(item);
+                const isLocal = sessionId === myId;
+                const carIdx = playerCarManager.getCarIndex(sessionId);
+                const isFocused = carIdx === ctx.currentCarIndex;
+                const x = lonToX(lon);
+                const y = latToY(lat);
+
+                // ピン影
+                mCtx.beginPath();
+                mCtx.arc(x, y, isFocused ? 5 : 3.5, 0, Math.PI * 2);
+                mCtx.fillStyle = 'rgba(0,0,0,0.4)';
+                mCtx.fill();
+
+                // ピン本体（自分=金、他人=青）
+                const color = isLocal
+                    ? (isFocused ? '#ffd700' : '#cc9900')
+                    : (isFocused ? '#66aaff' : '#4488cc');
+                mCtx.beginPath();
+                mCtx.arc(x, y, isFocused ? 4 : 3, 0, Math.PI * 2);
+                mCtx.fillStyle = color;
+                mCtx.fill();
+                mCtx.strokeStyle = 'white';
+                mCtx.lineWidth = isFocused ? 1.5 : 0.8;
+                mCtx.stroke();
+
+                // フォーカス中は波紋
+                if (isFocused) {
+                    const pulse = (Date.now() % 2000) / 2000;
+                    mCtx.beginPath();
+                    mCtx.arc(x, y, 4 + pulse * 8, 0, Math.PI * 2);
+                    mCtx.strokeStyle = `rgba(255,255,255,${0.4 * (1 - pulse)})`;
+                    mCtx.lineWidth = 1;
+                    mCtx.stroke();
+                }
+
+                pins.push({ x, y, carIdx, sessionId });
             }
+            canvas._pins = pins;
         }
+
+        // 世界地図クリック → 最寄りのピンの車に切替
+        document.getElementById('worldmap').addEventListener('click', (e) => {
+            const canvas = e.target;
+            const rect = canvas.getBoundingClientRect();
+            const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+            const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+            if (!canvas._pins) return;
+            let nearest = null;
+            let nearestDist = Infinity;
+            for (const pin of canvas._pins) {
+                const d = Math.sqrt((pin.x - mx) ** 2 + (pin.y - my) ** 2);
+                if (d < nearestDist) {
+                    nearestDist = d;
+                    nearest = pin;
+                }
+            }
+            if (nearest && nearestDist < 15) {
+                ctx.currentCarIndex = nearest.carIdx;
+            }
+        });
 
         // === ミニマップ ===
         function _buildMinimapCache() {
@@ -825,6 +877,9 @@
             if (frameCount % 60 === 0 && !ctx._remoteWorldActive) {
                 updateLocalWorldDisplay();
             }
+
+            // 世界地図を更新（波紋アニメのため10フレームごと）
+            if (frameCount % 10 === 0) drawWorldMap();
 
             // 速度表示の更新
             const currentCar = ctx.cars[ctx.currentCarIndex];

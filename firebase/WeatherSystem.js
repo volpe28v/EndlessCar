@@ -434,6 +434,8 @@ function getLocationName(apiName) {
 async function fetchCurrentWeather() {
     try {
         const { lat, lon } = await getLocation();
+        ctx.currentLat = lat;
+        ctx.currentLon = lon;
 
         log(`現在位置を取得しました: 緯度 ${lat}, 経度 ${lon}`);
 

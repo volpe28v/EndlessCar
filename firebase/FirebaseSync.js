@@ -2,7 +2,7 @@
 // 車の位置同期は行わず、各プレイヤーの「世界情報」(天気・時刻・場所)を共有する
 
 // テストモード: アクセスごとにランダムな都市を割り当て
-const TEST_MODE = true;
+const TEST_MODE = false;
 
 const WORLD_CITIES = [
     { name: 'Tokyo',        lat: 35.6762,  lon: 139.6503, tz: 'Asia/Tokyo',           offset: -540 },
@@ -68,7 +68,7 @@ export class FirebaseSync {
         this.playersRef = null;
         this.myRef = null;
         this._worldUpdateInterval = null;
-        this._listeners = { join: [], leave: [], worldUpdate: [] };
+        this._listeners = { join: [], leave: [], worldUpdate: [], selfUpdate: [] };
         this._knownPlayers = new Map(); // sessionId → worldData
         this.testCity = null; // テストモード時に割り当てられた都市
     }
@@ -112,10 +112,13 @@ export class FirebaseSync {
 
         this.playersRef.on('child_changed', (snap) => {
             const id = snap.key;
-            if (id === this.sessionId) return;
             const data = snap.val();
             this._knownPlayers.set(id, data);
-            this._emit('worldUpdate', id, data);
+            if (id === this.sessionId) {
+                this._emit('selfUpdate', id, data);
+            } else {
+                this._emit('worldUpdate', id, data);
+            }
         });
 
         this.playersRef.on('child_removed', (snap) => {
@@ -125,10 +128,9 @@ export class FirebaseSync {
             this._emit('leave', id);
         });
 
-        // 位置情報を取得して世界情報を初期化
-        if (!TEST_MODE) {
-            this._initWorldInfo();
-        }
+        // 通常モード: 位置情報は fetchCurrentWeather 経由で取得され、
+        // syncMyWorldToFirebase() で lat/lon が Firebase に書き込まれる。
+        // _initWorldInfo での二重取得はしない。
     }
 
     _getTestModeInitialData() {
@@ -154,19 +156,19 @@ export class FirebaseSync {
     _getNormalInitialData() {
         return {
             name: this.sessionId.substring(0, 6),
-            joinedAt: firebase.database.ServerValue.TIMESTAMP,
-            lastUpdate: firebase.database.ServerValue.TIMESTAMP,
+            joinedAt: Date.now(),
+            lastUpdate: Date.now(),
             localTime: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
             timeOffset: new Date().getTimezoneOffset(),
             location: '',
             locationName: '',
-            lat: null,
-            lon: null,
+            lat: 0,
+            lon: 0,
             weather: 'sunny',
-            temperature: null,
-            humidity: null,
-            windSpeed: null,
-            pressure: null,
+            temperature: 0,
+            humidity: 0,
+            windSpeed: 0,
+            pressure: 0,
         };
     }
 
@@ -236,6 +238,7 @@ export class FirebaseSync {
     onPlayerJoin(callback) { this._listeners.join.push(callback); }
     onPlayerLeave(callback) { this._listeners.leave.push(callback); }
     onWorldUpdate(callback) { this._listeners.worldUpdate.push(callback); }
+    onSelfUpdate(callback) { this._listeners.selfUpdate.push(callback); }
 
     destroy() {
         this.stopWorldUpdates();
@@ -282,6 +285,7 @@ export class FirebaseSync {
                 locationName,
                 location: locationName,
             });
+
         } catch (e) {
             console.warn('位置情報の取得に失敗:', e.message);
         }

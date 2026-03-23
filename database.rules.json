@@ -2,11 +2,32 @@
   "rules": {
     "endlesscar": {
       "players": {
+        ".read": true,
         "$sessionId": {
+          ".write": true,
+          ".validate": "newData.hasChildren(['name', 'joinedAt', 'lastUpdate'])",
           ".read": true,
-          ".write": "auth == null"
+          "name":         { ".validate": "newData.isString() && newData.val().length <= 30" },
+          "joinedAt":     { ".validate": "newData.val() === now" },
+          "lastUpdate":   { ".validate": "newData.val() === now" },
+          "localTime":    { ".validate": "newData.isString() && newData.val().length <= 10" },
+          "timeOffset":   { ".validate": "newData.isNumber()" },
+          "location":     { ".validate": "newData.isString() && newData.val().length <= 100" },
+          "locationName": { ".validate": "newData.isString() && newData.val().length <= 100" },
+          "lat":          { ".validate": "newData.isNumber() || newData.val() === null" },
+          "lon":          { ".validate": "newData.isNumber() || newData.val() === null" },
+          "weather":      { ".validate": "newData.isString() && newData.val().length <= 10" },
+          "temperature":  { ".validate": "newData.isNumber() || newData.val() === null" },
+          "humidity":     { ".validate": "newData.isNumber() || newData.val() === null" },
+          "windSpeed":    { ".validate": "newData.isNumber() || newData.val() === null" },
+          "pressure":     { ".validate": "newData.isNumber() || newData.val() === null" },
+          "$other":       { ".validate": false }
         }
       }
+    },
+    "$other": {
+      ".read": false,
+      ".write": false
     }
   }
 }

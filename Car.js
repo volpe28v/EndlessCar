@@ -142,6 +142,11 @@ export class Car {
           tandemPatience: Math.random(),
           useDrift: true,
           lineStrategy: this.selectLineStrategy(),
+          // ファジーな挙動パラメータ（車ごとの個性）
+          lineWobbleAmount: 0.3 + Math.random() * 0.7,   // 蛇行の振幅（0.3〜1.0）
+          lineWobbleSpeed: 0.5 + Math.random() * 1.5,     // 蛇行の周期（0.5〜2.0）
+          lineWobblePhase: Math.random() * Math.PI * 2,    // 蛇行の位相（車ごとにずらす）
+          apexPrecision: 0.6 + Math.random() * 0.4,        // エイペックス精度（0.6〜1.0）
       };
       return style;
   }
@@ -275,7 +280,16 @@ export class Car {
           ? this._lastLineOffset + Math.sign(diff) * C.LINE.MAX_CHANGE_PER_FRAME
           : this._lastLineOffset + diff * C.LINE.SMOOTH_FACTOR;
       this._lastLineOffset = smoothed;
-      const finalLineOffset = smoothed;
+
+      // ファジーな蛇行を加える（車ごとの個性）
+      if (!this._wobbleTime) this._wobbleTime = 0;
+      this._wobbleTime += 0.016; // 約60fps想定
+      const wobble = this.drivingStyle.lineWobbleAmount *
+          Math.sin(this._wobbleTime * this.drivingStyle.lineWobbleSpeed * 2 +
+                   this.drivingStyle.lineWobblePhase) *
+          (1.0 - curveAngle * 3) * // カーブ中は蛇行を抑える
+          0.8;
+      const finalLineOffset = smoothed + wobble;
 
       point.add(lineDirection.multiplyScalar(finalLineOffset));
 
@@ -492,10 +506,15 @@ export class Car {
       const nextOffset = phaseOffsets[nextPhase] ?? baseOffset;
       const rawOffset = currentOffset + (nextOffset - currentOffset) * progress;
 
+      // エイペックス精度：精度が低い車ほどコーナーでラインがばらつく
+      const precision = this.drivingStyle.apexPrecision ?? 1.0;
+      const imprecision = (1.0 - precision) * lineOffset * 0.5 *
+          Math.sin(this.position * 200 + (this.drivingStyle.lineWobblePhase || 0));
+
       if ((phase === 'mid' || phase === 'entry') && strategy !== C.LINE_STRATEGY.IN_IN_IN) {
-          return rawOffset * curveScale;
+          return rawOffset * curveScale + imprecision;
       }
-      return rawOffset;
+      return rawOffset + imprecision * 0.3;
   }
 
   _getStrategyPhaseOffsets(strategy, dir, offset, strength, baseOffset) {

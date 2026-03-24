@@ -224,6 +224,33 @@
             color: #666;
             margin-top: 16px;
         }
+        #location-toast {
+            position: fixed;
+            top: 15%;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-size: 32px;
+            font-weight: 300;
+            letter-spacing: 4px;
+            text-shadow: 0 0 24px rgba(0,0,0,0.8), 0 2px 10px rgba(0,0,0,0.5);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.8s;
+            z-index: 100;
+            text-align: center;
+        }
+        #location-toast.visible {
+            opacity: 1;
+        }
+        #location-toast .toast-flag {
+            font-size: 42px;
+            display: block;
+            margin-bottom: 6px;
+        }
+        #location-toast .toast-name {
+            display: block;
+        }
         #welcome-map-container {
             margin: 0 auto 20px;
             border-radius: 8px;
@@ -246,6 +273,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 </head>
 <body>
+    <div id="location-toast"><span class="toast-flag"></span><span class="toast-name"></span></div>
     <div id="welcome-overlay">
         <div id="welcome-box">
             <h1>EndlessCar</h1>
@@ -395,6 +423,22 @@
             });
         }
 
+        // === 地名トースト表示 ===
+        let _toastTimer = null;
+        function showLocationToast(name, countryCode) {
+            const toast = document.getElementById('location-toast');
+            if (!toast) return;
+            const flag = countryCodeToFlag(countryCode);
+            toast.querySelector('.toast-flag').textContent = flag || '';
+            toast.querySelector('.toast-name').textContent = name || '';
+            toast.classList.add('visible');
+            if (_toastTimer) clearTimeout(_toastTimer);
+            _toastTimer = setTimeout(() => {
+                toast.classList.remove('visible');
+                _toastTimer = null;
+            }, 3000);
+        }
+
         // === 世界情報のフォーマット ===
         // 国コード → 国旗絵文字変換（例: 'JP' → '🇯🇵'）
         function countryCodeToFlag(code) {
@@ -427,6 +471,16 @@
             lastFocusedIndex = carIndex;
 
             const playerInfo = playerCarManager.getFocusedPlayerWorld(carIndex);
+
+            // フォーカス切替時は近接状態をリセット
+            _proximityWeather = null;
+            _proximitySessionId = null;
+            ctx._proximityGameTime = null;
+            if (_proximityFadeTimer) {
+                clearTimeout(_proximityFadeTimer);
+                _proximityFadeTimer = null;
+            }
+
             const infoEl = document.getElementById('world-info');
             const locationEl = document.getElementById('world-location');
             const detailEl = document.getElementById('world-detail');
@@ -435,14 +489,18 @@
                 infoEl.classList.remove('remote');
                 updateLocalWorldDisplay();
                 restoreLocalWorld();
+                const localName = ctx.currentLocationName || 'Your Location';
+                showLocationToast(localName, ctx.currentCountryCode);
             } else {
                 infoEl.classList.add('remote');
                 const name = playerInfo.locationName || playerInfo.location || 'Unknown';
                 locationEl.textContent = formatWorldTitle(name, playerInfo);
                 detailEl.textContent = formatWorldWeather(playerInfo);
                 applyRemoteWorld(playerInfo);
+                showLocationToast(name, playerInfo.countryCode);
             }
         }
+
 
         // 自分のローカル天気情報を表示に反映
         function updateLocalWorldDisplay() {
@@ -498,6 +556,105 @@
             // 天気を自分のものに戻す
             if (ctx._myWeather) {
                 ctx.weatherSystem.change(ctx._myWeather, true, ctx.currentTemperature, ctx.currentWindSpeed);
+            }
+        }
+
+        // === 近接天気: フォーカス車が他の車に近づくとその天気に変わる ===
+        let _proximityWeather = null;   // 現在影響を受けている天気
+        let _proximitySessionId = null; // 影響元のセッションID
+        let _proximityFadeTimer = null; // フェードアウト用タイマー
+        const PROXIMITY_THRESHOLD = 0.04; // パス上の距離（余裕をもって広め）
+
+        function checkProximityWeather() {
+            if (!playerCarManager) return;
+            const focusedCar = ctx.cars[ctx.currentCarIndex];
+            if (!focusedCar) return;
+
+            // フォーカス中の車のセッションIDを取得
+            const focusedInfo = playerCarManager.getFocusedPlayerWorld(ctx.currentCarIndex);
+            const focusedSessionId = focusedInfo?.sessionId;
+
+            let nearestGap = Infinity;
+            let nearestEntry = null;
+            let nearestSessionId = null;
+
+            for (const [sessionId, entry] of playerCarManager.playerCars) {
+                if (sessionId === focusedSessionId) continue;
+                const gap = Math.abs(Car.pathDelta(focusedCar.position, entry.car.position));
+                if (gap < nearestGap) {
+                    nearestGap = gap;
+                    nearestEntry = entry;
+                    nearestSessionId = sessionId;
+                }
+            }
+
+            if (nearestGap < PROXIMITY_THRESHOLD && nearestEntry?.worldData?.weather) {
+                const wd = nearestEntry.worldData;
+
+                // フェードアウト中だったらキャンセル
+                if (_proximityFadeTimer) {
+                    clearTimeout(_proximityFadeTimer);
+                    _proximityFadeTimer = null;
+                }
+
+                if (_proximitySessionId !== nearestSessionId) {
+                    // 新しい車に近づいた → その車の天気・時刻に切り替え
+                    _proximitySessionId = nearestSessionId;
+                    _proximityWeather = wd.weather;
+                    ctx.weatherSystem.change(wd.weather, false, wd.temperature, wd.windSpeed);
+
+                    // 時刻も反映（明るさが変わる）
+                    if (wd.timeOffset != null) {
+                        const localOffset = new Date().getTimezoneOffset();
+                        const diffMinutes = localOffset - wd.timeOffset;
+                        const now = new Date();
+                        const remoteTime = new Date(now.getTime() + diffMinutes * 60000);
+                        ctx._proximityGameTime = remoteTime.getHours() + remoteTime.getMinutes() / 60;
+                        ctx.gameTime = ctx._proximityGameTime;
+                    }
+
+                    // 地名トースト表示
+                    const name = wd.locationName || 'Unknown';
+                    showLocationToast(name, wd.countryCode);
+
+                    // ワールド情報パネルも一時的に更新
+                    const locationEl = document.getElementById('world-location');
+                    const detailEl = document.getElementById('world-detail');
+                    locationEl.textContent = formatWorldTitle(name, wd);
+                    detailEl.textContent = formatWorldWeather(wd);
+                    document.getElementById('world-info').classList.add('remote');
+                }
+            } else if (_proximityWeather && !_proximityFadeTimer) {
+                // 離れた → 即座に戻す
+                _proximityFadeTimer = setTimeout(() => {
+                    _proximityWeather = null;
+                    _proximitySessionId = null;
+                    _proximityFadeTimer = null;
+                    ctx._proximityGameTime = null;
+
+                    const currentFocused = playerCarManager.getFocusedPlayerWorld(ctx.currentCarIndex);
+                    if (currentFocused?.isLocal) {
+                        if (ctx._myWeather) {
+                            ctx.weatherSystem.change(ctx._myWeather, true, ctx.currentTemperature, ctx.currentWindSpeed);
+                        }
+                        document.getElementById('world-info').classList.remove('remote');
+                        updateLocalWorldDisplay();
+                        showLocationToast(ctx.currentLocationName || 'Your Location', ctx.currentCountryCode);
+                    } else if (currentFocused) {
+                        ctx.weatherSystem.change(currentFocused.weather, false, currentFocused.temperature, currentFocused.windSpeed);
+                        if (currentFocused.timeOffset != null) {
+                            const localOffset = new Date().getTimezoneOffset();
+                            const diffMinutes = localOffset - currentFocused.timeOffset;
+                            const now = new Date();
+                            const remoteTime = new Date(now.getTime() + diffMinutes * 60000);
+                            ctx.gameTime = remoteTime.getHours() + remoteTime.getMinutes() / 60;
+                        }
+                        const name = currentFocused.locationName || currentFocused.location || 'Unknown';
+                        document.getElementById('world-location').textContent = formatWorldTitle(name, currentFocused);
+                        document.getElementById('world-detail').textContent = formatWorldWeather(currentFocused);
+                        showLocationToast(name, currentFocused.countryCode);
+                    }
+                }, 0);
             }
         }
 
@@ -592,7 +749,7 @@
             firebaseSync.onSelfUpdate((id, data) => {
                 playerCarManager.updatePlayerWorld(id, data);
                 if (data.locationName) ctx.currentLocationName = data.locationName;
-                if (!ctx._remoteWorldActive) {
+                if (!ctx._remoteWorldActive && !_proximityWeather) {
                     updateLocalWorldDisplay();
                 }
             });
@@ -600,7 +757,10 @@
             // 他プレイヤーの世界情報更新（リアルタイム配信）
             firebaseSync.onWorldUpdate((id, data) => {
                 playerCarManager.updatePlayerWorld(id, data);
-    
+
+                // 近接天気が有効中はフォーカス車の天気で上書きしない
+                if (_proximityWeather) return;
+
                 // 現在そのプレイヤーにフォーカスしていたら世界＆表示をリアルタイム更新
                 const focused = playerCarManager.getFocusedPlayerWorld(ctx.currentCarIndex);
                 if (focused && focused.sessionId === id) {
@@ -927,8 +1087,10 @@
             const deltaTime = (ctx.currentFrameTime - lastFrameTime) / 16.67;
             lastFrameTime = ctx.currentFrameTime;
 
-            // リモートの世界が有効なら、gameTimeを固定
-            if (ctx._remoteWorldActive && ctx._remoteGameTime != null) {
+            // リモートの世界 or 近接天気が有効なら、gameTimeを固定
+            if (ctx._proximityGameTime != null) {
+                ctx.gameTime = ctx._proximityGameTime;
+            } else if (ctx._remoteWorldActive && ctx._remoteGameTime != null) {
                 // リモートの時刻を毎フレーム再計算（リアルタイムで進行）
                 const focused = playerCarManager?.getFocusedPlayerWorld(ctx.currentCarIndex);
                 if (focused && !focused.isLocal && focused.timeOffset != null) {
@@ -951,8 +1113,11 @@
             // 世界切替チェック
             switchWorld(ctx.currentCarIndex);
 
+            // 近接天気チェック（3フレームごと）
+            if (frameCount % 3 === 0) checkProximityWeather();
+
             // 自分の世界パネルを定期更新（時刻が進むため、60フレームごと）
-            if (frameCount % 60 === 0 && !ctx._remoteWorldActive) {
+            if (frameCount % 60 === 0 && !ctx._remoteWorldActive && !_proximityWeather) {
                 updateLocalWorldDisplay();
             }
 

@@ -154,6 +154,9 @@ class WeatherSystem {
 
     change(weather, isFromCurrentLocation = false, temperature = null, windSpeed = null) {
         this.current = weather;
+        if (isFromCurrentLocation) {
+            ctx._myWeather = weather;
+        }
         updateWeatherDisplay(weather, isFromCurrentLocation, temperature, windSpeed);
         updateWeatherButtonState(weather);
 

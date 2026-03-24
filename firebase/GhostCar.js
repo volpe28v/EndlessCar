@@ -29,7 +29,6 @@ export class PlayerCarManager {
         car._index = this.carsArray.length;
         car.createObject(this.scene);
         car.driverName = worldData?.name || sessionId.substring(0, 6);
-        car.setFlagSprite(worldData?.countryCode);
 
         this.carsArray.push(car);
         this.playerCars.set(sessionId, { car, worldData: worldData || {} });
@@ -44,10 +43,6 @@ export class PlayerCarManager {
     updatePlayerWorld(sessionId, worldData) {
         const entry = this.playerCars.get(sessionId);
         if (entry) {
-            // countryCode が新たに届いたら国旗を設定
-            if (worldData?.countryCode && !entry.car._flagSprite) {
-                entry.car.setFlagSprite(worldData.countryCode);
-            }
             entry.worldData = worldData;
         }
     }

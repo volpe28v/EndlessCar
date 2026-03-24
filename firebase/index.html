@@ -725,6 +725,10 @@
             const myId = firebaseSync.getMySessionId();
             const pins = [];
 
+            // 呼吸パラメータ（全ピン共通）
+            const t = Date.now() / 1000;
+            const breathe = 0.5 + 0.5 * Math.sin(t * 2.0);
+
             for (const [sessionId, entry] of playerCarManager.playerCars) {
                 const lat = entry.worldData?.lat;
                 const lon = entry.worldData?.lon;
@@ -736,16 +740,30 @@
                 const x = lonToX(lon);
                 const y = latToY(lat);
 
-                // ピン影
-                mCtx.beginPath();
-                mCtx.arc(x, y, isFocused ? 5 : 3.5, 0, Math.PI * 2);
-                mCtx.fillStyle = 'rgba(0,0,0,0.4)';
-                mCtx.fill();
-
-                // ピン本体（自分=金、他人=青）
+                // ピン本体色（自分=金、他人=青）
                 const color = isLocal
                     ? (isFocused ? '#ffd700' : '#cc9900')
                     : (isFocused ? '#66aaff' : '#4488cc');
+
+                // グローオーラ（radialGradient）
+                const glowR = isFocused ? 12 : 7;
+                const grad = mCtx.createRadialGradient(x, y, 0, x, y, glowR);
+                const glowAlpha = (isFocused ? 0.5 : 0.25) * breathe;
+                if (isLocal) {
+                    grad.addColorStop(0, `rgba(255,215,0,${glowAlpha})`);
+                    grad.addColorStop(0.4, `rgba(255,180,0,${glowAlpha * 0.5})`);
+                    grad.addColorStop(1, 'rgba(255,215,0,0)');
+                } else {
+                    grad.addColorStop(0, `rgba(100,170,255,${glowAlpha})`);
+                    grad.addColorStop(0.4, `rgba(60,120,255,${glowAlpha * 0.5})`);
+                    grad.addColorStop(1, 'rgba(100,170,255,0)');
+                }
+                mCtx.beginPath();
+                mCtx.arc(x, y, glowR, 0, Math.PI * 2);
+                mCtx.fillStyle = grad;
+                mCtx.fill();
+
+                // ピン本体
                 mCtx.beginPath();
                 mCtx.arc(x, y, isFocused ? 4 : 3, 0, Math.PI * 2);
                 mCtx.fillStyle = color;
@@ -754,14 +772,16 @@
                 mCtx.lineWidth = isFocused ? 1.5 : 0.8;
                 mCtx.stroke();
 
-                // フォーカス中は波紋
+                // ダブル波紋（フォーカス時）
                 if (isFocused) {
-                    const pulse = (Date.now() % 2000) / 2000;
-                    mCtx.beginPath();
-                    mCtx.arc(x, y, 4 + pulse * 8, 0, Math.PI * 2);
-                    mCtx.strokeStyle = `rgba(255,255,255,${0.4 * (1 - pulse)})`;
-                    mCtx.lineWidth = 1;
-                    mCtx.stroke();
+                    for (let ring = 0; ring < 2; ring++) {
+                        const phase = ((Date.now() + ring * 1000) % 2000) / 2000;
+                        mCtx.beginPath();
+                        mCtx.arc(x, y, 4 + phase * 10, 0, Math.PI * 2);
+                        mCtx.strokeStyle = `rgba(255,255,255,${0.3 * (1 - phase)})`;
+                        mCtx.lineWidth = 1.2 - phase * 0.8;
+                        mCtx.stroke();
+                    }
                 }
 
                 pins.push({ x, y, carIdx, sessionId });

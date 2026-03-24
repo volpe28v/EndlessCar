@@ -1,8 +1,8 @@
 // FirebaseSync.js - Firebase通信・プレゼンス管理（世界共有版）
 // 車の位置同期は行わず、各プレイヤーの「世界情報」(天気・時刻・場所)を共有する
 
-// テストモード: アクセスごとにランダムな都市を割り当て
-const TEST_MODE = false;
+// テストモード: アクセスごとにランダムな都市を割り当て（URLに ?test=true で有効化）
+const TEST_MODE = new URLSearchParams(window.location.search).get('test') === 'true';
 
 const WORLD_CITIES = [
     { name: 'Tokyo',        lat: 35.6762,  lon: 139.6503, tz: 'Asia/Tokyo',           offset: -540 },

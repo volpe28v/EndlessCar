@@ -224,6 +224,17 @@
             color: #666;
             margin-top: 16px;
         }
+        #welcome-map-container {
+            margin: 0 auto 20px;
+            border-radius: 8px;
+            overflow: hidden;
+            background: rgba(10, 25, 50, 0.9);
+            border: 1px solid rgba(100, 150, 255, 0.2);
+        }
+        #welcome-map {
+            display: block;
+            width: 100%;
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/MTLLoader.js"></script>
@@ -246,6 +257,9 @@
                 to ride with someone across the globe.<br>
                 Their weather becomes yours.
             </p>
+            <div id="welcome-map-container">
+                <canvas id="welcome-map" width="360" height="180"></canvas>
+            </div>
             <button id="welcome-start">Start Watching</button>
             <div id="welcome-note">Location is used to show local weather</div>
         </div>
@@ -1016,11 +1030,142 @@
             firebaseSync.destroy();
         });
 
-        document.getElementById('welcome-start').addEventListener('click', () => {
+        // === ウェルカム地図描画 ===
+        function drawWelcomeMap() {
+            const canvas = document.getElementById('welcome-map');
+            if (!canvas) return;
+            const mCtx = canvas.getContext('2d');
+            const W = canvas.width;
+            const H = canvas.height;
+            const lonToX = (lon) => (lon + 180) / 360 * W;
+            const latToY = (lat) => (90 - lat) / 180 * H;
+
+            mCtx.clearRect(0, 0, W, H);
+            mCtx.fillStyle = 'rgba(10, 25, 50, 0.9)';
+            mCtx.fillRect(0, 0, W, H);
+
+            // グリッド
+            mCtx.strokeStyle = 'rgba(60, 80, 120, 0.25)';
+            mCtx.lineWidth = 0.5;
+            for (let lon = -180; lon <= 180; lon += 60) {
+                mCtx.beginPath(); mCtx.moveTo(lonToX(lon), 0); mCtx.lineTo(lonToX(lon), H); mCtx.stroke();
+            }
+            for (let lat = -60; lat <= 60; lat += 30) {
+                mCtx.beginPath(); mCtx.moveTo(0, latToY(lat)); mCtx.lineTo(W, latToY(lat)); mCtx.stroke();
+            }
+
+            // 大陸
+            mCtx.strokeStyle = 'rgba(100, 140, 180, 0.4)';
+            mCtx.fillStyle = 'rgba(60, 90, 120, 0.25)';
+            mCtx.lineWidth = 0.8;
+            for (const continent of CONTINENTS) {
+                mCtx.beginPath();
+                for (let i = 0; i < continent.length; i++) {
+                    const x = lonToX(continent[i][0]);
+                    const y = latToY(continent[i][1]);
+                    if (i === 0) mCtx.moveTo(x, y); else mCtx.lineTo(x, y);
+                }
+                mCtx.closePath(); mCtx.fill(); mCtx.stroke();
+            }
+
+            // プレイヤーピン
+            if (!playerCarManager) return;
+            const t = Date.now() / 1000;
+            const breathe = 0.5 + 0.5 * Math.sin(t * 2.0);
+            const welcomePins = [];
+
+            const myId = firebaseSync.getMySessionId();
+            for (const [sessionId, entry] of playerCarManager.playerCars) {
+                const lat = entry.worldData?.lat;
+                const lon = entry.worldData?.lon;
+                if (!lat && !lon) continue;
+                const x = lonToX(lon);
+                const y = latToY(lat);
+                const isLocal = sessionId === myId;
+
+                // グロー（自分=金、他人=青）
+                const glowR = 14;
+                const grad = mCtx.createRadialGradient(x, y, 0, x, y, glowR);
+                const a = 0.6 * breathe;
+                if (isLocal) {
+                    grad.addColorStop(0, `rgba(255,215,0,${a})`);
+                    grad.addColorStop(0.4, `rgba(255,180,0,${a * 0.5})`);
+                    grad.addColorStop(1, 'rgba(255,215,0,0)');
+                } else {
+                    grad.addColorStop(0, `rgba(100,170,255,${a})`);
+                    grad.addColorStop(0.4, `rgba(60,120,255,${a * 0.5})`);
+                    grad.addColorStop(1, 'rgba(100,170,255,0)');
+                }
+                mCtx.beginPath(); mCtx.arc(x, y, glowR, 0, Math.PI * 2);
+                mCtx.fillStyle = grad; mCtx.fill();
+
+                // ピン
+                const pinColor = isLocal ? '#ffd700' : '#66aaff';
+                const shadowColor = isLocal ? 'rgba(255,215,0,0.9)' : 'rgba(100,170,255,0.9)';
+                mCtx.save();
+                mCtx.shadowColor = shadowColor;
+                mCtx.shadowBlur = 8 * breathe;
+                mCtx.beginPath(); mCtx.arc(x, y, 4, 0, Math.PI * 2);
+                mCtx.fillStyle = pinColor; mCtx.fill();
+                mCtx.restore();
+                mCtx.beginPath(); mCtx.arc(x, y, 4, 0, Math.PI * 2);
+                mCtx.fillStyle = pinColor; mCtx.fill();
+                mCtx.strokeStyle = 'white'; mCtx.lineWidth = 1;
+                mCtx.stroke();
+
+                welcomePins.push({ x, y, carIdx: playerCarManager.getCarIndex(sessionId) });
+            }
+            canvas._pins = welcomePins;
+        }
+
+        // ウェルカムオーバーレイ表示中は定期的に地図を更新
+        let _welcomeMapInterval = setInterval(() => {
+            if (!document.getElementById('welcome-map')) {
+                clearInterval(_welcomeMapInterval);
+                return;
+            }
+            drawWelcomeMap();
+        }, 160); // 約6fps
+
+        // ウェルカムオーバーレイを閉じる共通処理
+        function dismissWelcome(focusCarIndex) {
+            clearInterval(_welcomeMapInterval);
+            if (focusCarIndex != null && focusCarIndex >= 0) {
+                ctx.currentCarIndex = focusCarIndex;
+                lastFocusedIndex = -1; // switchWorld が動くようにリセット
+                switchWorld(focusCarIndex);
+            }
             const overlay = document.getElementById('welcome-overlay');
             overlay.style.opacity = '0';
             overlay.style.transition = 'opacity 0.5s';
             setTimeout(() => overlay.remove(), 500);
+        }
+
+        // Start Watching ボタン
+        document.getElementById('welcome-start').addEventListener('click', () => {
+            dismissWelcome(null);
+        });
+
+        // ウェルカム地図のピンクリック → その車にフォーカスして開始
+        document.getElementById('welcome-map').addEventListener('click', (e) => {
+            const canvas = e.target;
+            if (!canvas._pins || canvas._pins.length === 0) return;
+            const rect = canvas.getBoundingClientRect();
+            const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+            const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+            let nearest = null;
+            let nearestDist = Infinity;
+            for (const pin of canvas._pins) {
+                const d = Math.sqrt((pin.x - mx) ** 2 + (pin.y - my) ** 2);
+                if (d < nearestDist) {
+                    nearestDist = d;
+                    nearest = pin;
+                }
+            }
+            if (nearest && nearestDist < 20) {
+                dismissWelcome(nearest.carIdx);
+            }
         });
 
         window.onload = init;

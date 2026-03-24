@@ -4,9 +4,8 @@ const CAR_MODEL_PATH = 'models/';
 const OBJ_FILE = 'Low_Poly_City_Cars.obj';
 const MTL_FILE = 'Low_Poly_City_Cars.mtl';
 
-// 複数車OBJ: 3車種（Low_Poly_City_Cars.obj から抽出）
+// 複数車OBJ: 使用停止（トラック系のため）
 const OBJ_CAR_NAMES = [
-    'Car_07', 'Car_08', 'Car_09',
 ];
 
 // 単体OBJ: 1ファイル1車種
@@ -23,7 +22,6 @@ const FBX_CARS = [
     { file: 'car_1.fbx',   name: 'FBX_car_1',  bodyColor: 0xFF6633, texture: 'tex/Car Texture 1.png' },  // レーシングカー
     { file: 'car_2.fbx',   name: 'FBX_car_2',  bodyColor: 0x4466AA, texture: 'tex/Car Texture 2.png' },  // パトカー
     { file: 'Car2.fbx',    name: 'FBX_Car2',   bodyColor: 0x3366AA, fixRotation: 'car2' },                // ローポリカー
-    { file: 'Truckk.fbx',  name: 'FBX_Truck',  bodyColor: 0x888888, fixRotation: 'truckk' },              // トラック
 ];
 
 // 複数車OBJ内の各車の代表ボディカラー
@@ -154,9 +152,7 @@ function loadFBX(carDef) {
             // FBXLoaderの座標変換をジオメトリに焼き込み + 向き補正
             object.updateMatrixWorld(true);
             let fixRotation;
-            if (carDef.fixRotation === 'truckk') {
-                fixRotation = new THREE.Matrix4().makeRotationY(-Math.PI / 2);
-            } else if (carDef.fixRotation === 'car2') {
+            if (carDef.fixRotation === 'car2') {
                 fixRotation = new THREE.Matrix4().makeRotationY(Math.PI);
             } else {
                 fixRotation = new THREE.Matrix4()

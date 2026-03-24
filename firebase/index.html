@@ -340,6 +340,9 @@
             // 地名取得 → テスト都市名を返す
             ctx._getLocationName = (_apiName) => _assignedTestCity.name;
 
+            // 国コード → テスト都市の国コードを返す
+            ctx.currentCountryCode = _assignedTestCity.country || '';
+
             // 現在時刻取得 → テスト都市のローカル時刻を返す
             ctx._getCurrentGameTime = () => getCityGameTime(_assignedTestCity);
 
@@ -372,15 +375,22 @@
                 windSpeed: ctx.currentWindSpeed || 0,
                 pressure: ctx.currentPressure || 1013,
                 locationName: ctx.currentLocationName || '',
+                countryCode: ctx.currentCountryCode || '',
                 lat: ctx.currentLat || 0,
                 lon: ctx.currentLon || 0,
             });
         }
 
         // === 世界情報のフォーマット ===
-        // 都市名 + 時刻（1行目用）
+        // 国コード → 国旗絵文字変換（例: 'JP' → '🇯🇵'）
+        function countryCodeToFlag(code) {
+            if (!code || code.length !== 2) return '';
+            return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+        }
+        // 都市名 + 国旗 + 時刻（1行目用）
         function formatWorldTitle(name, data) {
-            let title = name || '';
+            const flag = countryCodeToFlag(data.countryCode);
+            let title = flag ? `${flag} ${name || ''}` : (name || '');
             if (data.localTime) title += `  ${data.localTime}`;
             return title;
         }
@@ -435,6 +445,7 @@
             const name = ctx.currentLocationName || 'Your Location';
             const data = {
                 localTime,
+                countryCode: ctx.currentCountryCode || '',
                 weather: ctx.weatherSystem.current,
                 temperature: ctx.currentTemperature,
                 humidity: ctx.currentHumidity,

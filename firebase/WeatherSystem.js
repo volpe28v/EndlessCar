@@ -454,6 +454,7 @@ async function fetchCurrentWeather() {
         const humidity = data.main.humidity;
         const pressure = data.main.pressure;
         const locationName = getLocationName(data.name);
+        const countryCode = data.sys?.country || '';
 
         // 気象データを保存
         ctx.currentTemperature = temperature;
@@ -461,6 +462,7 @@ async function fetchCurrentWeather() {
         ctx.currentHumidity = humidity;
         ctx.currentPressure = pressure;
         ctx.currentLocationName = locationName;
+        ctx.currentCountryCode = countryCode;
 
         log(`${locationName} 気温: ${temperature}℃, 風速: ${windSpeed}m/s, 湿度: ${humidity}%, 気圧: ${pressure}hPa`);
 

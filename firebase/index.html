@@ -125,42 +125,6 @@
             opacity: 0.8;
         }
 
-        /* BGMコントロール */
-        #bgmControl {
-            position: absolute;
-            bottom: 10px;
-            right: 10px;
-            background-color: rgba(0, 0, 0, 0.5);
-            padding: 5px;
-            border-radius: 5px;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            z-index: 100;
-        }
-
-        #bgmControl button {
-            background: none;
-            border: none;
-            color: white;
-            font-size: 20px;
-            cursor: pointer;
-            padding: 0;
-            width: 30px;
-            height: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        #bgmControl button:hover {
-            opacity: 0.8;
-        }
-
-        #bgmVolume {
-            width: 80px;
-            margin: 0 5px;
-        }
 
         /* 世界情報（地図直下） */
         #world-info {
@@ -211,18 +175,81 @@
             font-size: 10px;
             margin-top: 3px;
         }
+        /* ウェルカムオーバーレイ */
+        #welcome-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(8px);
+        }
+        #welcome-box {
+            text-align: center;
+            color: white;
+            max-width: 360px;
+            padding: 30px;
+        }
+        #welcome-box h1 {
+            font-size: 28px;
+            font-weight: 300;
+            letter-spacing: 4px;
+            margin: 0 0 24px 0;
+        }
+        #welcome-box p {
+            font-size: 14px;
+            line-height: 1.8;
+            color: #bbb;
+            margin: 0 0 28px 0;
+        }
+        #welcome-start {
+            background: rgba(255, 255, 255, 0.12);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 24px;
+            padding: 12px 36px;
+            font-size: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+            letter-spacing: 1px;
+        }
+        #welcome-start:hover {
+            background: rgba(255, 255, 255, 0.25);
+            border-color: rgba(255, 255, 255, 0.6);
+        }
+        #welcome-note {
+            font-size: 11px;
+            color: #666;
+            margin-top: 16px;
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/MTLLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/OBJLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/fflate@0.6.9/umd/index.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/FBXLoader.js"></script>
-    <script src="https://unpkg.com/picoaudio/dist/browser/PicoAudio.min.js"></script>
     <!-- Firebase SDK (compat) -->
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 </head>
 <body>
+    <div id="welcome-overlay">
+        <div id="welcome-box">
+            <h1>EndlessCar</h1>
+            <p>
+                Just watch the cars drift endlessly.<br><br>
+                Your visit adds a car to the track.<br>
+                It carries your sky — your weather, your time.<br><br>
+                Tap a pin on the world map<br>
+                to ride with someone across the globe.<br>
+                Their weather becomes yours.
+            </p>
+            <button id="welcome-start">Start Watching</button>
+            <div id="welcome-note">Location is used to show local weather</div>
+        </div>
+    </div>
     <div id="top-right-panel">
         <div id="minimap-container">
             <canvas id="minimap"></canvas>
@@ -236,10 +263,6 @@
             <button class="viewButton" data-view="4" title="Front (5)">Front</button>
             <button class="viewButton" data-view="5" title="Overview (6)">All</button>
         </div>
-    </div>
-    <div id="bgmControl">
-        <input type="range" id="bgmVolume" min="0" max="100" value="20" title="音量">
-        <button id="muteBgm" title="ミュート">🔊</button>
     </div>
     <!-- 非表示だがJS参照用にDOMは残す -->
     <div id="info" style="display:none;">
@@ -930,54 +953,6 @@
             toggleTimeMode();
         });
 
-        // === BGM初期化 ===
-        async function initBgm() {
-            let isBgmMuted = true;
-            let bgmVolume = 0.2;
-            const bgms = ['RRR-01.mid', 'RR-01.mid', 'RR4-01.mid', 'RR4-02.mid'];
-            const picoAudio = new PicoAudio();
-            picoAudio.init();
-            picoAudio.setMasterVolume(0.2);
-
-            async function playRandomBgm() {
-                const randomIndex = Math.floor(Math.random() * bgms.length);
-                const midiName = `midi/${bgms[randomIndex]}`;
-                fetch(midiName)
-                .then(response => response.arrayBuffer())
-                .then(data => {
-                    const smfData = picoAudio.parseSMF(data);
-                    picoAudio.setData(smfData);
-                    picoAudio.play();
-                });
-            }
-
-            try {
-                document.getElementById('muteBgm').textContent = '🔇';
-                document.getElementById('bgmVolume').addEventListener('input', function() {
-                    bgmVolume = this.value / 100;
-                    if (!isBgmMuted) {
-                        picoAudio.setMasterVolume(bgmVolume);
-                    }
-                });
-                document.getElementById('muteBgm').addEventListener('click', function() {
-                    isBgmMuted = !isBgmMuted;
-                    if (isBgmMuted) {
-                        picoAudio.setMasterVolume(0);
-                        this.textContent = '🔇';
-                        picoAudio.stop();
-                    } else {
-                        picoAudio.setMasterVolume(bgmVolume);
-                        this.textContent = '🔊';
-                        playRandomBgm();
-                    }
-                });
-                picoAudio.addEventListener('songEnd', () => {
-                    playRandomBgm();
-                });
-            } catch (error) {
-                console.error('BGMの初期化エラー:', error);
-            }
-        }
 
         // === 初期化関数 ===
         function init() {
@@ -990,7 +965,6 @@
                 ctx.currentCarIndex = (ctx.currentCarIndex + 1) % ctx.cars.length;
             });
 
-            initBgm();
             log("アニメーション開始");
             animate();
             initWeatherSystem();
@@ -999,6 +973,13 @@
         // 離脱時にFirebase切断
         window.addEventListener('beforeunload', () => {
             firebaseSync.destroy();
+        });
+
+        document.getElementById('welcome-start').addEventListener('click', () => {
+            const overlay = document.getElementById('welcome-overlay');
+            overlay.style.opacity = '0';
+            overlay.style.transition = 'opacity 0.5s';
+            setTimeout(() => overlay.remove(), 500);
         });
 
         window.onload = init;

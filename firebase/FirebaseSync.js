@@ -301,6 +301,34 @@ export class FirebaseSync {
             navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
         });
     }
+
+    // === 訪問履歴 ===
+    // 訪問を記録（1セッション1回）
+    recordVisit(data) {
+        if (!this.db) return;
+        const ref = this.db.ref(`endlesscar/visitors/${this.sessionId}`);
+        ref.set({
+            joinedAt: firebase.database.ServerValue.TIMESTAMP,
+            countryCode: data.countryCode || '',
+            locationName: data.locationName || '',
+            weather: data.weather || '',
+            temperature: data.temperature ?? null,
+        });
+    }
+
+    // 訪問履歴を取得（最新N件）
+    async getVisitorHistory(limit = 100) {
+        if (!this.db) return [];
+        const snap = await this.db.ref('endlesscar/visitors')
+            .orderByChild('joinedAt')
+            .limitToLast(limit)
+            .once('value');
+        const visitors = [];
+        snap.forEach(child => {
+            visitors.push(child.val());
+        });
+        return visitors.reverse(); // 新しい順
+    }
 }
 
 // テストモード用ユーティリティをエクスポート

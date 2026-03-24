@@ -251,6 +251,56 @@
         #location-toast .toast-name {
             display: block;
         }
+        #visitor-history {
+            position: fixed;
+            top: 0; left: 0; bottom: 0;
+            width: 280px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+            color: white;
+            z-index: 200;
+            overflow-y: auto;
+            transform: translateX(-100%);
+            transition: transform 0.3s;
+            padding: 16px;
+            font-size: 12px;
+        }
+        #visitor-history.visible {
+            transform: translateX(0);
+        }
+        #visitor-history h2 {
+            font-size: 14px;
+            font-weight: 400;
+            letter-spacing: 2px;
+            margin: 0 0 12px 0;
+            color: #aaa;
+        }
+        .visitor-item {
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .visitor-flag {
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+        .visitor-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .visitor-location {
+            color: #ccc;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .visitor-meta {
+            color: #666;
+            font-size: 10px;
+            margin-top: 2px;
+        }
         #welcome-map-container {
             margin: 0 auto 20px;
             border-radius: 8px;
@@ -273,6 +323,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 </head>
 <body>
+    <div id="visitor-history"><h2>Visitor History</h2><div id="visitor-list"></div></div>
     <div id="location-toast"><span class="toast-flag"></span><span class="toast-name"></span></div>
     <div id="welcome-overlay">
         <div id="welcome-box">
@@ -795,6 +846,18 @@
                 syncMyWorldToFirebase();
             }, 3000);
 
+            // 天気データ取得完了時に訪問履歴を記録（テストモードは除外）
+            if (!TEST_MODE) {
+                ctx._onWeatherDataUpdated = () => {
+                    firebaseSync.recordVisit({
+                        countryCode: ctx.currentCountryCode || '',
+                        locationName: ctx.currentLocationName || '',
+                        weather: ctx.weatherSystem?.current || '',
+                        temperature: ctx.currentTemperature ?? null,
+                    });
+                };
+            }
+
             log("Firebase接続完了、マルチプレイヤー開始");
         })();
 
@@ -1193,6 +1256,49 @@
         // 離脱時にFirebase切断
         window.addEventListener('beforeunload', () => {
             firebaseSync.destroy();
+        });
+
+        // === 訪問履歴パネル（h キーでトグル） ===
+        let _historyLoaded = false;
+        async function toggleVisitorHistory() {
+            const panel = document.getElementById('visitor-history');
+            if (panel.classList.contains('visible')) {
+                panel.classList.remove('visible');
+                return;
+            }
+            panel.classList.add('visible');
+            if (_historyLoaded) return;
+            _historyLoaded = true;
+
+            const visitors = await firebaseSync.getVisitorHistory(100);
+            const list = document.getElementById('visitor-list');
+            const weatherMap = { sunny: '☀️', cloudy: '☁️', rain: '🌧️', snow: '❄️' };
+
+            list.innerHTML = visitors.map(v => {
+                const flag = countryCodeToFlag(v.countryCode);
+                const name = v.locationName || '—';
+                const weather = weatherMap[v.weather] || '';
+                const temp = v.temperature != null ? `${Math.round(v.temperature)}℃` : '';
+                const date = v.joinedAt ? new Date(v.joinedAt) : null;
+                const timeStr = date ? date.toLocaleDateString('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                return `<div class="visitor-item">
+                    <span class="visitor-flag">${flag || '🌍'}</span>
+                    <div class="visitor-info">
+                        <div class="visitor-location">${name}</div>
+                        <div class="visitor-meta">${weather} ${temp}  ${timeStr}</div>
+                    </div>
+                </div>`;
+            }).join('');
+
+            if (visitors.length === 0) {
+                list.innerHTML = '<div style="color:#666;padding:8px 0;">No visitors yet</div>';
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'h' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                toggleVisitorHistory();
+            }
         });
 
         // === ウェルカム地図描画 ===

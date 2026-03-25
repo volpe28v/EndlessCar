@@ -236,7 +236,13 @@ export class FirebaseSync {
         return first;
     }
 
-    onPlayerJoin(callback) { this._listeners.join.push(callback); }
+    onPlayerJoin(callback) {
+        this._listeners.join.push(callback);
+        // 既に検知済みのプレイヤーを即座に通知（取りこぼし防止）
+        for (const [id, data] of this._knownPlayers) {
+            callback(id, data);
+        }
+    }
     onPlayerLeave(callback) { this._listeners.leave.push(callback); }
     onWorldUpdate(callback) { this._listeners.worldUpdate.push(callback); }
     onSelfUpdate(callback) { this._listeners.selfUpdate.push(callback); }

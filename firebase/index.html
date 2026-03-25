@@ -1301,6 +1301,38 @@
             }
         });
 
+        // スワイプで履歴パネル表示/非表示（スマホ対応）
+        let _swipeStartX = 0;
+        let _swipeStartY = 0;
+        let _swiping = false;
+        const SWIPE_EDGE = 30;     // 左端からのスワイプ開始判定幅
+        const SWIPE_THRESHOLD = 60; // スワイプと判定する最小距離
+
+        document.addEventListener('touchstart', (e) => {
+            const touch = e.touches[0];
+            _swipeStartX = touch.clientX;
+            _swipeStartY = touch.clientY;
+            const panel = document.getElementById('visitor-history');
+            // 左端からのスワイプ or パネル上でのスワイプ
+            _swiping = _swipeStartX < SWIPE_EDGE || panel.classList.contains('visible');
+        }, { passive: true });
+
+        document.addEventListener('touchend', (e) => {
+            if (!_swiping) return;
+            _swiping = false;
+            const touch = e.changedTouches[0];
+            const dx = touch.clientX - _swipeStartX;
+            const dy = Math.abs(touch.clientY - _swipeStartY);
+            if (dy > Math.abs(dx)) return; // 縦スワイプは無視
+
+            const panel = document.getElementById('visitor-history');
+            if (!panel.classList.contains('visible') && _swipeStartX < SWIPE_EDGE && dx > SWIPE_THRESHOLD) {
+                toggleVisitorHistory(); // 右スワイプで表示
+            } else if (panel.classList.contains('visible') && dx < -SWIPE_THRESHOLD) {
+                toggleVisitorHistory(); // 左スワイプで非表示
+            }
+        }, { passive: true });
+
         // === ウェルカム地図描画 ===
         function drawWelcomeMap() {
             const canvas = document.getElementById('welcome-map');

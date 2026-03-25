@@ -29,8 +29,8 @@ export class RealtimeState extends TimeModeState {
         fetchCurrentWeather();
     }
     getGameTime(gameTime, timeSpeed) {
-        // リモートの世界が有効なら、index.html側で設定されたgameTimeをそのまま使う
-        if (ctx._remoteWorldActive && ctx._remoteGameTime != null) {
+        // リモートの世界 or 近接天気 or lerp遷移中なら、index.html側で設定されたgameTimeをそのまま使う
+        if ((ctx._remoteWorldActive && ctx._remoteGameTime != null) || ctx._proximityGameTime != null || ctx._gameTimeLerping) {
             return gameTime;
         }
         // 外部から差し替え可能な現在時刻取得

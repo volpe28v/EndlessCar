@@ -1142,6 +1142,19 @@
         // === アニメーションループ ===
         let frameCount = 0;
         let lastFrameTime = Date.now();
+        const GAME_TIME_LERP_SPEED = 0.03; // 明るさ遷移速度（0〜1、大きいほど速い）
+
+        // 時刻の最短距離 lerp（24時間ループ対応）
+        function lerpGameTime(current, target, t) {
+            let diff = target - current;
+            // 24時間ループで最短経路を選択
+            if (diff > 12) diff -= 24;
+            if (diff < -12) diff += 24;
+            let result = current + diff * t;
+            if (result < 0) result += 24;
+            if (result >= 24) result -= 24;
+            return result;
+        }
 
         function animate() {
             requestAnimationFrame(animate);
@@ -1150,9 +1163,10 @@
             const deltaTime = (ctx.currentFrameTime - lastFrameTime) / 16.67;
             lastFrameTime = ctx.currentFrameTime;
 
-            // リモートの世界 or 近接天気が有効なら、gameTimeを固定
+            // 目標時刻を決定し、スムーズに遷移
+            let targetGameTime = null;
             if (ctx._proximityGameTime != null) {
-                ctx.gameTime = ctx._proximityGameTime;
+                targetGameTime = ctx._proximityGameTime;
             } else if (ctx._remoteWorldActive && ctx._remoteGameTime != null) {
                 // リモートの時刻を毎フレーム再計算（リアルタイムで進行）
                 const focused = playerCarManager?.getFocusedPlayerWorld(ctx.currentCarIndex);
@@ -1161,7 +1175,24 @@
                     const diffMinutes = localOffset - focused.timeOffset;
                     const now = new Date();
                     const remoteTime = new Date(now.getTime() + diffMinutes * 60000);
-                    ctx.gameTime = remoteTime.getHours() + remoteTime.getMinutes() / 60;
+                    targetGameTime = remoteTime.getHours() + remoteTime.getMinutes() / 60;
+                }
+            }
+
+            // targetGameTime が決まっていればスムーズに遷移
+            if (targetGameTime != null) {
+                ctx.gameTime = lerpGameTime(ctx.gameTime, targetGameTime, GAME_TIME_LERP_SPEED * deltaTime);
+                ctx._gameTimeLerping = true;
+            } else if (ctx._gameTimeLerping) {
+                // 近接/リモート解除後、ローカル時刻に向けてスムーズに戻す
+                const localTime = ctx.timeModeState.getGameTime(ctx.gameTime, ctx.timeSpeed);
+                const diff = Math.abs(localTime - ctx.gameTime);
+                const diffWrap = Math.min(diff, 24 - diff);
+                if (diffWrap < 0.02) {
+                    // 十分近づいたら完了
+                    ctx._gameTimeLerping = false;
+                } else {
+                    ctx.gameTime = lerpGameTime(ctx.gameTime, localTime, GAME_TIME_LERP_SPEED * deltaTime);
                 }
             }
 

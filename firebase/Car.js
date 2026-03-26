@@ -213,6 +213,38 @@ export class Car {
       this._driftSmokeRenderer.create(scene);
   }
 
+  // 国コード → 国旗絵文字変換
+  static countryCodeToFlag(code) {
+      if (!code || code.length !== 2) return '';
+      return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+  }
+
+  // 車の上に国旗スプライトを設定
+  setFlagSprite(countryCode) {
+      if (!this.object || !countryCode) return;
+      if (this._flagSprite) return; // 既に設定済み
+      const flag = Car.countryCodeToFlag(countryCode);
+      if (!flag) return;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      const c = canvas.getContext('2d');
+      c.font = '48px serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(flag, 32, 32);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+      const sprite = new THREE.Sprite(material);
+      sprite.scale.set(1.44, 1.44, 1);
+      sprite.position.set(0, 3.0, 0);
+      this.object.add(sprite);
+
+      this._flagSprite = sprite;
+  }
+
   createSpeedLines(scene) {
       this._speedLineRenderer.create(scene);
   }
@@ -1063,6 +1095,14 @@ export class Car {
       if (this.rightHeadlight) this.rightHeadlight.dispose();
       if (this._speedLineRenderer) this._speedLineRenderer.dispose(scene);
       if (this._driftSmokeRenderer) this._driftSmokeRenderer.dispose(scene);
+      // 国旗スプライトの削除
+      if (this._flagSprite) {
+          if (this._flagSprite.material) {
+              if (this._flagSprite.material.map) this._flagSprite.material.map.dispose();
+              this._flagSprite.material.dispose();
+          }
+          this._flagSprite = null;
+      }
       // デバッグラベル（P1等）の削除 — scene直下に追加されているため個別にremove
       if (this._debugLabel) {
           scene.remove(this._debugLabel);

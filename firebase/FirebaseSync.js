@@ -25,6 +25,16 @@ const WORLD_CITIES = [
     { name: 'Helsinki',     country: 'FI', lat: 60.1699,  lon: 24.9384,  tz: 'Europe/Helsinki',      offset: -120 },
     { name: 'Buenos Aires', country: 'AR', lat: -34.6037, lon: -58.3816, tz: 'America/Argentina/Buenos_Aires', offset: 180 },
     { name: 'Nairobi',      country: 'KE', lat: -1.2921,  lon: 36.8219,  tz: 'Africa/Nairobi',       offset: -180 },
+    { name: 'Seoul',        country: 'KR', lat: 37.5665,  lon: 126.9780, tz: 'Asia/Seoul',           offset: -540 },
+    { name: 'Mexico City',  country: 'MX', lat: 19.4326,  lon: -99.1332, tz: 'America/Mexico_City',  offset: 360 },
+    { name: 'Jakarta',      country: 'ID', lat: -6.2088,  lon: 106.8456, tz: 'Asia/Jakarta',         offset: -420 },
+    { name: 'Istanbul',     country: 'TR', lat: 41.0082,  lon: 28.9784,  tz: 'Europe/Istanbul',      offset: -180 },
+    { name: 'Lima',         country: 'PE', lat: -12.0464, lon: -77.0428, tz: 'America/Lima',         offset: 300 },
+    { name: 'Toronto',      country: 'CA', lat: 43.6532,  lon: -79.3832, tz: 'America/Toronto',      offset: 300 },
+    { name: 'Johannesburg', country: 'ZA', lat: -26.2041, lon: 28.0473,  tz: 'Africa/Johannesburg',  offset: -120 },
+    { name: 'Manila',       country: 'PH', lat: 14.5995,  lon: 120.9842, tz: 'Asia/Manila',          offset: -480 },
+    { name: 'Stockholm',    country: 'SE', lat: 59.3293,  lon: 18.0686,  tz: 'Europe/Stockholm',     offset: -60 },
+    { name: 'Auckland',     country: 'NZ', lat: -36.8485, lon: 174.7633, tz: 'Pacific/Auckland',     offset: -780 },
 ];
 
 function getRandomCity() {

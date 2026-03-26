@@ -690,7 +690,10 @@
                     ctx.weatherSystem.change(wd.weather, false, wd.temperature, wd.windSpeed);
 
                     // 時刻も反映（明るさが変わる）
-                    if (wd.timeOffset != null) {
+                    if (wd.tz) {
+                        ctx._proximityGameTime = getCityGameTime({ tz: wd.tz });
+                        ctx.gameTime = ctx._proximityGameTime;
+                    } else if (wd.timeOffset != null) {
                         const localOffset = new Date().getTimezoneOffset();
                         const diffMinutes = localOffset - wd.timeOffset;
                         const now = new Date();
@@ -732,7 +735,9 @@
                         });
                     } else if (currentFocused) {
                         ctx.weatherSystem.change(currentFocused.weather, false, currentFocused.temperature, currentFocused.windSpeed);
-                        if (currentFocused.timeOffset != null) {
+                        if (currentFocused.tz) {
+                            ctx.gameTime = getCityGameTime({ tz: currentFocused.tz });
+                        } else if (currentFocused.timeOffset != null) {
                             const localOffset = new Date().getTimezoneOffset();
                             const diffMinutes = localOffset - currentFocused.timeOffset;
                             const now = new Date();
@@ -1309,12 +1314,16 @@
             } else if (ctx._remoteWorldActive && ctx._remoteGameTime != null) {
                 // リモートの時刻を毎フレーム再計算（リアルタイムで進行）
                 const focused = playerCarManager?.getFocusedPlayerWorld(ctx.currentCarIndex);
-                if (focused && !focused.isLocal && focused.timeOffset != null) {
-                    const localOffset = new Date().getTimezoneOffset();
-                    const diffMinutes = localOffset - focused.timeOffset;
-                    const now = new Date();
-                    const remoteTime = new Date(now.getTime() + diffMinutes * 60000);
-                    targetGameTime = remoteTime.getHours() + remoteTime.getMinutes() / 60;
+                if (focused && !focused.isLocal) {
+                    if (focused.tz) {
+                        targetGameTime = getCityGameTime({ tz: focused.tz });
+                    } else if (focused.timeOffset != null) {
+                        const localOffset = new Date().getTimezoneOffset();
+                        const diffMinutes = localOffset - focused.timeOffset;
+                        const now = new Date();
+                        const remoteTime = new Date(now.getTime() + diffMinutes * 60000);
+                        targetGameTime = remoteTime.getHours() + remoteTime.getMinutes() / 60;
+                    }
                 }
             }
 

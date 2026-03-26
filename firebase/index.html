@@ -251,6 +251,13 @@
         #location-toast .toast-name {
             display: block;
         }
+        #location-toast .toast-meta {
+            display: block;
+            font-size: 18px;
+            margin-top: 4px;
+            color: rgba(255,255,255,0.7);
+            letter-spacing: 2px;
+        }
         #visitor-history {
             position: fixed;
             top: 0; left: 0; bottom: 0;
@@ -324,7 +331,7 @@
 </head>
 <body>
     <div id="visitor-history"><h2>Visitor History</h2><div id="visitor-list"></div></div>
-    <div id="location-toast"><span class="toast-flag"></span><span class="toast-name"></span></div>
+    <div id="location-toast"><span class="toast-flag"></span><span class="toast-name"></span><span class="toast-meta"></span></div>
     <div id="welcome-overlay">
         <div id="welcome-box">
             <h1>EndlessCar</h1>
@@ -386,7 +393,7 @@
         import { updateCamera, setupViewButtons, updateButtonActiveState } from './CameraSystem.js';
         import { RealtimeState, toggleTimeMode } from './TimeModeStates.js';
         import { CarModelLoader } from './CarModelLoader.js';
-        import { FirebaseSync, TEST_MODE, WORLD_CITIES, getRandomCity, getCityLocalTime, getCityGameTime } from './FirebaseSync.js';
+        import { FirebaseSync, TEST_MODE, WORLD_CITIES, getRandomCity, getCityLocalTime, getCityGameTime, getCityTimezoneOffset } from './FirebaseSync.js';
         import { PlayerCarManager } from './GhostCar.js';
 
         function log(message) {
@@ -476,12 +483,30 @@
 
         // === 地名トースト表示 ===
         let _toastTimer = null;
-        function showLocationToast(name, countryCode) {
+        function showLocationToast(name, countryCode, data) {
             const toast = document.getElementById('location-toast');
             if (!toast) return;
             const flag = countryCodeToFlag(countryCode);
             toast.querySelector('.toast-flag').textContent = flag || '';
             toast.querySelector('.toast-name').textContent = name || '';
+
+            // 時間・天気・気温
+            const metaEl = toast.querySelector('.toast-meta');
+            if (metaEl && data) {
+                const weatherMap = { sunny: '☀️', cloudy: '☁️', rain: '🌧️', snow: '❄️' };
+                const parts = [];
+                let time = data.localTime;
+                if (!time && data.tz) {
+                    try { time = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: data.tz }); } catch (e) {}
+                }
+                if (time) parts.push(time);
+                if (data.weather) parts.push(weatherMap[data.weather] || data.weather);
+                if (data.temperature != null) parts.push(`${Math.round(data.temperature)}℃`);
+                metaEl.textContent = parts.join('  ');
+            } else if (metaEl) {
+                metaEl.textContent = '';
+            }
+
             toast.classList.add('visible');
             if (_toastTimer) clearTimeout(_toastTimer);
             _toastTimer = setTimeout(() => {
@@ -500,7 +525,13 @@
         function formatWorldTitle(name, data) {
             const flag = countryCodeToFlag(data.countryCode);
             let title = flag ? `${flag} ${name || ''}` : (name || '');
-            if (data.localTime) title += `  ${data.localTime}`;
+            let time = data.localTime;
+            if (!time && data.tz) {
+                try {
+                    time = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: data.tz });
+                } catch (e) {}
+            }
+            if (time) title += `  ${time}`;
             return title;
         }
         // 天気情報（2行目用）
@@ -541,14 +572,18 @@
                 updateLocalWorldDisplay();
                 restoreLocalWorld();
                 const localName = ctx.currentLocationName || 'Your Location';
-                showLocationToast(localName, ctx.currentCountryCode);
+                showLocationToast(localName, ctx.currentCountryCode, {
+                    localTime: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
+                    weather: ctx.weatherSystem?.current,
+                    temperature: ctx.currentTemperature,
+                });
             } else {
                 infoEl.classList.add('remote');
                 const name = playerInfo.locationName || playerInfo.location || 'Unknown';
                 locationEl.textContent = formatWorldTitle(name, playerInfo);
                 detailEl.textContent = formatWorldWeather(playerInfo);
                 applyRemoteWorld(playerInfo);
-                showLocationToast(name, playerInfo.countryCode);
+                showLocationToast(name, playerInfo.countryCode, playerInfo);
             }
         }
 
@@ -666,7 +701,7 @@
 
                     // 地名トースト表示
                     const name = wd.locationName || 'Unknown';
-                    showLocationToast(name, wd.countryCode);
+                    showLocationToast(name, wd.countryCode, wd);
 
                     // ワールド情報パネルも一時的に更新
                     const locationEl = document.getElementById('world-location');
@@ -690,7 +725,11 @@
                         }
                         document.getElementById('world-info').classList.remove('remote');
                         updateLocalWorldDisplay();
-                        showLocationToast(ctx.currentLocationName || 'Your Location', ctx.currentCountryCode);
+                        showLocationToast(ctx.currentLocationName || 'Your Location', ctx.currentCountryCode, {
+                            localTime: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
+                            weather: ctx._myWeather,
+                            temperature: ctx.currentTemperature,
+                        });
                     } else if (currentFocused) {
                         ctx.weatherSystem.change(currentFocused.weather, false, currentFocused.temperature, currentFocused.windSpeed);
                         if (currentFocused.timeOffset != null) {
@@ -703,7 +742,7 @@
                         const name = currentFocused.locationName || currentFocused.location || 'Unknown';
                         document.getElementById('world-location').textContent = formatWorldTitle(name, currentFocused);
                         document.getElementById('world-detail').textContent = formatWorldWeather(currentFocused);
-                        showLocationToast(name, currentFocused.countryCode);
+                        showLocationToast(name, currentFocused.countryCode, currentFocused);
                     }
                 }, 0);
             }
@@ -784,6 +823,100 @@
             ctx.currentCarIndex = playerCarManager.getLocalCarIndex();
             lastFocusedIndex = ctx.currentCarIndex;
 
+            // NPC車を追加（各国の車を7台、合計8台にする）
+            const npcCities = [];
+            {
+                const usedCities = new Set();
+                if (testCity) usedCities.add(testCity.name);
+                const npcCount = 7;
+                const shuffled = [...WORLD_CITIES].sort(() => Math.random() - 0.5);
+                for (const city of shuffled) {
+                    if (npcCities.length >= npcCount) break;
+                    if (usedCities.has(city.name)) continue;
+                    usedCities.add(city.name);
+                    npcCities.push(city);
+                    const npcId = `npc_${city.name.toLowerCase().replace(/\s+/g, '_')}`;
+                    playerCarManager.addPlayerCar(npcId, {
+                        name: city.name,
+                        locationName: city.name,
+                        countryCode: city.country || '',
+                        lat: city.lat,
+                        lon: city.lon,
+                        timeOffset: getCityTimezoneOffset(city),
+                        tz: city.tz,
+                        weather: 'sunny',
+                    });
+                }
+                updatePlayerCount();
+            }
+
+            // NPC天気をFirebaseキャッシュから読み込み・更新
+            (async () => {
+                const NPC_WEATHER_STALE_MS = 30 * 60 * 1000; // 30分
+                const npcWeatherRef = firebaseSync.db.ref('endlesscar/npc_weather');
+                const snap = await npcWeatherRef.once('value');
+                const cached = snap.val() || {};
+                const now = Date.now();
+                const citiesToFetch = [];
+
+                // キャッシュが新しい都市はすぐ反映、古い都市はfetch対象
+                for (const city of npcCities) {
+                    const key = city.name.replace(/\s+/g, '_');
+                    const c = cached[key];
+                    if (c && (now - c.lastUpdate) < NPC_WEATHER_STALE_MS) {
+                        // キャッシュ有効 → NPCに反映
+                        const npcId = `npc_${city.name.toLowerCase().replace(/\s+/g, '_')}`;
+                        playerCarManager.updatePlayerWorld(npcId, {
+                            name: city.name, locationName: city.name,
+                            countryCode: city.country || '',
+                            lat: city.lat, lon: city.lon, timeOffset: getCityTimezoneOffset(city),
+                            tz: city.tz,
+                            weather: c.weather, temperature: c.temperature,
+                            humidity: c.humidity, windSpeed: c.windSpeed, pressure: c.pressure,
+                        });
+                    } else {
+                        citiesToFetch.push(city);
+                    }
+                }
+
+                // 古い都市の天気をAPIから取得してFirebaseに書き込み
+                for (const city of citiesToFetch) {
+                    try {
+                        const resp = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${city.lat}&lon=${city.lon}&appid=${ctx.weatherApiKey}&units=metric`);
+                        if (!resp.ok) continue;
+                        const data = await resp.json();
+                        const weatherCode = data.weather[0].id;
+                        let weather = 'sunny';
+                        if (weatherCode >= 600 && weatherCode < 623) weather = 'snow';
+                        else if ((weatherCode >= 500 && weatherCode < 532) || (weatherCode >= 200 && weatherCode < 233)) weather = 'rain';
+                        else if (weatherCode >= 801) weather = 'cloudy';
+
+                        const weatherData = {
+                            lastUpdate: Date.now(),
+                            weather,
+                            temperature: data.main.temp,
+                            humidity: data.main.humidity,
+                            windSpeed: data.wind.speed,
+                            pressure: data.main.pressure,
+                        };
+                        const key = city.name.replace(/\s+/g, '_');
+                        npcWeatherRef.child(key).set(weatherData);
+
+                        // NPCに反映
+                        const npcId = `npc_${city.name.toLowerCase().replace(/\s+/g, '_')}`;
+                        playerCarManager.updatePlayerWorld(npcId, {
+                            name: city.name, locationName: city.name,
+                            countryCode: city.country || '',
+                            lat: city.lat, lon: city.lon, timeOffset: getCityTimezoneOffset(city),
+                            tz: city.tz,
+                            ...weatherData,
+                        });
+                        log(`NPC天気更新: ${city.name} → ${weather} ${Math.round(data.main.temp)}℃`);
+                    } catch (e) {
+                        console.warn(`NPC天気取得失敗: ${city.name}`, e);
+                    }
+                }
+            })();
 
             // テストモード: パネル表示を更新
             if (TEST_MODE && testCity) {
@@ -866,9 +999,13 @@
 
         // === プレイヤー数表示更新 ===
         function updatePlayerCount() {
-            const count = ctx.cars.length;
+            let count = 0;
+            if (playerCarManager) {
+                for (const [id] of playerCarManager.playerCars) {
+                    if (!id.startsWith('npc_')) count++;
+                }
+            }
             document.getElementById('player-count').textContent = `Online: ${count}`;
-
         }
 
 
@@ -983,31 +1120,33 @@
                 if (!lat && !lon) continue; // 0,0 は未取得
 
                 const isLocal = sessionId === myId;
+                const isNpc = sessionId.startsWith('npc_');
                 const carIdx = playerCarManager.getCarIndex(sessionId);
                 const isFocused = carIdx === ctx.currentCarIndex;
                 const x = lonToX(lon);
                 const y = latToY(lat);
 
-                // ピン本体色（自分=金、他人=青）
-                const color = isLocal
-                    ? (isFocused ? '#ffd700' : '#cc9900')
-                    : (isFocused ? '#66aaff' : '#4488cc');
+                // ピン本体色（自分=金、オンライン=緑、NPC=青）
+                let color, glowColor;
+                if (isLocal) {
+                    color = isFocused ? '#ffd700' : '#cc9900';
+                    glowColor = [255, 215, 0];
+                } else if (!isNpc) {
+                    color = isFocused ? '#44ff88' : '#22aa55';
+                    glowColor = [68, 255, 136];
+                } else {
+                    color = isFocused ? '#66aaff' : '#4488cc';
+                    glowColor = [100, 170, 255];
+                }
 
                 // グローオーラ（radialGradient + shadowBlur）
                 const glowR = isFocused ? 18 : 10;
                 const grad = mCtx.createRadialGradient(x, y, 0, x, y, glowR);
                 const glowAlpha = (isFocused ? 0.8 : 0.5) * breathe;
-                if (isLocal) {
-                    grad.addColorStop(0, `rgba(255,215,0,${glowAlpha})`);
-                    grad.addColorStop(0.3, `rgba(255,180,0,${glowAlpha * 0.6})`);
-                    grad.addColorStop(0.6, `rgba(255,150,0,${glowAlpha * 0.2})`);
-                    grad.addColorStop(1, 'rgba(255,215,0,0)');
-                } else {
-                    grad.addColorStop(0, `rgba(100,170,255,${glowAlpha})`);
-                    grad.addColorStop(0.3, `rgba(60,120,255,${glowAlpha * 0.6})`);
-                    grad.addColorStop(0.6, `rgba(40,80,255,${glowAlpha * 0.2})`);
-                    grad.addColorStop(1, 'rgba(100,170,255,0)');
-                }
+                grad.addColorStop(0, `rgba(${glowColor},${glowAlpha})`);
+                grad.addColorStop(0.3, `rgba(${glowColor},${glowAlpha * 0.6})`);
+                grad.addColorStop(0.6, `rgba(${glowColor},${glowAlpha * 0.2})`);
+                grad.addColorStop(1, `rgba(${glowColor},0)`);
                 mCtx.beginPath();
                 mCtx.arc(x, y, glowR, 0, Math.PI * 2);
                 mCtx.fillStyle = grad;
@@ -1015,7 +1154,7 @@
 
                 // ピン本体（shadowBlurで発光感を追加）
                 mCtx.save();
-                mCtx.shadowColor = isLocal ? 'rgba(255,215,0,0.9)' : 'rgba(100,170,255,0.9)';
+                mCtx.shadowColor = `rgba(${glowColor},0.9)`;
                 mCtx.shadowBlur = (isFocused ? 12 : 6) * breathe;
                 mCtx.beginPath();
                 mCtx.arc(x, y, isFocused ? 4 : 3, 0, Math.PI * 2);
@@ -1210,9 +1349,29 @@
             // 近接天気チェック（3フレームごと）
             if (frameCount % 3 === 0) checkProximityWeather();
 
-            // 自分の世界パネルを定期更新（時刻が進むため、60フレームごと）
-            if (frameCount % 60 === 0 && !ctx._remoteWorldActive && !_proximityWeather) {
-                updateLocalWorldDisplay();
+            // 世界パネルの時刻を定期更新（60フレームごと）
+            if (frameCount % 60 === 0) {
+                if (_proximityWeather && _proximitySessionId) {
+                    // 近接天気中 → 近接元の情報で更新
+                    const proxEntry = playerCarManager.playerCars.get(_proximitySessionId);
+                    if (proxEntry?.worldData) {
+                        const wd = proxEntry.worldData;
+                        const name = wd.locationName || 'Unknown';
+                        document.getElementById('world-location').textContent = formatWorldTitle(name, wd);
+                        document.getElementById('world-detail').textContent = formatWorldWeather(wd);
+                    }
+                } else if (!ctx._remoteWorldActive) {
+                    // 自分の世界
+                    updateLocalWorldDisplay();
+                } else {
+                    // リモートフォーカス中
+                    const focused = playerCarManager.getFocusedPlayerWorld(ctx.currentCarIndex);
+                    if (focused && !focused.isLocal) {
+                        const name = focused.locationName || focused.location || 'Unknown';
+                        document.getElementById('world-location').textContent = formatWorldTitle(name, focused);
+                        document.getElementById('world-detail').textContent = formatWorldWeather(focused);
+                    }
+                }
             }
 
             // 世界地図を更新（波紋アニメのため10フレームごと）
@@ -1416,28 +1575,30 @@
                 const x = lonToX(lon);
                 const y = latToY(lat);
                 const isLocal = sessionId === myId;
+                const isNpc = sessionId.startsWith('npc_');
 
-                // グロー（自分=金、他人=青）
+                // グロー（自分=金、オンライン=緑、NPC=青）
+                let glowColor;
+                if (isLocal) glowColor = [255, 215, 0];
+                else if (!isNpc) glowColor = [68, 255, 136];
+                else glowColor = [100, 170, 255];
+
                 const glowR = 14;
                 const grad = mCtx.createRadialGradient(x, y, 0, x, y, glowR);
                 const a = 0.6 * breathe;
-                if (isLocal) {
-                    grad.addColorStop(0, `rgba(255,215,0,${a})`);
-                    grad.addColorStop(0.4, `rgba(255,180,0,${a * 0.5})`);
-                    grad.addColorStop(1, 'rgba(255,215,0,0)');
-                } else {
-                    grad.addColorStop(0, `rgba(100,170,255,${a})`);
-                    grad.addColorStop(0.4, `rgba(60,120,255,${a * 0.5})`);
-                    grad.addColorStop(1, 'rgba(100,170,255,0)');
-                }
+                grad.addColorStop(0, `rgba(${glowColor},${a})`);
+                grad.addColorStop(0.4, `rgba(${glowColor},${a * 0.5})`);
+                grad.addColorStop(1, `rgba(${glowColor},0)`);
                 mCtx.beginPath(); mCtx.arc(x, y, glowR, 0, Math.PI * 2);
                 mCtx.fillStyle = grad; mCtx.fill();
 
                 // ピン
-                const pinColor = isLocal ? '#ffd700' : '#66aaff';
-                const shadowColor = isLocal ? 'rgba(255,215,0,0.9)' : 'rgba(100,170,255,0.9)';
+                let pinColor;
+                if (isLocal) pinColor = '#ffd700';
+                else if (!isNpc) pinColor = '#44ff88';
+                else pinColor = '#66aaff';
                 mCtx.save();
-                mCtx.shadowColor = shadowColor;
+                mCtx.shadowColor = `rgba(${glowColor},0.9)`;
                 mCtx.shadowBlur = 8 * breathe;
                 mCtx.beginPath(); mCtx.arc(x, y, 4, 0, Math.PI * 2);
                 mCtx.fillStyle = pinColor; mCtx.fill();

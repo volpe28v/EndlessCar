@@ -25,6 +25,20 @@
           "$other":       { ".validate": false }
         }
       },
+      "npc_weather": {
+        ".read": true,
+        ".write": true,
+        "$cityName": {
+          ".validate": "newData.hasChildren(['lastUpdate', 'weather'])",
+          "lastUpdate":   { ".validate": "newData.isNumber()" },
+          "weather":      { ".validate": "newData.isString() && newData.val().length <= 10" },
+          "temperature":  { ".validate": "newData.isNumber() && newData.val() >= -100 && newData.val() <= 100" },
+          "humidity":     { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
+          "windSpeed":    { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 200" },
+          "pressure":     { ".validate": "newData.isNumber() && newData.val() >= 800 && newData.val() <= 1200" },
+          "$other":       { ".validate": false }
+        }
+      },
       "visitors": {
         ".read": true,
         "$visitorId": {

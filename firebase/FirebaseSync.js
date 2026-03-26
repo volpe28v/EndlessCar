@@ -46,6 +46,20 @@ function getCityLocalTime(city) {
     }
 }
 
+// 都市のタイムゾーンのUTCオフセット（分）を動的に計算（DST対応）
+function getCityTimezoneOffset(city) {
+    try {
+        const now = new Date();
+        const utcStr = now.toLocaleString('en-US', { timeZone: 'UTC', hour12: false });
+        const cityStr = now.toLocaleString('en-US', { timeZone: city.tz, hour12: false });
+        const utcDate = new Date(utcStr);
+        const cityDate = new Date(cityStr);
+        return (utcDate.getTime() - cityDate.getTime()) / 60000;
+    } catch (e) {
+        return city.offset;
+    }
+}
+
 // 都市のタイムゾーンでの現在時刻（hours + minutes/60）を返す
 function getCityGameTime(city) {
     try {
@@ -338,4 +352,4 @@ export class FirebaseSync {
 }
 
 // テストモード用ユーティリティをエクスポート
-export { TEST_MODE, WORLD_CITIES, getRandomCity, getCityLocalTime, getCityGameTime };
+export { TEST_MODE, WORLD_CITIES, getRandomCity, getCityLocalTime, getCityGameTime, getCityTimezoneOffset };

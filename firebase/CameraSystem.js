@@ -41,14 +41,22 @@ export function updateCamera() {
             ctx.camera.updateProjectionMatrix();
             break;
         }
-        case 3: { // 斜め上視点
-            const diagonalOffset = new THREE.Vector3(50, 40, 20);
-            const rotatedDiagOffset = diagonalOffset.clone().applyQuaternion(currentCar.object.quaternion);
-            const targetDiagCameraPos = new THREE.Vector3().addVectors(currentCar.object.position, rotatedDiagOffset);
-            ctx.camera.position.lerp(targetDiagCameraPos, 0.1);
-            const diagLookOffset = new THREE.Vector3(0, -1, -5).applyQuaternion(currentCar.object.quaternion);
-            const diagLookAtPoint = new THREE.Vector3().addVectors(currentCar.object.position, diagLookOffset);
-            ctx.camera.lookAt(diagLookAtPoint);
+        case 3: { // 斜め上視点（ゆっくり周回）
+            if (!ctx.camera.userData.angleOrbit) {
+                ctx.camera.userData.angleOrbit = 0;
+            }
+            ctx.camera.userData.angleOrbit += 0.003;
+            const orbitA = ctx.camera.userData.angleOrbit;
+            const orbitRadius = 45;
+            const orbitHeight = 35;
+            const orbitOffset = new THREE.Vector3(
+                Math.cos(orbitA) * orbitRadius,
+                orbitHeight,
+                Math.sin(orbitA) * orbitRadius
+            );
+            const targetDiagCameraPos = new THREE.Vector3().addVectors(currentCar.object.position, orbitOffset);
+            ctx.camera.position.lerp(targetDiagCameraPos, 0.05);
+            ctx.camera.lookAt(currentCar.object.position);
             ctx.camera.fov = 60;
             ctx.camera.updateProjectionMatrix();
             break;

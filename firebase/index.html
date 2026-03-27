@@ -226,7 +226,7 @@
         }
         #location-toast {
             position: fixed;
-            top: 40%;
+            bottom: 15%;
             left: 50%;
             transform: translateX(-50%);
             color: white;
@@ -1119,6 +1119,12 @@
             const t = Date.now() / 1000;
             const breathe = 0.5 + 0.5 * Math.sin(t * 2.0);
 
+            // 現在天気表示中の国（近接天気 or フォーカス車）
+            const activeSessionId = _proximitySessionId || (() => {
+                const f = playerCarManager.getFocusedPlayerWorld(ctx.currentCarIndex);
+                return f?.sessionId || null;
+            })();
+
             for (const [sessionId, entry] of playerCarManager.playerCars) {
                 const lat = entry.worldData?.lat;
                 const lon = entry.worldData?.lon;
@@ -1128,10 +1134,11 @@
                 const isNpc = sessionId.startsWith('npc_');
                 const carIdx = playerCarManager.getCarIndex(sessionId);
                 const isFocused = carIdx === ctx.currentCarIndex;
+                const isActive = sessionId === activeSessionId; // 現在天気表示中
                 const x = lonToX(lon);
                 const y = latToY(lat);
 
-                // ピン本体色（自分=金、オンライン=緑、NPC=青）
+                // ピン本体色（自分=金、オンライン=緑、NPC=青、アクティブ=明るく）
                 let color, glowColor;
                 if (isLocal) {
                     color = isFocused ? '#ffd700' : '#cc9900';
@@ -1139,15 +1146,18 @@
                 } else if (!isNpc) {
                     color = isFocused ? '#44ff88' : '#22aa55';
                     glowColor = [68, 255, 136];
+                } else if (isActive) {
+                    color = '#ff8844';
+                    glowColor = [255, 136, 68];
                 } else {
                     color = isFocused ? '#66aaff' : '#4488cc';
                     glowColor = [100, 170, 255];
                 }
 
                 // グローオーラ（radialGradient + shadowBlur）
-                const glowR = isFocused ? 18 : 10;
+                const glowR = (isFocused || isActive) ? 18 : 10;
                 const grad = mCtx.createRadialGradient(x, y, 0, x, y, glowR);
-                const glowAlpha = (isFocused ? 0.8 : 0.5) * breathe;
+                const glowAlpha = ((isFocused || isActive) ? 0.8 : 0.5) * breathe;
                 grad.addColorStop(0, `rgba(${glowColor},${glowAlpha})`);
                 grad.addColorStop(0.3, `rgba(${glowColor},${glowAlpha * 0.6})`);
                 grad.addColorStop(0.6, `rgba(${glowColor},${glowAlpha * 0.2})`);
@@ -1160,27 +1170,28 @@
                 // ピン本体（shadowBlurで発光感を追加）
                 mCtx.save();
                 mCtx.shadowColor = `rgba(${glowColor},0.9)`;
-                mCtx.shadowBlur = (isFocused ? 12 : 6) * breathe;
+                mCtx.shadowBlur = ((isFocused || isActive) ? 12 : 6) * breathe;
                 mCtx.beginPath();
-                mCtx.arc(x, y, isFocused ? 4 : 3, 0, Math.PI * 2);
+                mCtx.arc(x, y, (isFocused || isActive) ? 4 : 3, 0, Math.PI * 2);
                 mCtx.fillStyle = color;
                 mCtx.fill();
                 mCtx.restore();
                 mCtx.beginPath();
-                mCtx.arc(x, y, isFocused ? 4 : 3, 0, Math.PI * 2);
+                mCtx.arc(x, y, (isFocused || isActive) ? 4 : 3, 0, Math.PI * 2);
                 mCtx.fillStyle = color;
                 mCtx.fill();
                 mCtx.strokeStyle = 'white';
-                mCtx.lineWidth = isFocused ? 1.5 : 0.8;
+                mCtx.lineWidth = (isFocused || isActive) ? 1.5 : 0.8;
                 mCtx.stroke();
 
-                // ダブル波紋（フォーカス時）
-                if (isFocused) {
+                // ダブル波紋（フォーカス時 or アクティブ時）
+                if (isFocused || isActive) {
+                    const rippleColor = isActive && !isFocused ? `255,136,68` : `255,255,255`;
                     for (let ring = 0; ring < 2; ring++) {
                         const phase = ((Date.now() + ring * 1000) % 2000) / 2000;
                         mCtx.beginPath();
                         mCtx.arc(x, y, 4 + phase * 10, 0, Math.PI * 2);
-                        mCtx.strokeStyle = `rgba(255,255,255,${0.3 * (1 - phase)})`;
+                        mCtx.strokeStyle = `rgba(${rippleColor},${0.3 * (1 - phase)})`;
                         mCtx.lineWidth = 1.2 - phase * 0.8;
                         mCtx.stroke();
                     }

@@ -362,4 +362,10 @@ export class FirebaseSync {
 }
 
 // テストモード用ユーティリティをエクスポート
-export { TEST_MODE, WORLD_CITIES, getRandomCity, getCityLocalTime, getCityGameTime, getCityTimezoneOffset };
+// 国コード → 国旗絵文字変換（例: 'JP' → '🇯🇵'）
+function countryCodeToFlag(code) {
+    if (!code || code.length !== 2) return '';
+    return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+}
+
+export { TEST_MODE, WORLD_CITIES, getRandomCity, getCityLocalTime, getCityGameTime, getCityTimezoneOffset, countryCodeToFlag };

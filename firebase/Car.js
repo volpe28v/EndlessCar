@@ -4,6 +4,7 @@ import { SpeedLineRenderer } from './SpeedLineRenderer.js';
 import { DriftSmokeRenderer } from './DriftSmokeRenderer.js';
 import { buildCarModel } from './CarModelBuilder.js';
 import { NormalState, TandemState, PassState, ReturningState } from './CarStates.js';
+import { countryCodeToFlag } from './FirebaseSync.js';
 
 function log(message) {
   console.log(`[${new Date().toISOString()}] ${message}`);
@@ -213,17 +214,11 @@ export class Car {
       this._driftSmokeRenderer.create(scene);
   }
 
-  // 国コード → 国旗絵文字変換
-  static countryCodeToFlag(code) {
-      if (!code || code.length !== 2) return '';
-      return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
-  }
-
   // 車の上に国旗スプライトを設定
   setFlagSprite(countryCode) {
       if (!this.object || !countryCode) return;
       if (this._flagSprite) return; // 既に設定済み
-      const flag = Car.countryCodeToFlag(countryCode);
+      const flag = countryCodeToFlag(countryCode);
       if (!flag) return;
 
       const canvas = document.createElement('canvas');

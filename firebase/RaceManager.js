@@ -2,15 +2,10 @@
 import { ctx } from './GameContext.js';
 import { updateButtonActiveState } from './CameraSystem.js';
 import { Car } from './Car.js';
-import { WORLD_CITIES, getCityLocalTime, getCityGameTime, getCityTimezoneOffset } from './FirebaseSync.js';
+import { WORLD_CITIES, getCityLocalTime, getCityGameTime, getCityTimezoneOffset, countryCodeToFlag } from './FirebaseSync.js';
 
 function log(message) {
     console.log(`[${new Date().toISOString()}] ${message}`);
-}
-
-function countryCodeToFlag(code) {
-    if (!code || code.length !== 2) return '';
-    return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
 }
 
 export class RaceManager {
@@ -332,7 +327,7 @@ export class RaceManager {
         const board = document.getElementById('race-position-board');
         const playerCar = this.getPlayerCar();
 
-        let html = '<table><tr><th>P</th><th></th><th>Car</th><th>Lap</th></tr>';
+        let html = '<table><tr><th>P</th><th></th><th class="race-city-name">Car</th><th>Lap</th></tr>';
 
         ranked.forEach(([car, data], i) => {
             const pos = i + 1;
@@ -341,18 +336,11 @@ export class RaceManager {
             const city = car._raceCity;
             const flag = city ? countryCodeToFlag(city.country) : '';
             const cls = isPlayer ? ' class="player-car"' : isCurrent ? ' class="current-car"' : '';
-            html += `<tr${cls} data-car-index="${car._index}" style="cursor:pointer;"><td>${pos}</td><td>${flag}</td><td>${car.driverName || ''}</td><td>${data.laps}/${this.totalLaps}</td></tr>`;
+            html += `<tr${cls} data-car-index="${car._index}" style="cursor:pointer;"><td>${pos}</td><td>${flag}</td><td class="race-city-name">${car.driverName || ''}</td><td>${data.laps}/${this.totalLaps}</td></tr>`;
         });
 
         html += '</table>';
         board.innerHTML = html;
-
-        // クリックでカメラ切替
-        board.querySelectorAll('tr[data-car-index]').forEach(row => {
-            row.addEventListener('click', () => {
-                ctx.currentCarIndex = parseInt(row.getAttribute('data-car-index'));
-            });
-        });
     }
 
     formatTime(ms) {
@@ -407,6 +395,18 @@ export class RaceManager {
         document.getElementById('race-ui').style.display = 'block';
         document.getElementById('race-results').style.display = 'none';
         document.getElementById('race-position-board').style.display = 'block';
+
+        // ランキングボードのクリック（イベントデリゲーション、1回だけ登録）
+        const board = document.getElementById('race-position-board');
+        if (!board._delegated) {
+            board._delegated = true;
+            board.addEventListener('click', (e) => {
+                const row = e.target.closest('tr[data-car-index]');
+                if (row) {
+                    ctx.currentCarIndex = parseInt(row.getAttribute('data-car-index'));
+                }
+            });
+        }
     }
 
     endRaceMode(scene, carPath) {

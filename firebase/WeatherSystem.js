@@ -8,12 +8,23 @@ class RenderCache {
         this.tmpColor1 = new THREE.Color();
         this.tmpColor2 = new THREE.Color();
         this.weatherSkyColor = new THREE.Color(0x87CEEB);
+        this._targetWeatherSkyColor = new THREE.Color(0x87CEEB);
+        this._targetFloorColor = null;
+        this._targetFogColor = null;
         this.streetLights = null;   // 初回traverse後にキャッシュ
         this.lastIsNight = null;    // 街灯状態の変化検知
         this.minimap = null;        // ミニマップPath2Dキャッシュ
     }
     setWeatherSkyColor(hex) {
-        this.weatherSkyColor.set(hex);  // new THREE.Color() を避ける
+        this._targetWeatherSkyColor.set(hex); // 目標色を設定（実際の色はlerpで追従）
+    }
+    lerpWeatherColors() {
+        // 空の色をスムーズに遷移
+        this.weatherSkyColor.lerp(this._targetWeatherSkyColor, 0.03);
+        // 床の色もスムーズに遷移
+        if (this._targetFloorColor && ctx.floor) {
+            ctx.floor.material.color.lerp(this._targetFloorColor, 0.03);
+        }
     }
     dispose() {
         this.streetLights = null;
@@ -374,8 +385,12 @@ function applyWeatherEnvironment(weather) {
     // 空の色を設定
     ctx.renderCache.setWeatherSkyColor(params.skyColor);
 
-    // 床マテリアルの更新
-    ctx.floor.material.color.setHex(params.floorColor);
+    // 床マテリアルの更新（色はlerpで遷移、他は即時）
+    if (!ctx.renderCache._targetFloorColor) {
+        ctx.renderCache._targetFloorColor = new THREE.Color(params.floorColor);
+    } else {
+        ctx.renderCache._targetFloorColor.set(params.floorColor);
+    }
     ctx.floor.material.roughness = params.floorRoughness;
     ctx.floor.material.metalness = params.floorMetalness;
     ctx.floor.material.needsUpdate = true;

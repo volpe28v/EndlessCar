@@ -52,12 +52,14 @@ export function updateDayNightCycle() {
     }
 
     // 時間帯の色と天気の色を合成
-    if (ctx.weatherSystem.current !== 'sunny') {
-        timeSkyColor.lerp(ctx.renderCache.weatherSkyColor, 0.7);
-    }
+    timeSkyColor.lerp(ctx.renderCache.weatherSkyColor, 0.7);
 
-    // 空の色を設定
-    ctx.renderer.setClearColor(timeSkyColor.getHex());
+    // 空の色をスムーズに遷移
+    if (!ctx.renderCache._currentSkyColor) {
+        ctx.renderCache._currentSkyColor = timeSkyColor.clone();
+    }
+    ctx.renderCache._currentSkyColor.lerp(timeSkyColor, 0.03);
+    ctx.renderer.setClearColor(ctx.renderCache._currentSkyColor.getHex());
 
     // 光源の強度を設定
     ctx.directionalLight.intensity = lightIntensity;

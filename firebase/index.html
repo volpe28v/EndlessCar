@@ -224,6 +224,102 @@
             color: #666;
             margin-top: 16px;
         }
+        /* レースUI */
+        #race-ui { display: none; }
+        #race-start-btn {
+            position: fixed;
+            bottom: 8px; left: 8px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.4);
+            border-radius: 3px;
+            padding: 5px 12px;
+            font-size: 11px;
+            cursor: pointer;
+            z-index: 50;
+            transition: background-color 0.2s;
+        }
+        #race-start-btn:hover { background-color: rgba(50, 50, 50, 0.7); }
+        #race-countdown {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 120px;
+            font-weight: 700;
+            color: #ff4444;
+            z-index: 300;
+            pointer-events: none;
+            text-shadow: 0 0 40px rgba(0,0,0,0.8);
+        }
+        #race-position-board {
+            position: fixed;
+            bottom: 40px; left: 8px;
+            background: rgba(0, 0, 0, 0.75);
+            color: white;
+            padding: 8px;
+            border-radius: 8px;
+            font-size: 11px;
+            z-index: 50;
+            max-height: 70vh;
+            overflow-y: auto;
+            display: none;
+        }
+        #race-position-board table { border-collapse: collapse; width: 100%; }
+        #race-position-board th { color: #888; text-align: left; padding: 2px 6px; }
+        #race-position-board td { padding: 2px 6px; }
+        #race-position-board .player-car { color: #ffd700; font-weight: bold; }
+        #race-position-board .current-car { background: rgba(255,255,255,0.1); }
+        #position-notify {
+            position: fixed;
+            top: 45%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 36px;
+            font-weight: 700;
+            z-index: 200;
+            pointer-events: none;
+            text-shadow: 0 0 20px rgba(0,0,0,0.8);
+            transition: opacity 0.5s;
+            display: none;
+        }
+        #race-results {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            z-index: 400;
+            color: white;
+        }
+        #race-results h2 {
+            font-size: 28px;
+            font-weight: 300;
+            letter-spacing: 4px;
+            margin-bottom: 16px;
+        }
+        #race-results table { border-collapse: collapse; margin-bottom: 20px; }
+        #race-results th { color: #888; text-align: left; padding: 4px 10px; }
+        #race-results td { padding: 4px 10px; }
+        #race-results .player-car { color: #ffd700; font-weight: bold; }
+        .result-buttons { display: flex; gap: 12px; }
+        .result-buttons button {
+            background: rgba(255,255,255,0.12);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 20px;
+            padding: 10px 24px;
+            font-size: 14px;
+            cursor: pointer;
+            letter-spacing: 1px;
+        }
+        .result-buttons button:hover {
+            background: rgba(255,255,255,0.25);
+            border-color: rgba(255,255,255,0.6);
+        }
         #location-toast {
             position: fixed;
             bottom: 15%;
@@ -330,6 +426,13 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 </head>
 <body>
+    <button id="race-start-btn">RACE</button>
+    <div id="race-ui">
+        <div id="race-countdown"></div>
+        <div id="race-position-board"></div>
+        <div id="position-notify"></div>
+        <div id="race-results"></div>
+    </div>
     <div id="visitor-history"><h2>Visitor History</h2><div id="visitor-list"></div></div>
     <div id="location-toast"><span class="toast-flag"></span><span class="toast-name"></span><span class="toast-meta"></span></div>
     <div id="welcome-overlay">
@@ -395,6 +498,7 @@
         import { CarModelLoader } from './CarModelLoader.js';
         import { FirebaseSync, TEST_MODE, WORLD_CITIES, getRandomCity, getCityLocalTime, getCityGameTime, getCityTimezoneOffset } from './FirebaseSync.js';
         import { PlayerCarManager } from './GhostCar.js';
+        import { RaceManager } from './RaceManager.js';
 
         function log(message) {
             console.log(`[${new Date().toISOString()}] ${message}`);
@@ -463,6 +567,7 @@
 
         // === Firebase & プレイヤー車管理 ===
         const firebaseSync = new FirebaseSync();
+        const raceManager = new RaceManager();
         let playerCarManager = null;
         let lastFocusedIndex = -1; // 前回フォーカスしていた車のインデックス
 
@@ -652,30 +757,44 @@
         const PROXIMITY_THRESHOLD = 0.04; // パス上の距離（余裕をもって広め）
 
         function checkProximityWeather() {
-            if (!playerCarManager) return;
             const focusedCar = ctx.cars[ctx.currentCarIndex];
             if (!focusedCar) return;
 
-            // フォーカス中の車のセッションIDを取得
-            const focusedInfo = playerCarManager.getFocusedPlayerWorld(ctx.currentCarIndex);
-            const focusedSessionId = focusedInfo?.sessionId;
-
             let nearestGap = Infinity;
-            let nearestEntry = null;
-            let nearestSessionId = null;
+            let nearestWd = null;
+            let nearestId = null;
 
-            for (const [sessionId, entry] of playerCarManager.playerCars) {
-                if (sessionId === focusedSessionId) continue;
-                const gap = Math.abs(Car.pathDelta(focusedCar.position, entry.car.position));
-                if (gap < nearestGap) {
-                    nearestGap = gap;
-                    nearestEntry = entry;
-                    nearestSessionId = sessionId;
+            if (raceManager.isActive) {
+                // レースモード: ctx.cars から直接取得
+                for (let i = 0; i < ctx.cars.length; i++) {
+                    if (i === ctx.currentCarIndex) continue;
+                    const car = ctx.cars[i];
+                    const gap = Math.abs(Car.pathDelta(focusedCar.position, car.position));
+                    if (gap < nearestGap) {
+                        nearestGap = gap;
+                        nearestId = `race_${i}`;
+                        nearestWd = raceManager.getProximityWeatherData(i);
+                    }
+                }
+            } else {
+                // 通常モード: playerCarManager から取得
+                if (!playerCarManager) return;
+                const focusedInfo = playerCarManager.getFocusedPlayerWorld(ctx.currentCarIndex);
+                const focusedSessionId = focusedInfo?.sessionId;
+
+                for (const [sessionId, entry] of playerCarManager.playerCars) {
+                    if (sessionId === focusedSessionId) continue;
+                    const gap = Math.abs(Car.pathDelta(focusedCar.position, entry.car.position));
+                    if (gap < nearestGap) {
+                        nearestGap = gap;
+                        nearestWd = entry.worldData;
+                        nearestId = sessionId;
+                    }
                 }
             }
 
-            if (nearestGap < PROXIMITY_THRESHOLD && nearestEntry?.worldData?.weather) {
-                const wd = nearestEntry.worldData;
+            if (nearestGap < PROXIMITY_THRESHOLD && nearestWd?.weather) {
+                const wd = nearestWd;
 
                 // フェードアウト中だったらキャンセル
                 if (_proximityFadeTimer) {
@@ -683,9 +802,9 @@
                     _proximityFadeTimer = null;
                 }
 
-                if (_proximitySessionId !== nearestSessionId) {
+                if (_proximitySessionId !== nearestId) {
                     // 新しい車に近づいた → その車の天気・時刻に切り替え
-                    _proximitySessionId = nearestSessionId;
+                    _proximitySessionId = nearestId;
                     _proximityWeather = wd.weather;
                     ctx.weatherSystem.change(wd.weather, false, wd.temperature, wd.windSpeed);
 
@@ -721,33 +840,43 @@
                     _proximityFadeTimer = null;
                     ctx._proximityGameTime = null;
 
-                    const currentFocused = playerCarManager.getFocusedPlayerWorld(ctx.currentCarIndex);
-                    if (currentFocused?.isLocal) {
-                        if (ctx._myWeather) {
-                            ctx.weatherSystem.change(ctx._myWeather, true, ctx.currentTemperature, ctx.currentWindSpeed);
+                    if (raceManager.isActive) {
+                        // レースモード: フォーカス車の天気に戻す
+                        const wd = raceManager.getProximityWeatherData(ctx.currentCarIndex);
+                        if (wd) {
+                            ctx.weatherSystem.change(wd.weather, false, wd.temperature, wd.windSpeed);
+                            if (wd.tz) ctx.gameTime = getCityGameTime({ tz: wd.tz });
+                            showLocationToast(wd.locationName, wd.countryCode, wd);
                         }
-                        document.getElementById('world-info').classList.remove('remote');
-                        updateLocalWorldDisplay();
-                        showLocationToast(ctx.currentLocationName || 'Your Location', ctx.currentCountryCode, {
-                            localTime: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
-                            weather: ctx._myWeather,
-                            temperature: ctx.currentTemperature,
-                        });
-                    } else if (currentFocused) {
-                        ctx.weatherSystem.change(currentFocused.weather, false, currentFocused.temperature, currentFocused.windSpeed);
-                        if (currentFocused.tz) {
-                            ctx.gameTime = getCityGameTime({ tz: currentFocused.tz });
-                        } else if (currentFocused.timeOffset != null) {
-                            const localOffset = new Date().getTimezoneOffset();
-                            const diffMinutes = localOffset - currentFocused.timeOffset;
-                            const now = new Date();
-                            const remoteTime = new Date(now.getTime() + diffMinutes * 60000);
-                            ctx.gameTime = remoteTime.getHours() + remoteTime.getMinutes() / 60;
+                    } else {
+                        const currentFocused = playerCarManager.getFocusedPlayerWorld(ctx.currentCarIndex);
+                        if (currentFocused?.isLocal) {
+                            if (ctx._myWeather) {
+                                ctx.weatherSystem.change(ctx._myWeather, true, ctx.currentTemperature, ctx.currentWindSpeed);
+                            }
+                            document.getElementById('world-info').classList.remove('remote');
+                            updateLocalWorldDisplay();
+                            showLocationToast(ctx.currentLocationName || 'Your Location', ctx.currentCountryCode, {
+                                localTime: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
+                                weather: ctx._myWeather,
+                                temperature: ctx.currentTemperature,
+                            });
+                        } else if (currentFocused) {
+                            ctx.weatherSystem.change(currentFocused.weather, false, currentFocused.temperature, currentFocused.windSpeed);
+                            if (currentFocused.tz) {
+                                ctx.gameTime = getCityGameTime({ tz: currentFocused.tz });
+                            } else if (currentFocused.timeOffset != null) {
+                                const localOffset = new Date().getTimezoneOffset();
+                                const diffMinutes = localOffset - currentFocused.timeOffset;
+                                const now = new Date();
+                                const remoteTime = new Date(now.getTime() + diffMinutes * 60000);
+                                ctx.gameTime = remoteTime.getHours() + remoteTime.getMinutes() / 60;
+                            }
+                            const name = currentFocused.locationName || currentFocused.location || 'Unknown';
+                            document.getElementById('world-location').textContent = formatWorldTitle(name, currentFocused);
+                            document.getElementById('world-detail').textContent = formatWorldWeather(currentFocused);
+                            showLocationToast(name, currentFocused.countryCode, currentFocused);
                         }
-                        const name = currentFocused.locationName || currentFocused.location || 'Unknown';
-                        document.getElementById('world-location').textContent = formatWorldTitle(name, currentFocused);
-                        document.getElementById('world-detail').textContent = formatWorldWeather(currentFocused);
-                        showLocationToast(name, currentFocused.countryCode, currentFocused);
                     }
                 }, 0);
             }
@@ -1110,35 +1239,47 @@
                 mCtx.stroke();
             }
 
-            // プレイヤーのピン描画（自分も他人も同じデータソース: worldData）
-            if (!playerCarManager) return;
-            const myId = firebaseSync.getMySessionId();
+            // ピンデータを収集（通常モード / レースモード共通）
             const pins = [];
-
-            // 呼吸パラメータ（全ピン共通）
             const t = Date.now() / 1000;
             const breathe = 0.5 + 0.5 * Math.sin(t * 2.0);
 
-            // 現在天気表示中の国（近接天気 or フォーカス車）
-            const activeSessionId = _proximitySessionId || (() => {
-                const f = playerCarManager.getFocusedPlayerWorld(ctx.currentCarIndex);
-                return f?.sessionId || null;
-            })();
+            // ピン一覧を構築
+            const pinList = [];
+            if (raceManager.isActive) {
+                // レースモード: ctx.cars の _raceCity からピンを生成
+                for (let i = 0; i < ctx.cars.length; i++) {
+                    const car = ctx.cars[i];
+                    const city = car._raceCity;
+                    if (!city) continue;
+                    const isPlayer = i === raceManager.playerCarIndex;
+                    const isFocused = i === ctx.currentCarIndex;
+                    const isActive = _proximitySessionId === `race_${i}` || isFocused;
+                    pinList.push({ lat: city.lat, lon: city.lon, carIdx: i, id: `race_${i}`, isLocal: isPlayer, isNpc: !isPlayer, isFocused, isActive });
+                }
+            } else if (playerCarManager) {
+                // 通常モード
+                const myId = firebaseSync.getMySessionId();
+                const activeSessionId = _proximitySessionId || (() => {
+                    const f = playerCarManager.getFocusedPlayerWorld(ctx.currentCarIndex);
+                    return f?.sessionId || null;
+                })();
+                for (const [sessionId, entry] of playerCarManager.playerCars) {
+                    const lat = entry.worldData?.lat;
+                    const lon = entry.worldData?.lon;
+                    if (!lat && !lon) continue;
+                    const carIdx = playerCarManager.getCarIndex(sessionId);
+                    pinList.push({ lat, lon, carIdx, id: sessionId, isLocal: sessionId === myId, isNpc: sessionId.startsWith('npc_'), isFocused: carIdx === ctx.currentCarIndex, isActive: sessionId === activeSessionId });
+                }
+            }
 
-            for (const [sessionId, entry] of playerCarManager.playerCars) {
-                const lat = entry.worldData?.lat;
-                const lon = entry.worldData?.lon;
-                if (!lat && !lon) continue; // 0,0 は未取得
-
-                const isLocal = sessionId === myId;
-                const isNpc = sessionId.startsWith('npc_');
-                const carIdx = playerCarManager.getCarIndex(sessionId);
-                const isFocused = carIdx === ctx.currentCarIndex;
-                const isActive = sessionId === activeSessionId; // 現在天気表示中
+            // ピン描画
+            for (const pin of pinList) {
+                const { lat, lon, carIdx, id, isLocal, isNpc, isFocused, isActive } = pin;
                 const x = lonToX(lon);
                 const y = latToY(lat);
 
-                // ピン本体色（自分=金、オンライン=緑、NPC=青、アクティブ=明るく）
+                // ピン本体色
                 let color, glowColor;
                 if (isLocal) {
                     color = isFocused ? '#ffd700' : '#cc9900';
@@ -1154,10 +1295,10 @@
                     glowColor = [100, 170, 255];
                 }
 
-                // グローオーラ（radialGradient + shadowBlur）
-                const glowR = (isFocused || isActive) ? 18 : 10;
+                const highlighted = isFocused || isActive;
+                const glowR = highlighted ? 18 : 10;
                 const grad = mCtx.createRadialGradient(x, y, 0, x, y, glowR);
-                const glowAlpha = ((isFocused || isActive) ? 0.8 : 0.5) * breathe;
+                const glowAlpha = (highlighted ? 0.8 : 0.5) * breathe;
                 grad.addColorStop(0, `rgba(${glowColor},${glowAlpha})`);
                 grad.addColorStop(0.3, `rgba(${glowColor},${glowAlpha * 0.6})`);
                 grad.addColorStop(0.6, `rgba(${glowColor},${glowAlpha * 0.2})`);
@@ -1167,25 +1308,23 @@
                 mCtx.fillStyle = grad;
                 mCtx.fill();
 
-                // ピン本体（shadowBlurで発光感を追加）
                 mCtx.save();
                 mCtx.shadowColor = `rgba(${glowColor},0.9)`;
-                mCtx.shadowBlur = ((isFocused || isActive) ? 12 : 6) * breathe;
+                mCtx.shadowBlur = (highlighted ? 12 : 6) * breathe;
                 mCtx.beginPath();
-                mCtx.arc(x, y, (isFocused || isActive) ? 4 : 3, 0, Math.PI * 2);
+                mCtx.arc(x, y, highlighted ? 4 : 3, 0, Math.PI * 2);
                 mCtx.fillStyle = color;
                 mCtx.fill();
                 mCtx.restore();
                 mCtx.beginPath();
-                mCtx.arc(x, y, (isFocused || isActive) ? 4 : 3, 0, Math.PI * 2);
+                mCtx.arc(x, y, highlighted ? 4 : 3, 0, Math.PI * 2);
                 mCtx.fillStyle = color;
                 mCtx.fill();
                 mCtx.strokeStyle = 'white';
-                mCtx.lineWidth = (isFocused || isActive) ? 1.5 : 0.8;
+                mCtx.lineWidth = highlighted ? 1.5 : 0.8;
                 mCtx.stroke();
 
-                // ダブル波紋（フォーカス時 or アクティブ時）
-                if (isFocused || isActive) {
+                if (highlighted) {
                     const rippleColor = isActive && !isFocused ? `255,136,68` : `255,255,255`;
                     for (let ring = 0; ring < 2; ring++) {
                         const phase = ((Date.now() + ring * 1000) % 2000) / 2000;
@@ -1197,7 +1336,7 @@
                     }
                 }
 
-                pins.push({ x, y, carIdx, sessionId });
+                pins.push({ x, y, carIdx, sessionId: id });
             }
             canvas._pins = pins;
         }
@@ -1357,14 +1496,21 @@
 
             updateDayNightCycle();
             weatherSystem.update(deltaTime, camera);
+            ctx.renderCache.lerpWeatherColors();
 
             // 車の更新
             for (let i = 0; i < ctx.cars.length; i++) {
                 ctx.cars[i].update(deltaTime);
             }
 
-            // 世界切替チェック
-            switchWorld(ctx.currentCarIndex);
+            // レースモード更新
+            if (raceManager.isActive) {
+                raceManager.updateRace();
+                if (frameCount % 10 === 0) raceManager.updateUI();
+            }
+
+            // 世界切替チェック（レースモード中はスキップ）
+            if (!raceManager.isActive) switchWorld(ctx.currentCarIndex);
 
             // 近接天気チェック（3フレームごと）
             if (frameCount % 3 === 0) checkProximityWeather();
@@ -1680,6 +1826,48 @@
             }
             if (nearest && nearestDist < 20) {
                 dismissWelcome(nearest.carIdx);
+            }
+        });
+
+        // === レースモード開始・終了 ===
+        let _npcWeatherCache = {};
+
+        // 現在位置から自分の都市オブジェクトを生成
+        function getMyRaceCity() {
+            const testCity = firebaseSync.getTestCity?.();
+            if (TEST_MODE && testCity) return testCity;
+            return {
+                name: ctx.currentLocationName || 'Your Location',
+                country: ctx.currentCountryCode || 'JP',
+                lat: ctx.currentLat || 35.68,
+                lon: ctx.currentLon || 139.65,
+                tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                offset: new Date().getTimezoneOffset(),
+            };
+        }
+
+        document.getElementById('race-start-btn').addEventListener('click', () => {
+            if (raceManager.isActive) return;
+
+            // NPC天気キャッシュを取得してからレース開始
+            firebaseSync.db.ref('endlesscar/npc_weather').once('value').then(snap => {
+                _npcWeatherCache = snap.val() || {};
+                raceManager.startRace(scene, carPath, getMyRaceCity(), _npcWeatherCache);
+                document.getElementById('race-start-btn').style.display = 'none';
+            });
+        });
+
+        // 結果画面のボタン（動的に生成されるのでdelegation）
+        document.addEventListener('click', (e) => {
+            if (e.target.id === 'raceAgainBtn') {
+                raceManager.endRaceMode(scene, carPath);
+                raceManager.startRace(scene, carPath, getMyRaceCity(), _npcWeatherCache);
+            }
+            if (e.target.id === 'normalModeBtn') {
+                raceManager.endRaceMode(scene, carPath);
+                document.getElementById('race-start-btn').style.display = '';
+                // 通常モードの車を再構築（ページリロードが確実）
+                location.reload();
             }
         });
 

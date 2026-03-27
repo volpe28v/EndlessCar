@@ -1057,8 +1057,9 @@
                 document.getElementById('world-location').textContent = testCity.name;
             }
 
-            // 他プレイヤーの参加 → 車を1台追加
+            // 他プレイヤーの参加 → 車を1台追加（レースモード中はスキップ）
             firebaseSync.onPlayerJoin((id, data) => {
+                if (raceManager.isActive) return;
                 playerCarManager.addPlayerCar(id, data);
                 updatePlayerCount();
             });
@@ -1092,8 +1093,9 @@
                 }
             });
 
-            // 他プレイヤーの離脱 → 車を削除
+            // 他プレイヤーの離脱 → 車を削除（レースモード中はスキップ）
             firebaseSync.onPlayerLeave((id) => {
+                if (raceManager.isActive) return;
                 // フォーカスが削除される車だったら自分に戻す
                 const removingIdx = playerCarManager.getCarIndex(id);
                 if (ctx.currentCarIndex === removingIdx) {

@@ -236,7 +236,7 @@ export class RaceManager {
 
         for (const car of ctx.cars) {
             const data = this.carData.get(car);
-            if (data.finished) continue;
+            if (!data || data.finished) continue;
             allFinished = false;
 
             const prev = data.lastPosition;
